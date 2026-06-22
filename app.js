@@ -212,20 +212,29 @@ function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(to
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
-async function loadActivity(){
-  // en paralelo: mis cacas (para los chips) + grafo social (amigos + grupos)
-  const [mine, friends, groups] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid) ]);
-  // chips (hoy / semana natural / racha)
-  const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
-  for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
-  let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
-  $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-  // nombres de MIS amigos (para revelar quién reaccionó; el resto, anónimo)
-  friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
-  // feed combinado reutilizando el grafo ya cargado (sin re-leer amigos/grupos)
-  homeFeedData=await homeFeed(uid, 12, [friends, groups]);
-  feedShown=FEED_PAGE;
-  renderFeedChips(); renderFeed();
+let _feedLoadedAt=0, _feedLoading=false;
+async function loadActivity(mode){
+  const force = mode==="force";
+  if(_feedLoading) return;
+  // guard de frescura: si recargamos hace poco, no volvemos a leer Firestore (ahorra cuota)
+  if(!force && Date.now()-_feedLoadedAt < 12000){ renderFeedChips(); renderFeed(); return; }
+  _feedLoading=true;
+  try{
+    // en paralelo: mis cacas (para los chips) + grafo social (amigos + grupos)
+    const [mine, friends, groups] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid) ]);
+    // chips (hoy / semana natural / racha)
+    const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
+    for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
+    let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
+    $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
+    // nombres de MIS amigos (para revelar quién reaccionó; el resto, anónimo)
+    friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
+    // feed combinado reutilizando el grafo ya cargado (sin re-leer amigos/grupos)
+    homeFeedData=await homeFeed(uid, 12, [friends, groups]);
+    feedShown=FEED_PAGE;
+    renderFeedChips(); renderFeed();
+    _feedLoadedAt=Date.now();
+  } finally { _feedLoading=false; }
 }
 // ── filtros del feed (chips + búsqueda) ──
 let feedScope="all", feedQ="";
@@ -556,14 +565,14 @@ $("addBtn").addEventListener("click",async e=>{
     // entrada optimista: se ve al instante; loadActivity la sustituye con datos reales
     homeFeedData.unshift({ ts:Date.now(), uid, id:"local-"+Date.now(), name:me?.displayName||"", color:me?.color||colorForUid(uid), contexts:[{type:"tú"}], n:(me?.totalCount||0)+1, reactions:{} });
     if(document.querySelector(".view.is-active")?.dataset.view==="inicio"){ feedShown=Math.min(feedShown+1,homeFeedData.length); renderFeed(); }
-    loadActivity();
+    loadActivity("force");
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
 async function undoCaca(){
   if(busy||!uid)return; busy=true;
-  try{ const ok=await removeCaca(uid); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity(); }
+  try{ const ok=await removeCaca(uid); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity("force"); }
   catch(err){ toast("No se pudo deshacer"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 }
@@ -571,7 +580,7 @@ $("fixBtn").addEventListener("click",async()=>{
   const cur=me?.totalCount||0;
   const v=prompt("¿A cuántas cacas quieres ajustar tu contador de este año?",cur);
   if(v===null)return; const n=parseInt(v,10); if(isNaN(n)||n<0)return toast("Número no válido");
-  try{ await setCount(uid,n); loadActivity(); toast("Contador ajustado ✅"); }
+  try{ await setCount(uid,n); loadActivity("force"); toast("Contador ajustado ✅"); }
   catch(err){ toast("No se pudo ajustar"); console.error(err); }
 });
 
@@ -588,7 +597,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity(); }
+  try{ const loc=await getGeo(); await addCaca(uid,loc); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
   catch(err){ toast("No se pudo guardar"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -600,7 +609,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast("Fecha no válida");
   if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity(); }
+  try{ await addCacaAt(uid,ts); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
   catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 
@@ -767,10 +776,10 @@ function renderStats(){
 
 /* ---------- refrescar al volver a primer plano ---------- */
 // La PWA se "reanuda" en la misma pestaña sin navegar; recargamos sus datos.
-function refreshActiveView(){
+function refreshActiveView(force){
   if(!uid) return Promise.resolve();
   const active = document.querySelector(".view.is-active")?.dataset.view;
-  if(active==="inicio") return loadActivity();
+  if(active==="inicio") return loadActivity(force?"force":undefined);
   if(active==="amigos") return renderAmigos();
   if(active==="grupos") return renderGrupos();
   if(active==="perfil") return loadStats();
@@ -808,7 +817,7 @@ if(_standalone){
     if(dist*DAMP>=TH){
       ptr.style.transition="transform .2s"; ptr.style.transform="translateY(14px)"; ptr.style.opacity="1"; ptr.classList.add("refreshing");
       const t0=Date.now();
-      try{ await refreshActiveView(); }catch(_){}
+      try{ await refreshActiveView(true); }catch(_){}   // PTR siempre fuerza datos frescos
       setTimeout(reset, Math.max(0, 450-(Date.now()-t0)));   // deja ver el spin un mínimo
     } else reset();
   });

@@ -76,6 +76,8 @@ export async function addCaca(uid, loc){
   await updateDoc(doc(db, "users", uid), { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
 }
 export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
+// Ajustes del perfil (nickname, color, notificaciones…)
+export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.

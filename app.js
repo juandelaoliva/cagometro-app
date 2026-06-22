@@ -3,7 +3,7 @@
    ============================================================ */
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
-  watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, myActivity,
+  watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
@@ -151,6 +151,42 @@ $("fiAccept").addEventListener("click", async ()=>{
   catch(err){ toast("No se pudo"); console.error(err); }
 });
 $("inviteFriendBtn").addEventListener("click",()=> shareInvite(inviteUrl("friend="+encodeURIComponent(uid)), "¿Te unes a mi red en El Cagómetro? 💩"));
+
+/* ---------- ajustes (desde el avatar de la cabecera) ---------- */
+const SET_COLORS=["#6E3F1C","#E59A2E","#2E9E68","#9A5A2A","#D8573F","#3F6EA5","#8E5BA6","#C2406E"];
+function renderSetColors(cur){
+  const c=(cur||"").toLowerCase();
+  $("setColors").innerHTML=SET_COLORS.map(x=>`<button class="swatch ${x.toLowerCase()===c?'on':''}" data-color="${x}" style="background:${x}" aria-label="color ${x}"></button>`).join("");
+}
+function openSettings(){
+  if(!me)return;
+  const col=me.color||colorForUid(uid);
+  $("setName").value=me.displayName||"";
+  $("setNamePreview").textContent=me.displayName||"—";
+  $("setEmail").textContent=me.email||"—";
+  $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
+  renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
+  $("settingsSheet").hidden=false;
+}
+$("settingsBtn").addEventListener("click", openSettings);
+$("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
+$("settingsSheet").addEventListener("click", e=>{ if(e.target===$("settingsSheet")) $("settingsSheet").hidden=true; });
+$("setNameSave").addEventListener("click", async ()=>{
+  const n=$("setName").value.trim(); if(!n) return toast("Pon un nombre");
+  if(n===me?.displayName) return toast("Sin cambios");
+  try{ await updateMe(uid,{displayName:n}); $("setNamePreview").textContent=n; $("setAvatar").textContent=initial(n); toast("Nombre actualizado ✅"); refreshActiveView(); }
+  catch(err){ toast("No se pudo"); console.error(err); }
+});
+$("setColors").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-color]"); if(!b)return;
+  const c=b.dataset.color; renderSetColors(c); $("setAvatar").style.background=c;
+  try{ await updateMe(uid,{color:c}); toast("Color actualizado 🎨"); refreshActiveView(); }
+  catch(err){ toast("No se pudo"); console.error(err); }
+});
+$("setNotif").addEventListener("change", async e=>{
+  try{ await updateMe(uid,{notifications:e.target.checked}); toast(e.target.checked?"Te avisaremos cuando esté listo 🔔":"Notificaciones desactivadas"); }
+  catch(err){ e.target.checked=!e.target.checked; toast("No se pudo"); console.error(err); }
+});
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }

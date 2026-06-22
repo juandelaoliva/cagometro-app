@@ -75,7 +75,7 @@
   <div id="app" class="app" hidden>
     <header class="topbar">
       <div class="brand"><span class="brand__mark">💩</span><span class="brand__name">El Cagómetro</span></div>
-      <button class="profile" data-view="perfil"><span class="avatar" id="hdrAvatar">··</span></button>
+      <button class="profile" id="settingsBtn" aria-label="Ajustes"><span class="avatar" id="hdrAvatar">··</span></button>
     </header>
 
     <main class="screen">
@@ -177,14 +177,9 @@
         <div class="block"><div class="block__head"><h2>Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
 
         <div class="block">
-          <div class="block__head"><h2>Ubicación</h2><span class="block__hint">al sumar una caca</span></div>
-          <div class="yearsel" id="locSel"></div>
+          <div class="block__head"><h2>Ubicación</h2><span class="block__hint">tus cacas en el mapa</span></div>
           <button class="btn-solid mapbtn" id="openMapBtn">🗺️ Ver mi mapa</button>
         </div>
-
-        <button class="btn-ghost" id="fixBtn">Corregir mi contador (este año)</button>
-        <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
-        <p class="footnote" id="pMode"></p>
       </section>
     </main>
 
@@ -261,6 +256,44 @@
       </div>
       <div class="ps-actions" id="psActions"></div>
       <button class="btn-ghost" id="psClose">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- ───────── Ajustes (desde el avatar de la cabecera) ───────── -->
+  <div class="sheet" id="settingsSheet" hidden>
+    <div class="sheet__panel sheet__panel--profile">
+      <h3 class="sheet__title">Ajustes</h3>
+
+      <div class="set-id">
+        <span class="avatar avatar--lg" id="setAvatar">··</span>
+        <div class="set-id__txt"><div class="pcard__name" id="setNamePreview">—</div><div class="pcard__email" id="setEmail">—</div></div>
+      </div>
+
+      <label class="set-label" for="setName">Nombre <small>(lo ven tus amigos)</small></label>
+      <div class="set-row">
+        <input class="field" id="setName" type="text" maxlength="24" placeholder="Tu nombre" autocomplete="off" />
+        <button class="btn-solid set-save" id="setNameSave">Guardar</button>
+      </div>
+
+      <label class="set-label">Color de tu avatar</label>
+      <div class="swatches" id="setColors"></div>
+
+      <label class="set-label">Ubicación <small>al sumar una caca</small></label>
+      <div class="yearsel" id="locSel"></div>
+
+      <label class="set-label">Notificaciones <small>(próximamente)</small></label>
+      <label class="toggle">
+        <input type="checkbox" id="setNotif" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__txt">Avisarme de reacciones, amistades e hitos</span>
+      </label>
+
+      <div class="set-actions">
+        <button class="btn-ghost" id="fixBtn">Corregir mi contador (este año)</button>
+        <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
+      </div>
+      <p class="footnote" id="pMode"></p>
+      <button class="btn-ghost" id="setClose">Cerrar</button>
     </div>
   </div>
 

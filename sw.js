@@ -1,5 +1,5 @@
 /* Cagómetro service worker — offline app shell (network-first) */
-const CACHE = "cagometro-20260622-190911";
+const CACHE = "cagometro-20260622-191439";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./store.js", "./firebase.js",

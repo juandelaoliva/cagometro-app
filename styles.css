@@ -398,6 +398,10 @@ ol,ul{list-style:none}
 .cc{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .cc--friend{background:var(--mint-soft);color:#1c6b46}
 .cc--group{background:var(--gold-soft);color:#7a4e18}
+.feedchips{display:flex;gap:7px;overflow-x:auto;padding-bottom:8px;margin-bottom:8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.feedchips::-webkit-scrollbar{display:none}
+.feedchips .ychip{flex:none;white-space:nowrap}
+.feedsearch{width:100%;margin-bottom:12px;font-size:15px}
 .loadmore{display:block;width:100%;margin-top:12px;padding:12px;border-radius:13px;background:var(--card);border:1px solid var(--line);font-weight:700;color:var(--brand-2);box-shadow:var(--shadow)}
 .loadmore:active{transform:translateY(1px)}
 

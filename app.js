@@ -4,8 +4,8 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, myActivity,
-  sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends, friendsFeed,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed, groupYearCacas,
+  sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL } from "./firebase.js";
@@ -150,9 +150,33 @@ async function loadActivity(){
   $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
   // feed combinado: tú + amigos + grupos
   homeFeedData=await homeFeed(uid);
-  feedShown=Math.min(FEED_PAGE, homeFeedData.length);
-  renderFeed();
+  feedShown=FEED_PAGE;
+  renderFeedChips(); renderFeed();
 }
+// ── filtros del feed (chips + búsqueda) ──
+let feedScope="all", feedQ="";
+function feedGroups(){
+  const m=new Map();
+  for(const c of homeFeedData) for(const x of (c.contexts||[])) if(x.type==="group" && x.gid) m.set(x.gid, x.name);
+  return [...m].map(([gid,name])=>({gid,name}));
+}
+function renderFeedChips(){
+  const base=[["all","Todo"],["me","Yo"],["friends","Amigos"]];
+  const chips=base.map(([k,l])=>`<button class="ychip ${feedScope===k?'on':''}" data-fscope="${k}">${l}</button>`)
+    .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${g.gid}">🏆 ${g.name}</button>`));
+  $("feedChips").innerHTML=chips.join("");
+}
+function filteredFeed(){
+  let arr=homeFeedData;
+  if(feedScope==="me") arr=arr.filter(c=>c.uid===uid);
+  else if(feedScope==="friends") arr=arr.filter(c=>c.uid!==uid);
+  else if(feedScope!=="all") arr=arr.filter(c=>(c.contexts||[]).some(x=>x.gid===feedScope));
+  if(feedQ){ const q=feedQ.toLowerCase(); arr=arr.filter(c=>(c.name||"").toLowerCase().includes(q)); }
+  return arr;
+}
+$("feedChips").addEventListener("click", e=>{ const b=e.target.closest("[data-fscope]"); if(!b)return;
+  feedScope=b.dataset.fscope; feedShown=FEED_PAGE; renderFeedChips(); renderFeed(); });
+$("feedSearch").addEventListener("input", e=>{ feedQ=e.target.value.trim(); feedShown=FEED_PAGE; renderFeed(); });
 // Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
 const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
 function _feedItem(c,i){
@@ -168,12 +192,14 @@ function _feedItem(c,i){
   </li>`;
 }
 function renderFeed(){
-  const items=homeFeedData.slice(0,feedShown);
-  $("feed").innerHTML = items.length ? items.map((c,i)=>_feedItem(c,i)).join("")
-    : `<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Aún no hay actividad. ¡Suma la primera! 👆</span></li>`;
-  $("loadMore").hidden = feedShown>=homeFeedData.length;
+  const all=filteredFeed();
+  const items=all.slice(0,feedShown);
+  const empty = feedQ||feedScope!=="all" ? "Nada por aquí con este filtro." : "Aún no hay actividad. ¡Suma la primera! 👆";
+  $("feed").innerHTML = items.length ? items.map(c=>_feedItem(c, homeFeedData.indexOf(c))).join("")
+    : `<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">${empty}</span></li>`;
+  $("loadMore").hidden = feedShown>=all.length;
 }
-$("loadMore").addEventListener("click",()=>{ feedShown=Math.min(feedShown+FEED_PAGE, homeFeedData.length); renderFeed(); });
+$("loadMore").addEventListener("click",()=>{ feedShown=feedShown+FEED_PAGE; renderFeed(); });
 
 // ── click en una caja de actividad → ficha de la persona ──
 const PM=["E","F","M","A","M","J","J","A","S","O","N","D"];
@@ -301,7 +327,7 @@ $("addFriendBtn").addEventListener("click",async()=>{
     msg.textContent=err.message==="no-user"?"No hay ningún usuario con ese email.":err.message==="self"?"Ese eres tú 😄":"No se pudo enviar."; msg.hidden=false; }
 });
 async function renderAmigos(){
-  const [fships, friends, feed] = await Promise.all([ myFriendships(uid), getFriends(uid), friendsFeed(uid) ]);
+  const [fships, friends] = await Promise.all([ myFriendships(uid), getFriends(uid) ]);
   // requests
   const pending=fships.filter(f=>f.status==="pending");
   const incoming=pending.filter(f=>f.requestedBy!==uid);
@@ -322,9 +348,6 @@ async function renderAmigos(){
     .sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
   $("friendsRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
     ||`<li><span class="nm" style="color:var(--ink-faint)">Añade amigos para competir 👇</span></li>`;
-  // feed
-  $("friendsFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${fmtWhen(c.ts)}</span></li>`).join("")
-    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad de amigos todavía.</span></li>`;
 }
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
@@ -367,7 +390,7 @@ const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic
 async function openGroup(group){
   activeGroup=group; $("groupDetail").hidden=false;
   $("gdName").textContent=group.name; $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
-  const [board,feed,yc]=await Promise.all([groupLeaderboard(group), groupFeed(group), groupYearCacas(group)]);
+  const [board,yc]=await Promise.all([groupLeaderboard(group), groupYearCacas(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
   // estadísticas del grupo (este año)
   const byMonth=new Array(12).fill(0); for(const c of yc){ byMonth[tzParts(c.ts,c.tz).month-1]++; }
@@ -379,8 +402,6 @@ async function openGroup(group){
     <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
   const gmax=Math.max(1,...byMonth);
   $("gChartMonth").innerHTML=byMonth.map((v,i)=>`<div class="bar ${v===gmax&&v>0?'peak':''}"><i style="height:${Math.round(v/gmax*100)}%"></i><span>${PM[i]}</span></div>`).join("");
-  $("groupFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${fmtWhen(c.ts)}</span></li>`).join("")
-    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad todavía.</span></li>`;
 }
 
 /* ---------- nav ---------- */

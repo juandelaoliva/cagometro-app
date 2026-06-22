@@ -309,9 +309,11 @@ applyMode();
 // Service worker + auto-update: cuando se despliega una versión nueva, el SW
 // nuevo toma control y la app se recarga sola (no más caché vieja en el móvil).
 if("serviceWorker"in navigator){
-  let _reloading=false;
+  let _reloading=false, _swReg=null;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading)return; _reloading=true; location.reload(); });
   window.addEventListener("load", async ()=>{
-    try{ const reg=await navigator.serviceWorker.register("sw.js"); reg.update(); setInterval(()=>reg.update().catch(()=>{}), 60000); }catch(e){}
+    try{ _swReg=await navigator.serviceWorker.register("sw.js"); _swReg.update(); setInterval(()=>_swReg.update().catch(()=>{}), 60000); }catch(e){}
   });
+  // al volver a primer plano (típico en iOS standalone), buscar versión nueva
+  document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && _swReg) _swReg.update().catch(()=>{}); });
 }

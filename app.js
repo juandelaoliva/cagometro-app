@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL } from "./firebase.js";
@@ -96,11 +96,12 @@ async function loadActivity(){
   feedShown=Math.min(FEED_PAGE, homeFeedData.length);
   renderFeed();
 }
-const _ctxChip=l=>`<span class="cc ${l==='amigo'?'cc--friend':'cc--group'}">${l}</span>`;
-function _feedItem(c){
-  const chips=(c.contexts||[]).filter(l=>l!=="tú").map(_ctxChip).join("");
+const _ctxChip=c=> c.type==="amigo" ? `<span class="cc cc--friend">amigo</span>`
+  : c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
+function _feedItem(c,i){
+  const chips=(c.contexts||[]).filter(x=>x.type!=="tú").map(_ctxChip).join("");
   const head=c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`;
-  return `<li class="feed__item">
+  return `<li class="feed__item" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
       <div class="feed__line">${head} <b class="feed__n">${c.n}</b></div>
@@ -111,11 +112,39 @@ function _feedItem(c){
 }
 function renderFeed(){
   const items=homeFeedData.slice(0,feedShown);
-  $("feed").innerHTML = items.length ? items.map(_feedItem).join("")
+  $("feed").innerHTML = items.length ? items.map((c,i)=>_feedItem(c,i)).join("")
     : `<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Aún no hay actividad. ¡Suma la primera! 👆</span></li>`;
   $("loadMore").hidden = feedShown>=homeFeedData.length;
 }
 $("loadMore").addEventListener("click",()=>{ feedShown=Math.min(feedShown+FEED_PAGE, homeFeedData.length); renderFeed(); });
+
+// ── click en una caja de actividad → ficha de la persona ──
+const PM=["E","F","M","A","M","J","J","A","S","O","N","D"];
+$("feed").addEventListener("click", e=>{
+  const li=e.target.closest(".feed__item[data-i]"); if(!li)return;
+  const entry=homeFeedData[+li.dataset.i]; if(entry) openPersonSheet(entry);
+});
+async function openPersonSheet(entry){
+  if(entry.uid===uid){ setView("perfil"); return; }    // tu propia caca → tu perfil
+  $("psAvatar").textContent=initial(entry.name); $("psAvatar").style.background=entry.color;
+  $("psName").textContent=entry.name; $("psTotal").textContent="…"; $("psChart").innerHTML=""; $("psGroups").innerHTML="";
+  $("psSheet").hidden=false;
+  const [u,cacas]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,2000)]);
+  $("psTotal").textContent=`${u?.totalCount||0} cacas este año`;
+  const yr=new Date().getFullYear(); const m=new Array(12).fill(0);
+  for(const c of cacas){ const p=tzParts(c.ts,c.tz); if(p.year===yr) m[p.month-1]++; }
+  const max=Math.max(1,...m);
+  $("psChart").innerHTML=m.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${PM[i]}</span></div>`).join("");
+  const gs=(entry.contexts||[]).filter(c=>c.type==="group");
+  $("psGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg" data-gid="${g.gid}">🏆 ${g.name}</button>`).join("");
+}
+$("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
+$("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
+$("psGroups").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-gid]"); if(!b)return;
+  $("psSheet").hidden=true; setView("grupos");
+  const gs=await myGroups(uid); myGroupsCache=gs; const g=gs.find(x=>x.id===b.dataset.gid); if(g) openGroup(g);
+});
 
 /* ---------- +1 / −1 / corregir ---------- */
 let busy=false;
@@ -236,11 +265,22 @@ async function renderGrupos(){
   if(activeGroup){ const still=myGroupsCache.find(g=>g.id===activeGroup.id); if(still) openGroup(still); else { activeGroup=null; $("groupDetail").hidden=true; } }
 }
 function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) openGroup(g); }
+const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 async function openGroup(group){
   activeGroup=group; $("groupDetail").hidden=false;
   $("gdName").textContent=group.name; $("shareCode").textContent=`Código: ${group.inviteCode}`;
-  const [board,feed]=await Promise.all([groupLeaderboard(group), groupFeed(group)]);
+  const [board,feed,yc]=await Promise.all([groupLeaderboard(group), groupFeed(group), groupYearCacas(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
+  // estadísticas del grupo (este año)
+  const byMonth=new Array(12).fill(0); for(const c of yc){ byMonth[tzParts(c.ts,c.tz).month-1]++; }
+  const total=yc.length, members=(group.members||[]).length, bestIdx=byMonth.indexOf(Math.max(...byMonth,0));
+  $("gStatGrid").innerHTML=`
+    <div class="stat stat--accent"><b>${total}</b><span>total del grupo</span></div>
+    <div class="stat"><b>${members}</b><span>miembros</span></div>
+    <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>mejor mes</span></div>
+    <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
+  const gmax=Math.max(1,...byMonth);
+  $("gChartMonth").innerHTML=byMonth.map((v,i)=>`<div class="bar ${v===gmax&&v>0?'peak':''}"><i style="height:${Math.round(v/gmax*100)}%"></i><span>${PM[i]}</span></div>`).join("");
   $("groupFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${fmtWhen(c.ts)}</span></li>`).join("")
     ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad todavía.</span></li>`;
 }

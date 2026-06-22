@@ -395,6 +395,14 @@ ol,ul{list-style:none}
 .loadmore{display:block;width:100%;margin-top:12px;padding:12px;border-radius:13px;background:var(--card);border:1px solid var(--line);font-weight:700;color:var(--brand-2);box-shadow:var(--shadow)}
 .loadmore:active{transform:translateY(1px)}
 
+/* ── ficha de persona ────────────────────────────────────────────── */
+.feed__item[data-i]{cursor:pointer}
+.ps-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.ps-head .avatar--lg{margin:0}
+.psg-row{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.psg{padding:13px;border-radius:13px;width:100%}
+#psClose{margin-top:14px}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

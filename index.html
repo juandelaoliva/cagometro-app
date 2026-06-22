@@ -96,6 +96,14 @@
             <ol class="rank" id="groupRank"></ol>
           </div>
           <div class="block">
+            <div class="block__head"><h2>Estadísticas</h2><span class="block__hint">este año</span></div>
+            <div class="statgrid" id="gStatGrid"></div>
+          </div>
+          <div class="block">
+            <div class="block__head"><h2>Por mes (grupo)</h2></div>
+            <div class="chart" id="gChartMonth"></div>
+          </div>
+          <div class="block">
             <div class="block__head"><h2>Actividad del grupo</h2></div>
             <ul class="feed" id="groupFeed"></ul>
           </div>
@@ -177,6 +185,20 @@
         <button class="btn-ghost" id="lateCancel">Cancelar</button>
         <button class="btn-solid" id="lateConfirm">Añadir 💩</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ───────── Ficha de persona (desde Actividad) ───────── -->
+  <div class="sheet" id="psSheet" hidden>
+    <div class="sheet__panel">
+      <div class="ps-head">
+        <span class="avatar avatar--lg" id="psAvatar">··</span>
+        <div><div class="pcard__name" id="psName">—</div><div class="pcard__email" id="psTotal">—</div></div>
+      </div>
+      <div class="block__head"><h2>Por mes</h2><span class="block__hint">este año</span></div>
+      <div class="chart" id="psChart"></div>
+      <div class="psg-row" id="psGroups"></div>
+      <button class="btn-ghost" id="psClose">Cerrar</button>
     </div>
   </div>
 

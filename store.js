@@ -212,11 +212,11 @@ export async function groupFeed(group, perMember = 4){
 // `n` = the counter number that caca reached (most recent = current total).
 export async function homeFeed(uid, perPerson = 25){
   const [friendsArr, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
-  const ctx = {};                              // personUid -> Set of context labels
-  const add = (u, label) => { (ctx[u] = ctx[u] || new Set()).add(label); };
-  add(uid, "tú");
-  friendsArr.forEach(f => add(f.id, "amigo"));
-  groups.forEach(g => (g.members||[]).forEach(m => { if (m !== uid) add(m, g.name); }));
+  const ctx = {};                              // personUid -> [{type,name?,gid?}]
+  const push = (u, c) => { (ctx[u] = ctx[u] || []).push(c); };
+  push(uid, { type: "tú" });
+  friendsArr.forEach(f => push(f.id, { type: "amigo" }));
+  groups.forEach(g => (g.members||[]).forEach(m => { if (m !== uid) push(m, { type: "group", gid: g.id, name: g.name }); }));
 
   const chunks = await Promise.all(Object.keys(ctx).map(async p => {
     const u = await getUser(p); if (!u) return [];
@@ -224,8 +224,19 @@ export async function homeFeed(uid, perPerson = 25){
     const total = u.totalCount || 0;
     return snap.docs.map((d, i) => ({
       ...d.data(), uid: p, name: u.displayName, color: u.color || colorForUid(p),
-      contexts: [...ctx[p]], n: Math.max(1, total - i),
+      contexts: ctx[p], n: Math.max(1, total - i),
     }));
   }));
   return chunks.flat().sort((a,b) => b.ts - a.ts);
+}
+
+// all current-year cacas of a group's members (for group stats / combined chart)
+export async function groupYearCacas(group){
+  const year = new Date().getFullYear();
+  const chunks = await Promise.all((group.members||[]).map(async m => {
+    const u = await getUser(m);
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), where("year","==",year), limit(3000)));
+    return snap.docs.map(d => ({ ...d.data(), uid:m, name:u?.displayName||"?" }));
+  }));
+  return chunks.flat();
 }

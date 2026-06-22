@@ -279,6 +279,19 @@ function renderStats(){
   $("chartWeek").innerHTML=w.map((v,i)=>`<div class="bar ${v===wMax&&v>0?'peak':''}"><i style="height:${Math.round(v/wMax*100)}%"></i><span>${WD[i]}</span></div>`).join("");
 }
 
+/* ---------- refrescar al volver a primer plano ---------- */
+// La PWA se "reanuda" en la misma pestaña sin navegar; recargamos sus datos.
+function refreshActiveView(){
+  if(!uid) return;
+  const active = document.querySelector(".view.is-active")?.dataset.view;
+  if(active==="inicio") loadActivity();
+  else if(active==="amigos") renderAmigos();
+  else if(active==="grupos") renderGrupos();
+  else if(active==="perfil") loadStats();
+}
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshActiveView(); });
+window.addEventListener("focus", refreshActiveView);
+
 /* ---------- delight ---------- */
 function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("div");p.className="poo-fly";p.textContent="💩";
   p.style.left=(cx+(Math.random()*60-30))+"px";p.style.top=(cy-6)+"px";p.style.setProperty("--rot",(Math.random()*60-30)+"deg");

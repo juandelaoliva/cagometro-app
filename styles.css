@@ -73,6 +73,7 @@ ol,ul{list-style:none}
 }
 .brand{display:flex;align-items:center;gap:8px}
 .brand__mark{font-size:22px;filter:drop-shadow(0 2px 2px rgba(110,63,28,.25))}
+.brand__logo{width:30px;height:30px;border-radius:9px;display:block;box-shadow:0 1px 3px rgba(110,63,28,.25)}
 .brand__name{
   font-family:var(--font-d);font-weight:900;font-size:22px;letter-spacing:-.02em;
   color:var(--brand);
@@ -281,6 +282,7 @@ ol,ul{list-style:none}
 .gate__card{max-width:360px;text-align:center;background:var(--card);border:1px solid var(--line);
   border-radius:28px;padding:34px 26px;box-shadow:var(--shadow-lg);animation:viewIn .6s both}
 .gate__mark{font-size:54px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 3s ease-in-out infinite}
+.gate__logo{width:88px;height:88px;border-radius:22px;display:block;margin:0 auto;box-shadow:0 8px 18px rgba(110,63,28,.25);animation:bob 3s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
 .gate__title{font-family:var(--font-d);font-weight:900;font-size:38px;letter-spacing:-.03em;color:var(--brand);margin:10px 0 6px}
 .gate__sub{color:var(--ink-soft);font-size:14.5px;line-height:1.5;margin-bottom:22px}
@@ -358,10 +360,17 @@ ol,ul{list-style:none}
   background:radial-gradient(120% 80% at 80% -10%, #FFF7E8 0,transparent 55%),
              radial-gradient(120% 90% at -10% 0%, #FBEAD2 0,transparent 50%), var(--paper)}
 .splash__mark{font-size:64px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 1.4s ease-in-out infinite}
+.splash__logo{width:108px;height:108px;border-radius:26px;box-shadow:0 10px 24px rgba(110,63,28,.28);animation:bob 1.4s ease-in-out infinite}
 /* pull-to-refresh (PWA) */
 .ptr{position:fixed;top:calc(env(safe-area-inset-top) + 0px);left:0;right:0;height:54px;z-index:36;display:grid;place-items:center;transform:translateY(-54px);opacity:0;pointer-events:none}
-.ptr__icon{font-size:26px;display:inline-block;transform:rotate(var(--rot,0deg));filter:drop-shadow(0 2px 4px rgba(110,63,28,.3))}
-.ptr.refreshing .ptr__icon{animation:ptrspin .7s linear infinite}
+.ptr__ring{position:relative;width:42px;height:42px;display:grid;place-items:center;background:var(--card);border-radius:50%;box-shadow:var(--shadow);transition:transform .15s}
+.ptr.ready .ptr__ring{transform:scale(1.08)}
+.ptr__ring svg{position:absolute;inset:0;width:100%;height:100%}
+.ptr__track{fill:none;stroke:var(--line-2);stroke-width:3}
+.ptr__bar{fill:none;stroke:var(--brand);stroke-width:3;stroke-linecap:round;stroke-dasharray:100.5;stroke-dashoffset:calc(100.5 * (1 - var(--p,0)));transform:rotate(-90deg);transform-origin:center}
+.ptr__icon{font-size:20px;line-height:1;filter:drop-shadow(0 1px 2px rgba(110,63,28,.3))}
+.ptr.refreshing .ptr__ring svg{animation:ptrspin .8s linear infinite}
+.ptr.refreshing .ptr__bar{stroke-dashoffset:70}   /* arco parcial girando */
 @keyframes ptrspin{to{transform:rotate(360deg)}}
 #bootfail{z-index:101}
 .bootfail__box{text-align:center;padding:24px;max-width:320px}

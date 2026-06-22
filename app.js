@@ -699,6 +699,7 @@ function setView(name){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("is-active",v.dataset.view===name));
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("is-active",t.dataset.view===name));
   window.scrollTo({top:0,behavior:"smooth"});
+  if(name==="inicio") loadActivity();
   if(name==="amigos") renderAmigos();
   if(name==="grupos") renderGrupos();
   if(name==="perfil") loadStats();
@@ -801,7 +802,8 @@ if(_standalone){
     const pull=Math.min(dy*DAMP,100);
     ptr.style.transform=`translateY(${pull-54}px)`;
     ptr.style.opacity=String(Math.min(1,pull/TH));
-    ptr.style.setProperty("--rot",(pull*3)+"deg");
+    ptr.style.setProperty("--p", String(Math.min(1, pull/TH)));   // llena el anillo
+    ptr.classList.toggle("ready", pull>=TH);
   }, {passive:false});
   document.addEventListener("touchend", async ()=>{
     if(!active) return; active=false;

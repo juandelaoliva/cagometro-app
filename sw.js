@@ -1,9 +1,9 @@
 /* Cagómetro service worker — app shell (network-first) + actualización controlada */
-const CACHE = "cagometro-20260623-003742";
+const CACHE = "cagometro-20260623-004635";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./store.js", "./firebase.js",
-  "./manifest.webmanifest", "./icon.svg"
+  "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"
 ];
 
 self.addEventListener("install", e => {

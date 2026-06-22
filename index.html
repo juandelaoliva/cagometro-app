@@ -25,8 +25,9 @@
   <meta name="theme-color" content="#FBF6EC" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="El Cagómetro" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -40,10 +41,15 @@
   <div class="bg" aria-hidden="true"></div>
 
   <!-- Pull-to-refresh (solo PWA instalada) -->
-  <div class="ptr" id="ptr" aria-hidden="true"><span class="ptr__icon">💩</span></div>
+  <div class="ptr" id="ptr" aria-hidden="true">
+    <div class="ptr__ring">
+      <svg viewBox="0 0 36 36"><circle class="ptr__track" cx="18" cy="18" r="16"/><circle class="ptr__bar" cx="18" cy="18" r="16"/></svg>
+      <span class="ptr__icon">💩</span>
+    </div>
+  </div>
 
   <!-- ───────── Splash (shown until auth resolves) ───────── -->
-  <div class="splash" id="splash"><div class="splash__mark">💩</div></div>
+  <div class="splash" id="splash"><img class="splash__logo" src="icon-512.png" alt="El Cagómetro" /></div>
 
   <!-- Pantalla de fallo de arranque (si el bundle no carga: p.ej. CDN de Firebase) -->
   <div class="splash" id="bootfail" hidden>
@@ -77,7 +83,7 @@
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
     <header class="topbar">
-      <div class="brand"><span class="brand__mark">💩</span><span class="brand__name">El Cagómetro</span></div>
+      <div class="brand"><img class="brand__logo" src="icon-192.png" alt="" /><span class="brand__name">El Cagómetro</span></div>
       <div class="topbar__actions">
         <button class="iconbtn" id="notifBtn" aria-label="Notificaciones">🔔<span class="badge" id="notifBadge" hidden>0</span></button>
         <button class="profile" id="settingsBtn" aria-label="Ajustes"><span class="avatar" id="hdrAvatar">··</span></button>
@@ -200,7 +206,7 @@
   <!-- ───────── Auth gate ───────── -->
   <div class="gate" id="gate" hidden>
     <div class="gate__card">
-      <div class="gate__mark">💩</div>
+      <img class="gate__logo" src="icon-512.png" alt="El Cagómetro" />
       <h1 class="gate__title">El Cagómetro</h1>
       <p class="gate__sub" id="gateSub">Crea tu cuenta y empieza a contar.</p>
 

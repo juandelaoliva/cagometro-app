@@ -84,8 +84,9 @@ export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 export const saveToken   = (uid, token) => setDoc(doc(db,"users",uid,"private","push"), { tokens: arrayUnion(token) }, { merge:true });
 export const removeToken = (uid, token) => updateDoc(doc(db,"users",uid,"private","push"), { tokens: arrayRemove(token) });
 // Cola de envíos: el emisor (Raspberry, firebase-admin) la vigila y manda los push.
-export const enqueuePush = (fromUid, toUid, title, body) =>
-  addDoc(collection(db,"pushQueue"), { fromUid, toUid, title, body, sent:false, ts: serverTimestamp() });
+// `type` permite a la Pi decidir qué agrupar (p.ej. coalescer reacciones).
+export const enqueuePush = (fromUid, toUid, type, title, body) =>
+  addDoc(collection(db,"pushQueue"), { fromUid, toUid, type, title, body, sent:false, ts: serverTimestamp() });
 
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.
@@ -160,7 +161,7 @@ export async function sendFriendRequest(myUid, email){
   await setDoc(doc(db,"friendships", pairId(myUid, other.uid)),
     { uids:[myUid, other.uid], status:"pending", requestedBy:myUid, createdAt:serverTimestamp() }, { merge:true });
   const me = await getUser(myUid);
-  enqueuePush(myUid, other.uid, "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
+  enqueuePush(myUid, other.uid, "friend_request", "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
   return other;
 }
 export const acceptFriend = id => updateDoc(doc(db,"friendships",id), { status:"accepted" });

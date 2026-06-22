@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchMyCacas, saveToken, enqueuePush,
+  setReaction, watchFriendships, watchMyCacas, saveToken, removeToken, enqueuePush,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -197,7 +197,12 @@ $("setNotif").addEventListener("change", async e=>{
       return;
     }
   }
-  try{ await updateMe(uid,{notifications:on}); toast(on?"Notificaciones activadas 🔔":"Notificaciones desactivadas"); if(on) enablePush(); }
+  try{
+    await updateMe(uid,{notifications:on});
+    toast(on?"Notificaciones activadas 🔔":"Notificaciones desactivadas");
+    if(on) enablePush();
+    else if(_fcmToken) removeToken(uid,_fcmToken).catch(()=>{});   // al desactivar, deja de recibir push
+  }
   catch(err){ e.target.checked=!on; toast("No se pudo"); console.error(err); }
 });
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
@@ -311,7 +316,7 @@ async function applyReaction(entry, emoji){
   renderFeed();
   try{
     await setReaction(entry.uid, entry.id, uid, emoji, !has);
-    if(!has) enqueuePush(uid, entry.uid, "Nueva reacción 💩", `${me?.displayName||"Alguien"} reaccionó ${emoji} a tu caca`).catch(()=>{});
+    if(!has) enqueuePush(uid, entry.uid, "reaction", "Nueva reacción 💩", `${me?.displayName||"Alguien"} reaccionó ${emoji} a tu caca`).catch(()=>{});
   }
   catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
 }
@@ -375,6 +380,7 @@ async function requestNotifPermission(){
 }
 // banner del sistema disparado por la propia app (funciona con la app abierta/en marcha)
 // Registra el dispositivo en FCM para recibir push con la app cerrada (vía la Pi).
+let _fcmToken=null;
 async function enablePush(){
   if(IS_LOCAL) return;
   if(typeof Notification==="undefined" || Notification.permission!=="granted") return;
@@ -382,7 +388,7 @@ async function enablePush(){
   try{
     const reg=await navigator.serviceWorker.register("firebase-messaging-sw.js", { scope:"firebase-cloud-messaging-push-scope" });
     const token=await getToken(messaging, { vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
-    if(token) await saveToken(uid, token);
+    if(token){ _fcmToken=token; await saveToken(uid, token); }
     onMessage(messaging, ()=>{ refreshNotif(); });   // primer plano: el listener local ya muestra el banner
   }catch(e){ console.warn("push:", e?.message||e); }
 }

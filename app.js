@@ -96,8 +96,8 @@ async function loadActivity(){
   feedShown=Math.min(FEED_PAGE, homeFeedData.length);
   renderFeed();
 }
-const _ctxChip=c=> c.type==="amigo" ? `<span class="cc cc--friend">amigo</span>`
-  : c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
+// Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
+const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
 function _feedItem(c,i){
   const chips=(c.contexts||[]).filter(x=>x.type!=="tú").map(_ctxChip).join("");
   const head=c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`;
@@ -258,6 +258,7 @@ $("createGroupBtn").addEventListener("click", async ()=>{
 $("joinGroupBtn").addEventListener("click", async ()=>{
   const code=$("joinCode").value.trim(); const msg=$("groupMsg"); msg.hidden=true;
   if(!code)return;
+  if(!confirm("Al unirte a este grupo, todos sus miembros se añadirán automáticamente como amigos. ¿Continuar?")) return;
   try{ const g=await joinGroup(uid,code); $("joinCode").value=""; toast(`Te uniste a ${g.name} 🎉`); await renderGrupos(); openGroup(g); }
   catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?"No existe ningún grupo con ese código.":"No se pudo unir."; msg.hidden=false; }
 });

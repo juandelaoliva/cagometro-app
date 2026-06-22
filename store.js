@@ -184,7 +184,15 @@ export async function joinGroup(uid, code){
   const snap = await getDocs(query(collection(db,"groups"), where("inviteCode","==",(code||"").toUpperCase().trim()), limit(1)));
   if (snap.empty) throw new Error("no-group");
   const g = snap.docs[0];
+  const others = (g.data().members||[]).filter(m => m !== uid);
   if (!(g.data().members||[]).includes(uid)) await updateDoc(g.ref, { members: arrayUnion(uid) });
+  // auto-amigos: te haces amigo (aceptado) de todos los miembros actuales
+  if (others.length){
+    const batch = writeBatch(db);
+    for (const m of others)
+      batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", createdAt:serverTimestamp() }, { merge:true });
+    await batch.commit();
+  }
   return { id: g.id, ...(await getDoc(g.ref)).data() };
 }
 export const leaveGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });

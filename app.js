@@ -124,7 +124,7 @@ function showApp(){
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
     $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
     paintProgress(total); renderLocSel(m.locationMode);
-    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit){ celebrate(hit); notifyFriendsMilestone(hit); } }
+    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit){ celebrate(hit); notifyFriendsMilestone(hit); } checkGroupOvertakes(lastTotal); }
     lastTotal=total;
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
@@ -379,6 +379,25 @@ async function requestNotifPermission(){
   try{ return await Notification.requestPermission(); }catch(e){ return Notification.permission; }
 }
 // banner del sistema disparado por la propia app (funciona con la app abierta/en marcha)
+// Al subir mi contador, aviso en grupos a quien acabo de superar (rompo empate
+// en su mismo número → le quito el puesto). Anti-ruido: nada por debajo de 3.
+async function checkGroupOvertakes(oldTotal){
+  if(oldTotal<3) return;
+  try{
+    const groups=await myGroups(uid); if(!groups.length) return;
+    const name=me?.displayName||"Alguien"; const sentTo=new Set();
+    for(const g of groups){
+      const board=await groupLeaderboard(g);
+      for(const r of board){
+        if(r.id===uid || sentTo.has(r.id)) continue;
+        if((r.totalCount||0)===oldTotal){          // estábamos empatados → ahora le supero
+          sentTo.add(r.id);
+          enqueuePush(uid, r.id, "overtake", "¡Te han superado! 🏃", `${name} te ha superado en ${g.name}`).catch(()=>{});
+        }
+      }
+    }
+  }catch(e){ console.error(e); }
+}
 // Al cruzar un hito, avisa a mis amigos (push tipo "milestone", inmediato).
 async function notifyFriendsMilestone(n){
   try{

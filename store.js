@@ -74,6 +74,16 @@ export async function addCaca(uid){
   await updateDoc(doc(db, "users", uid), { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
 }
 
+// "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
+// of that timestamp; totalCount (current year) only bumps if it's this year.
+export async function addCacaAt(uid, ts){
+  const y = new Date(ts).getFullYear();
+  await addDoc(collection(db, "users", uid, "cacas"), { uid, ts, tz: tz(), source: "app", year: y, late: true, createdAt: serverTimestamp() });
+  const upd = { lifetimeCount: increment(1), [`countsByYear.${y}`]: increment(1) };
+  if (y === new Date().getFullYear()) upd.totalCount = increment(1);
+  await updateDoc(doc(db, "users", uid), upd);
+}
+
 // undo: delete most recent caca, decrement (never below 0)
 export async function removeCaca(uid){
   const me = await getUser(uid);

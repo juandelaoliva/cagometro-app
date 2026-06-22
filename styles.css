@@ -355,6 +355,27 @@ ol,ul{list-style:none}
 .ychip{flex:none;padding:7px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--ink-soft)}
 .ychip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
 
+/* ── botón secundario (caca olvidada) + hoja ─────────────────────── */
+.addrow{display:flex;gap:10px;align-items:stretch}
+.addrow .addbtn{flex:1;width:auto}
+.addbtn__more{flex:none;width:56px;border-radius:20px;color:#fff;font-size:22px;font-weight:800;
+  background:linear-gradient(180deg,var(--brand-2),var(--brand));
+  box-shadow:0 1px 0 rgba(255,255,255,.25) inset, 0 14px 24px -10px rgba(110,63,28,.55);transition:transform .08s}
+.addbtn__more:active{transform:translateY(3px) scale(.97)}
+
+.sheet{position:fixed;inset:0;z-index:95;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(36,27,18,.42);backdrop-filter:blur(2px);animation:fadeIn .2s both}
+.sheet__panel{width:min(var(--maxw),100%);background:var(--card);border-radius:24px 24px 0 0;
+  padding:24px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:var(--shadow-lg);
+  animation:sheetUp .3s cubic-bezier(.2,.7,.2,1) both}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+.sheet__title{font-family:var(--font-d);font-weight:900;font-size:22px}
+.sheet__sub{color:var(--ink-soft);font-size:14px;margin:4px 0 16px}
+.sheet .field{width:100%}
+.sheet__actions{display:flex;gap:10px;margin-top:16px}
+.sheet__actions .btn-ghost{flex:1;width:auto;padding:14px;margin-top:0}
+.sheet__actions .btn-solid{flex:1;padding:14px}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

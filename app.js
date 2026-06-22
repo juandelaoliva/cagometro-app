@@ -3,7 +3,7 @@
    ============================================================ */
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
-  watchMe, addCaca, removeCaca, setCount, myActivity,
+  watchMe, addCaca, addCacaAt, removeCaca, setCount, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed,
   getUser, colorForUid
@@ -111,6 +111,22 @@ $("fixBtn").addEventListener("click",async()=>{
   if(v===null)return; const n=parseInt(v,10); if(isNaN(n)||n<0)return toast("Número no válido");
   try{ await setCount(uid,n); loadActivity(); toast("Contador ajustado ✅"); }
   catch(err){ toast("No se pudo ajustar"); console.error(err); }
+});
+
+/* ---------- caca olvidada (late) ---------- */
+const _pad=n=>String(n).padStart(2,"0");
+const localDT=(d=new Date())=>`${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+$("lateBtn").addEventListener("click",()=>{ const now=new Date(); $("lateWhen").value=localDT(now); $("lateWhen").max=localDT(now); $("lateSheet").hidden=false; });
+$("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
+$("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
+$("lateConfirm").addEventListener("click",async()=>{
+  const v=$("lateWhen").value; if(!v)return;
+  const ts=new Date(v).getTime();
+  if(isNaN(ts)) return toast("Fecha no válida");
+  if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
+  $("lateSheet").hidden=true;
+  try{ await addCacaAt(uid,ts); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity(); }
+  catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 
 /* ---------- amigos ---------- */

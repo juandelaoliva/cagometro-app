@@ -213,16 +213,17 @@ function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(to
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 async function loadActivity(){
-  // chips (mis estadísticas) desde mis cacas
-  const mine=await myActivity(uid,300);
+  // en paralelo: mis cacas (para los chips) + grafo social (amigos + grupos)
+  const [mine, friends, groups] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid) ]);
+  // chips (hoy / semana natural / racha)
   const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
   for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
   let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
   $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-  // feed combinado: tú + amigos + grupos
-  homeFeedData=await homeFeed(uid);
-  // nombres de MIS amigos (para poder revelar quién reaccionó; el resto, anónimo)
-  try{ const fr=await getFriends(uid); friendNames={}; fr.forEach(f=>{ friendNames[f.id]=f.displayName; }); }catch(e){}
+  // nombres de MIS amigos (para revelar quién reaccionó; el resto, anónimo)
+  friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
+  // feed combinado reutilizando el grafo ya cargado (sin re-leer amigos/grupos)
+  homeFeedData=await homeFeed(uid, 12, [friends, groups]);
   feedShown=FEED_PAGE;
   renderFeedChips(); renderFeed();
 }
@@ -553,7 +554,11 @@ $("addBtn").addEventListener("click",async e=>{
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    await addCaca(uid, loc); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩"); loadActivity();
+    await addCaca(uid, loc); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
+    // entrada optimista: se ve al instante; loadActivity la sustituye con datos reales
+    homeFeedData.unshift({ ts:Date.now(), uid, id:"local-"+Date.now(), name:me?.displayName||"", color:me?.color||colorForUid(uid), contexts:[{type:"tú"}], n:(me?.totalCount||0)+1, reactions:{} });
+    if(document.querySelector(".view.is-active")?.dataset.view==="inicio"){ feedShown=Math.min(feedShown+1,homeFeedData.length); renderFeed(); }
+    loadActivity();
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }

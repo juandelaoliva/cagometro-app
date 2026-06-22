@@ -349,6 +349,12 @@ ol,ul{list-style:none}
 .grouplist .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600}
 .grouplist .gempty{justify-content:center;text-align:center;color:var(--ink-faint);font-size:13.5px;cursor:default}
 
+/* ── selector de año (stats) ─────────────────────────────────────── */
+.yearsel{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;margin:2px 0 12px;-webkit-overflow-scrolling:touch}
+.yearsel::-webkit-scrollbar{display:none}
+.ychip{flex:none;padding:7px 15px;border-radius:999px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--ink-soft)}
+.ychip.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

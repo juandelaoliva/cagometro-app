@@ -66,7 +66,7 @@ function showApp(){
     $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
     $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
-    paintProgress(total); renderYears(m);
+    paintProgress(total);
     if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit)celebrate(hit); }
     lastTotal=total;
   });
@@ -76,12 +76,6 @@ function showApp(){
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
-
-function renderYears(m){
-  const by={...(m.countsByYear||{})}; if(!Object.keys(by).length) by[new Date().getFullYear()]=m.totalCount||0;
-  const rows=Object.entries(by).sort((a,b)=>b[0]-a[0]).map(([y,n])=>`<li><span class="yr">${y}</span><span class="yn">${n} 💩</span></li>`).join("");
-  $("yearList").innerHTML=rows+`<li class="life"><span class="yr">Todos los años</span><span class="yn">${m.lifetimeCount||m.totalCount||0} 💩</span></li>`;
-}
 
 async function loadActivity(){
   const cacas=await myActivity(uid,200);
@@ -208,6 +202,59 @@ function setView(name){
   window.scrollTo({top:0,behavior:"smooth"});
   if(name==="amigos") renderAmigos();
   if(name==="grupos") renderGrupos();
+  if(name==="perfil") loadStats();
+}
+
+/* ---------- estadísticas (perfil) ---------- */
+const _fmtCache={};
+function tzFmt(tz){ tz=tz||"Europe/Madrid"; if(!_fmtCache[tz]) _fmtCache[tz]=new Intl.DateTimeFormat("en-US",{timeZone:tz,year:"numeric",month:"numeric",day:"numeric",hour:"2-digit",hourCycle:"h23",weekday:"short"}); return _fmtCache[tz]; }
+const _wd={Sun:6,Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5};
+function tzParts(ts,tz){ const p=tzFmt(tz).formatToParts(new Date(ts)); const g=t=>p.find(x=>x.type===t)?.value;
+  return { year:+g("year"), month:+g("month"), day:+g("day"), hour:(+g("hour"))%24, weekday:_wd[g("weekday")]??0 }; }
+
+let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear();
+async function loadStats(){
+  statsCacas = await myActivity(uid, 5000);
+  statsYears = [...new Set(statsCacas.map(c=>tzParts(c.ts,c.tz).year))].sort((a,b)=>b-a);
+  if(!(statsScope==="all" || statsYears.includes(statsScope))) statsScope = statsYears[0] || new Date().getFullYear();
+  renderYearSel(); renderStats();
+}
+function renderYearSel(){
+  $("yearSel").innerHTML = statsYears.map(y=>`<button class="ychip ${statsScope===y?'on':''}" data-year="${y}">${y}</button>`).join("")
+    + `<button class="ychip ${statsScope==='all'?'on':''}" data-year="all">Todos</button>`;
+}
+$("yearSel").addEventListener("click", e=>{ const b=e.target.closest("[data-year]"); if(!b)return;
+  statsScope = b.dataset.year==="all" ? "all" : +b.dataset.year; renderYearSel(); renderStats(); });
+function renderStats(){
+  const items = statsScope==="all" ? statsCacas : statsCacas.filter(c=>tzParts(c.ts,c.tz).year===statsScope);
+  const total=items.length;
+  const dayCount={}; for(const c of items){ const p=tzParts(c.ts,c.tz); const k=`${p.year}-${p.month}-${p.day}`; dayCount[k]=(dayCount[k]||0)+1; }
+  const bestDay=Math.max(0,...Object.values(dayCount),0);
+  const activeDays=Object.keys(dayCount).length;
+  const avg=activeDays?(total/activeDays).toFixed(1):"0";
+  $("statGrid").innerHTML=`
+    <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?"total histórico":statsScope}</span></div>
+    <div class="stat"><b>${bestDay}</b><span>mejor día</span></div>
+    <div class="stat"><b>${avg}</b><span>media/día activo</span></div>
+    <div class="stat"><b>${activeDays}</b><span>días con caca</span></div>`;
+  if(statsScope==="all"){
+    $("chartTitle").textContent="Por año";
+    const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }
+    const ys=Object.keys(by).sort(); const max=Math.max(1,...Object.values(by));
+    $("chartPrimary").innerHTML=ys.map(y=>`<div class="bar"><i style="height:${Math.round(by[y]/max*100)}%"></i><span>${String(y).slice(2)}</span></div>`).join("")||'<div class="bar"><span>—</span></div>';
+  } else {
+    $("chartTitle").textContent="Por mes";
+    const m=new Array(12).fill(0); for(const c of items) m[tzParts(c.ts,c.tz).month-1]++;
+    const max=Math.max(1,...m); const M=["E","F","M","A","M","J","J","A","S","O","N","D"];
+    $("chartPrimary").innerHTML=m.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${M[i]}</span></div>`).join("");
+  }
+  const h=new Array(24).fill(0); for(const c of items) h[tzParts(c.ts,c.tz).hour]++;
+  const hMax=Math.max(1,...h); const peak=total?h.indexOf(Math.max(...h)):-1;
+  $("peakHour").textContent = peak>=0?`punta: ${String(peak).padStart(2,"0")}:00`:"—";
+  $("chartHours").innerHTML=h.map((v,i)=>`<div class="bar ${i===peak&&v>0?'peak':''}"><i style="height:${Math.round(v/hMax*100)}%"></i><span>${i%6===0?i:''}</span></div>`).join("");
+  const w=new Array(7).fill(0); for(const c of items) w[tzParts(c.ts,c.tz).weekday]++;
+  const wMax=Math.max(1,...w); const WD=["L","M","X","J","V","S","D"];
+  $("chartWeek").innerHTML=w.map((v,i)=>`<div class="bar ${v===wMax&&v>0?'peak':''}"><i style="height:${Math.round(v/wMax*100)}%"></i><span>${WD[i]}</span></div>`).join("");
 }
 
 /* ---------- delight ---------- */

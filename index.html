@@ -112,10 +112,11 @@
           <div class="pcard__sub" id="pLifetime"></div>
         </div>
 
-        <div class="block">
-          <div class="block__head"><h2>Por año</h2></div>
-          <ul class="yearlist" id="yearList"></ul>
-        </div>
+        <div class="yearsel" id="yearSel"></div>
+        <div class="statgrid" id="statGrid"></div>
+        <div class="block"><div class="block__head"><h2 id="chartTitle">Por mes</h2></div><div class="chart" id="chartPrimary"></div></div>
+        <div class="block"><div class="block__head"><h2>Tus horas</h2><span class="block__hint" id="peakHour">—</span></div><div class="chart chart--hours" id="chartHours"></div></div>
+        <div class="block"><div class="block__head"><h2>Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
 
         <button class="btn-ghost" id="fixBtn">Corregir mi contador (este año)</button>
         <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>

@@ -4,7 +4,7 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, myActivity,
-  sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
+  sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends, friendsFeed,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -29,6 +29,35 @@ function fmtWhen(ts){
 }
 
 let uid=null, me=null, unsub=null, lastTotal=null;
+
+/* ---------- enlaces de invitación ---------- */
+const inviteUrl = q => `${location.origin}${location.pathname}?${q}`;
+async function shareInvite(url, text){
+  try{ if(navigator.share){ await navigator.share({ title:"El Cagómetro", text, url }); return; } }
+  catch(e){ if(e.name==="AbortError") return; }
+  try{ await navigator.clipboard.writeText(url); toast("Enlace copiado 📋"); }
+  catch(e){ prompt("Copia el enlace:", url); }
+}
+function parsePendingInvite(){
+  const p=new URLSearchParams(location.search);
+  const join=p.get("join"), friend=p.get("friend");
+  if(join)   return { type:"join",   code:join };
+  if(friend) return { type:"friend", uid:friend };
+  return null;
+}
+let _pendingInvite = parsePendingInvite();
+const clearInviteUrl = () => history.replaceState(null, "", location.pathname);
+async function processInvite(){
+  if(!_pendingInvite || !uid) return;
+  const inv=_pendingInvite; _pendingInvite=null; clearInviteUrl();
+  if(inv.type==="join"){
+    if(!confirm("Al unirte a este grupo, todos sus miembros se añadirán automáticamente como amigos. ¿Continuar?")) return;
+    try{ const g=await joinGroup(uid, inv.code); toast(`Te uniste a ${g.name} 🎉`); setView("grupos"); await renderGrupos(); openGroup(g); }
+    catch(err){ toast(err.message==="no-group" ? "Ese enlace de grupo no es válido" : "No se pudo unir"); console.error(err); }
+  } else if(inv.type==="friend"){
+    openFriendInvite(inv.uid);
+  }
+}
 
 /* ---------- auth gate ---------- */
 let mode="signup";
@@ -78,7 +107,29 @@ function showApp(){
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
+  processInvite();
 }
+
+/* ---------- hoja: aceptar invitación de amigo ---------- */
+let _fiUid=null;
+async function openFriendInvite(otherUid){
+  if(otherUid===uid){ toast("Ese enlace es tuyo 😄"); return; }
+  _fiUid=otherUid;
+  const u=await getUser(otherUid);
+  if(!u){ toast("No se encontró a esa persona"); return; }
+  $("fiAvatar").textContent=initial(u.displayName); $("fiAvatar").style.background=u.color||colorForUid(otherUid);
+  $("fiName").textContent=u.displayName||"Alguien";
+  $("friendInviteSheet").hidden=false;
+}
+$("fiCancel").addEventListener("click",()=>$("friendInviteSheet").hidden=true);
+$("friendInviteSheet").addEventListener("click",e=>{ if(e.target===$("friendInviteSheet")) $("friendInviteSheet").hidden=true; });
+$("fiAccept").addEventListener("click", async ()=>{
+  if(!_fiUid)return; $("friendInviteSheet").hidden=true;
+  try{ await addFriendDirect(uid,_fiUid); toast("¡Nuevo amigo! 🎉");
+    if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
+  catch(err){ toast("No se pudo"); console.error(err); }
+});
+$("inviteFriendBtn").addEventListener("click",()=> shareInvite(inviteUrl("friend="+encodeURIComponent(uid)), "¿Te unes a mi red en El Cagómetro? 💩"));
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
@@ -292,7 +343,7 @@ $("joinGroupBtn").addEventListener("click", async ()=>{
   try{ const g=await joinGroup(uid,code); $("joinCode").value=""; toast(`Te uniste a ${g.name} 🎉`); await renderGrupos(); openGroup(g); }
   catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?"No existe ningún grupo con ese código.":"No se pudo unir."; msg.hidden=false; }
 });
-$("shareCode").addEventListener("click", ()=>{ if(activeGroup) navigator.clipboard?.writeText(activeGroup.inviteCode).then(()=>toast("Código copiado 📋")).catch(()=>{}); });
+$("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), `Únete a "${activeGroup.name}" en El Cagómetro 💩`); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
   if(!activeGroup)return; if(!confirm(`¿Salir de "${activeGroup.name}"?`))return;
   try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast("Has salido del grupo"); renderGrupos(); }
@@ -309,7 +360,7 @@ function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) op
 const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 async function openGroup(group){
   activeGroup=group; $("groupDetail").hidden=false;
-  $("gdName").textContent=group.name; $("shareCode").textContent=`Código: ${group.inviteCode}`;
+  $("gdName").textContent=group.name; $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
   const [board,feed,yc]=await Promise.all([groupLeaderboard(group), groupFeed(group), groupYearCacas(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
   // estadísticas del grupo (este año)

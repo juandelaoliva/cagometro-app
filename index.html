@@ -65,6 +65,7 @@
           <button class="btn-solid" id="addFriendBtn">Añadir</button>
         </div>
         <p class="formerr" id="friendMsg" hidden></p>
+        <button class="btn-ghost" id="inviteFriendBtn">🔗 Invitar por enlace</button>
 
         <div class="block" id="reqBlock" hidden>
           <div class="block__head"><h2>Solicitudes</h2></div>
@@ -218,6 +219,21 @@
       </div>
       <div class="ps-actions" id="psActions"></div>
       <button class="btn-ghost" id="psClose">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- ───────── Invitación de amigo (desde enlace) ───────── -->
+  <div class="sheet" id="friendInviteSheet" hidden>
+    <div class="sheet__panel">
+      <div class="ps-head">
+        <span class="avatar avatar--lg" id="fiAvatar">··</span>
+        <div><div class="pcard__name" id="fiName">—</div><div class="pcard__email">quiere ser tu amigo/a</div></div>
+      </div>
+      <p class="sheet__sub">Si aceptas, os añadiréis mutuamente como amigos y veréis vuestra actividad.</p>
+      <div class="sheet__actions">
+        <button class="btn-ghost" id="fiCancel">Ahora no</button>
+        <button class="btn-solid" id="fiAccept">Aceptar 🤝</button>
+      </div>
     </div>
   </div>
 

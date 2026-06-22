@@ -147,6 +147,14 @@ export async function sendFriendRequest(myUid, email){
 export const acceptFriend = id => updateDoc(doc(db,"friendships",id), { status:"accepted" });
 export const removeFriend = id => deleteDoc(doc(db,"friendships",id));
 
+// Amistad directa (desde un enlace de invitación): el que abre el enlace acepta
+// y quedáis amigos al instante, sin solicitud pendiente.
+export async function addFriendDirect(myUid, otherUid){
+  if (otherUid === myUid) throw new Error("self");
+  await setDoc(doc(db,"friendships", pairId(myUid, otherUid)),
+    { uids:[myUid, otherUid].sort(), status:"accepted", source:"link", createdAt:serverTimestamp() }, { merge:true });
+}
+
 export async function myFriendships(myUid){
   const snap = await getDocs(query(collection(db,"friendships"), where("uids","array-contains",myUid)));
   return snap.docs.map(d => ({ id:d.id, ...d.data() }));

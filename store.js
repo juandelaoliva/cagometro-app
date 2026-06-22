@@ -13,7 +13,7 @@ import {
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
   serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs,
-  arrayUnion, arrayRemove
+  arrayUnion, arrayRemove, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
@@ -125,6 +125,12 @@ export async function setCount(uid, n){
   await batch.commit();
   return delta;
 }
+
+// Reacciona (o quita la reacción con emoji=null) a una caca de cualquiera.
+// Se guarda como mapa reactions:{ reactorUid: emoji } en el propio doc de la caca.
+export const setReaction = (ownerUid, cacaId, myUid, emoji) =>
+  updateDoc(doc(db, "users", ownerUid, "cacas", cacaId),
+    { [`reactions.${myUid}`]: emoji === null ? deleteField() : emoji });
 
 export async function myActivity(uid, n = 200){
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(n)));
@@ -244,7 +250,7 @@ export async function homeFeed(uid, perPerson = 25){
     const snap = await getDocs(query(collection(db,"users",p,"cacas"), orderBy("ts","desc"), limit(perPerson)));
     const total = u.totalCount || 0;
     return snap.docs.map((d, i) => ({
-      ...d.data(), uid: p, name: u.displayName, color: u.color || colorForUid(p),
+      ...d.data(), id: d.id, uid: p, name: u.displayName, color: u.color || colorForUid(p),
       contexts: ctx[p], n: Math.max(1, total - i),
     }));
   }));

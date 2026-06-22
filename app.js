@@ -5,6 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
+  setReaction,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -236,14 +237,28 @@ $("feedSearchBtn").addEventListener("click", ()=>{
 });
 // Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
 const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
+// fila de reacciones (chips agregados por emoji + botón para reaccionar)
+function reactionsRow(c){
+  const r=c.reactions||{}; const counts={};
+  for(const k in r) counts[r[k]]=(counts[r[k]]||0)+1;
+  const mine=r[uid];
+  const chips=Object.keys(counts).map(e=>`<button class="rx ${mine===e?'rx--mine':''}" data-rx="${e}">${e}&nbsp;${counts[e]}</button>`).join("");
+  const add = c.uid===uid ? "" : `<button class="rx rx--add" data-rxadd aria-label="Reaccionar">🙂</button>`;
+  return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
+}
 function _feedItem(c,i){
   const chips=(c.contexts||[]).filter(x=>x.type!=="tú").map(_ctxChip).join("");
-  const head=c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`;
-  return `<li class="feed__item" data-i="${i}">
+  const hito = MILESTONES.includes(c.n);
+  const head = hito
+    ? (c.uid===uid ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
+    : (c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
+  const nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
+  return `<li class="feed__item ${hito?'feed__item--hito':''}" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
-      <div class="feed__line">${head} <b class="feed__n">${c.n}</b></div>
+      <div class="feed__line">${head} ${nBadge}</div>
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
+      ${reactionsRow(c)}
     </div>
     <span class="feed__time">${fmtWhen(c.ts)}</span>
   </li>`;
@@ -262,7 +277,29 @@ $("loadMore").addEventListener("click",()=>{ feedShown=feedShown+FEED_PAGE; rend
 const PM=["E","F","M","A","M","J","J","A","S","O","N","D"];
 $("feed").addEventListener("click", e=>{
   const li=e.target.closest(".feed__item[data-i]"); if(!li)return;
-  const entry=homeFeedData[+li.dataset.i]; if(entry) openPersonSheet(entry);
+  const entry=homeFeedData[+li.dataset.i]; if(!entry)return;
+  const rx=e.target.closest("[data-rx]"), add=e.target.closest("[data-rxadd]");
+  if(add){ openReactPicker(entry); return; }       // botón 🙂 → selector
+  if(rx){ applyReaction(entry, rx.dataset.rx); return; }   // chip → alterna mi reacción
+  openPersonSheet(entry);
+});
+// reacciones
+let _rxTarget=null;
+async function applyReaction(entry, emoji){
+  if(entry.uid===uid) return;                      // no reaccionas a tus propias cacas
+  const r=entry.reactions={...(entry.reactions||{})};
+  const next = r[uid]===emoji ? null : emoji;
+  if(next===null) delete r[uid]; else r[uid]=next; // optimista
+  renderFeed();
+  try{ await setReaction(entry.uid, entry.id, uid, next); }
+  catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
+}
+function openReactPicker(entry){ _rxTarget=entry; $("reactSheet").hidden=false; }
+$("rxCancel").addEventListener("click", ()=>$("reactSheet").hidden=true);
+$("reactSheet").addEventListener("click", e=>{ if(e.target===$("reactSheet")) $("reactSheet").hidden=true; });
+$("rxPick").addEventListener("click", e=>{
+  const b=e.target.closest("[data-rxpick]"); if(!b||!_rxTarget)return;
+  $("reactSheet").hidden=true; applyReaction(_rxTarget, b.dataset.rxpick); _rxTarget=null;
 });
 // Estadísticas de una persona a partir de sus cacas (año actual + racha global)
 function personStats(cacas){

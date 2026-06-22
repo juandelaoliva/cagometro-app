@@ -249,7 +249,7 @@ ol,ul{list-style:none}
   position:fixed;left:50%;transform:translateX(-50%);
   bottom:calc(12px + env(safe-area-inset-bottom));
   width:min(var(--maxw),calc(100% - 28px));
-  display:grid;grid-template-columns:repeat(3,1fr);
+  display:grid;grid-template-columns:repeat(4,1fr);
   background:rgba(255,255,255,.82);backdrop-filter:blur(14px);
   border:1px solid var(--line);border-radius:20px;
   box-shadow:var(--shadow-lg);z-index:40;padding:7px;

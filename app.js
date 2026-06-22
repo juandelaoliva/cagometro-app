@@ -186,8 +186,18 @@ $("setColors").addEventListener("click", async e=>{
   catch(err){ toast("No se pudo"); console.error(err); }
 });
 $("setNotif").addEventListener("change", async e=>{
-  try{ await updateMe(uid,{notifications:e.target.checked}); toast(e.target.checked?"Te avisaremos cuando esté listo 🔔":"Notificaciones desactivadas"); }
-  catch(err){ e.target.checked=!e.target.checked; toast("No se pudo"); console.error(err); }
+  const on=e.target.checked;
+  if(on){
+    const perm=await requestNotifPermission();
+    if(perm!=="granted"){
+      e.target.checked=false;
+      toast(perm==="denied" ? "Permiso bloqueado: actívalo en los ajustes del navegador" : "Permiso de notificaciones no concedido");
+      try{ await updateMe(uid,{notifications:false}); }catch(_){}
+      return;
+    }
+  }
+  try{ await updateMe(uid,{notifications:on}); toast(on?"Notificaciones activadas 🔔":"Notificaciones desactivadas"); }
+  catch(err){ e.target.checked=!on; toast("No se pudo"); console.error(err); }
 });
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
@@ -352,18 +362,39 @@ document.addEventListener("pointerdown", e=>{ if(_rxTip && !e.target.closest(".r
 window.addEventListener("scroll", hideReactors, true);
 
 /* ---------- centro de notificaciones (in-app, tiempo real) ---------- */
-let notifReqs=[], notifRx=[], rxBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
+let notifReqs=[], notifRx=[], rxBaseline=null, reqBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
+// permiso del navegador para notificaciones locales del sistema (no necesita VAPID/servidor)
+async function requestNotifPermission(){
+  if(!("Notification" in window)) return "denied";
+  if(Notification.permission==="granted") return "granted";
+  try{ return await Notification.requestPermission(); }catch(e){ return Notification.permission; }
+}
+// banner del sistema disparado por la propia app (funciona con la app abierta/en marcha)
+function showLocalNotif(title, body){
+  if(!("Notification" in window) || Notification.permission!=="granted") return;
+  if(me && me.notifications===false) return;                 // respeta el interruptor de Ajustes
+  const opts={ body, icon:"icon.svg", badge:"icon.svg", tag:"cagometro-"+Date.now() };
+  try{
+    if(navigator.serviceWorker?.ready) navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,opts)).catch(()=>{ try{ new Notification(title,opts); }catch(_){} });
+    else new Notification(title,opts);
+  }catch(e){ /* sin soporte */ }
+}
 function startNotifications(){
   stopNotifications();
   getFriends(uid).then(fr=>{ notifFriends={}; fr.forEach(f=>{ notifFriends[f.id]=f.displayName; }); }).catch(()=>{});
   // solicitudes de amistad entrantes
   notifUnsub.push(watchFriendships(uid, async fships=>{
     const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
-    notifReqs=await Promise.all(pend.map(async f=>{
+    const enriched=await Promise.all(pend.map(async f=>{
       const o=await getUser(f.uids.find(u=>u!==uid));
       return { id:f.id, name:o?.displayName||"Alguien", color:o?.color };
     }));
-    refreshNotif();
+    if(reqBaseline===null){ reqBaseline=new Set(enriched.map(r=>r.id)); }   // base: no notifica las ya existentes
+    else {
+      for(const r of enriched) if(!reqBaseline.has(r.id)){ reqBaseline.add(r.id); showLocalNotif("Nueva solicitud de amistad 👋", `${r.name} quiere ser tu amigo/a`); }
+      const ids=new Set(enriched.map(r=>r.id)); for(const id of [...reqBaseline]) if(!ids.has(id)) reqBaseline.delete(id);
+    }
+    notifReqs=enriched; refreshNotif();
   }));
   // reacciones a MIS cacas (diff en vivo)
   notifUnsub.push(watchMyCacas(uid, cacas=>{
@@ -372,16 +403,20 @@ function startNotifications(){
     if(rxBaseline===null){                              // 1er snapshot = línea base (no notifica)
       rxBaseline=new Set(cur.keys());
     } else {
-      let added=0;
-      for(const k of cur.keys()) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; }
+      let added=0, last=null;
+      for(const [k,v] of cur) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; last=v; }
       for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
-      if(added) unseenRx+=added;
+      if(added){
+        unseenRx+=added;
+        if(added===1 && last) showLocalNotif("Nueva reacción 💩", `${_notifName(last.reactorUid)} reaccionó ${last.emoji} a tu caca`);
+        else showLocalNotif("Nuevas reacciones 💩", `Tienes ${added} reacciones nuevas en tus cacas`);
+      }
     }
     notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
     refreshNotif();
   }));
 }
-function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; renderNotifBadge(); }
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");

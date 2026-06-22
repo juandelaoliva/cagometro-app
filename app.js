@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchMyCacas, saveToken, removeToken, enqueuePush,
+  setReaction, watchFriendships, watchActivity, saveToken, removeToken, enqueuePush, writeActivity,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -212,35 +212,81 @@ function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(to
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
+let _graph={ audience:[], groups:[] };   // grafo social cacheado para escribir eventos de actividad
+function recordActivity(ts, n){
+  if(!me) return;
+  writeActivity(uid, {
+    name: me.displayName||"", color: me.color||colorForUid(uid),
+    ts, year: new Date(ts).getFullYear(), n,
+    audience: _graph.audience.length ? _graph.audience : [uid],
+    groups: _graph.groups || [],
+  }).catch(e=>console.error("activity:", e));
+}
+// El FEED ya no hace fan-out: lo provee un único listener en tiempo real sobre `activity`.
+let _feedUnsub=null, _myGroupIds=new Set();
+function startFeed(){
+  if(_feedUnsub) return;
+  _feedUnsub = watchActivity(uid, acts=>{
+    homeFeedData = acts;                       // entradas crudas; los chips de grupo se calculan al pintar
+    if(!feedShown) feedShown=FEED_PAGE;
+    detectReactionNotifs(acts);                // reacciones a MIS eventos → campanita/banner
+    renderFeedChips(); renderFeed();
+  });
+}
+function stopFeed(){ if(_feedUnsub){ try{_feedUnsub()}catch(e){} _feedUnsub=null; } }
+
+// loadActivity ya solo refresca los chips (hoy/semana/racha) y el grafo (audiencia/grupos);
+// el feed en sí es en tiempo real vía startFeed().
 let _feedLoadedAt=0, _feedLoading=false;
 async function loadActivity(mode){
+  startFeed();
   const force = mode==="force";
   if(_feedLoading) return;
-  // guard de frescura: si recargamos hace poco, no volvemos a leer Firestore (ahorra cuota)
-  if(!force && Date.now()-_feedLoadedAt < 12000){ renderFeedChips(); renderFeed(); return; }
+  if(!force && Date.now()-_feedLoadedAt < 12000) return;   // chips/grafo recientes → no re-leer
   _feedLoading=true;
   try{
-    // en paralelo: mis cacas (para los chips) + grafo social (amigos + grupos)
     const [mine, friends, groups] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid) ]);
-    // chips (hoy / semana natural / racha)
     const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
     for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
     let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
     $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-    // nombres de MIS amigos (para revelar quién reaccionó; el resto, anónimo)
     friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
-    // feed combinado reutilizando el grafo ya cargado (sin re-leer amigos/grupos)
-    homeFeedData=await homeFeed(uid, 12, [friends, groups]);
-    feedShown=FEED_PAGE;
-    renderFeedChips(); renderFeed();
+    _myGroupIds = new Set(groups.map(g=>g.id));
+    _graph = {
+      audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
+      groups: groups.map(g=>({ gid:g.id, name:g.name })),
+    };
     _feedLoadedAt=Date.now();
+    renderFeedChips(); renderFeed();           // re-pinta por si cambian los chips de grupo (dependen de _myGroupIds)
   } finally { _feedLoading=false; }
+}
+// reacciones a MIS eventos (desde el listener del feed) → campanita + banner local
+function detectReactionNotifs(acts){
+  const mineActs = acts.filter(a=>a.uid===uid);
+  const cur=new Map();
+  for(const a of mineActs){ const r=a.reactions||{}; for(const ru in r){ if(ru===uid) continue; for(const e of asArr(r[ru])) cur.set(`${a.id}|${ru}|${e}`, {reactorUid:ru,emoji:e,ts:a.ts,cacaId:a.id}); } }
+  if(rxBaseline===null){ rxBaseline=new Set(cur.keys()); }
+  else {
+    let added=0,last=null;
+    for(const [k,v] of cur) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; last=v; }
+    for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
+    if(added){ unseenRx+=added;
+      if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif("Nueva reacción 💩", `${n} reaccionó ${last.emoji} a tu caca`));
+      else showLocalNotif("Nuevas reacciones 💩", `Tienes ${added} reacciones nuevas en tus cacas`);
+    }
+  }
+  notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
+  const unknown=[...new Set(notifRx.map(v=>v.reactorUid))].filter(ru=>ru!==uid && !notifFriends[ru]);
+  if(unknown.length) Promise.all(unknown.map(getUser)).then(us=>{ us.forEach((u,i)=>{ if(u) notifFriends[unknown[i]]=u.displayName||"Alguien"; }); refreshNotif(); });
+  refreshNotif();
 }
 // ── filtros del feed (chips + búsqueda) ──
 let feedScope="all", feedQ="";
+// chips de grupo visibles para MÍ = grupos del autor ∩ mis grupos
+const entryContexts = c => (c.groups||[]).filter(g=>_myGroupIds.has(g.gid)).map(g=>({type:"group", gid:g.gid, name:g.name}));
 function feedGroups(){
   const m=new Map();
-  for(const c of homeFeedData) for(const x of (c.contexts||[])) if(x.type==="group" && x.gid) m.set(x.gid, x.name);
+  for(const c of homeFeedData) for(const g of (c.groups||[])) if(_myGroupIds.has(g.gid)) m.set(g.gid, g.name);
   return [...m].map(([gid,name])=>({gid,name}));
 }
 function renderFeedChips(){
@@ -253,7 +299,7 @@ function filteredFeed(){
   let arr=homeFeedData;
   if(feedScope==="me") arr=arr.filter(c=>c.uid===uid);
   else if(feedScope==="friends") arr=arr.filter(c=>c.uid!==uid);
-  else if(feedScope!=="all") arr=arr.filter(c=>(c.contexts||[]).some(x=>x.gid===feedScope));
+  else if(feedScope!=="all") arr=arr.filter(c=>(c.groups||[]).some(g=>g.gid===feedScope));
   if(feedQ){ const q=feedQ.toLowerCase(); arr=arr.filter(c=>(c.name||"").toLowerCase().includes(q)); }
   return arr;
 }
@@ -280,7 +326,7 @@ function reactionsRow(c){
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
 function _feedItem(c,i){
-  const chips=(c.contexts||[]).filter(x=>x.type!=="tú").map(_ctxChip).join("");
+  const chips=entryContexts(c).map(_ctxChip).join("");
   const hito = MILESTONES.includes(c.n);
   const head = hito
     ? (c.uid===uid ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
@@ -328,7 +374,7 @@ async function applyReaction(entry, emoji){
   if(next.length) r[uid]=next; else delete r[uid];                   // optimista
   renderFeed();
   try{
-    await setReaction(entry.uid, entry.id, uid, emoji, !has);
+    await setReaction(entry.id, uid, emoji, !has);
     if(!has) enqueuePush(uid, entry.uid, "reaction", "Nueva reacción 💩", `${me?.displayName||"Alguien"} reaccionó ${emoji} a tu caca`).catch(()=>{});
   }
   catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
@@ -454,30 +500,9 @@ function startNotifications(){
     }
     notifReqs=enriched; refreshNotif();
   }));
-  // reacciones a MIS cacas (diff en vivo)
-  notifUnsub.push(watchMyCacas(uid, cacas=>{
-    const cur=new Map();
-    for(const c of cacas){ const r=c.reactions||{}; for(const ru in r){ if(ru===uid) continue; for(const e of asArr(r[ru])) cur.set(`${c.id}|${ru}|${e}`, {reactorUid:ru,emoji:e,ts:c.ts,cacaId:c.id}); } }
-    if(rxBaseline===null){                              // 1er snapshot = línea base (no notifica)
-      rxBaseline=new Set(cur.keys());
-    } else {
-      let added=0, last=null;
-      for(const [k,v] of cur) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; last=v; }
-      for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
-      if(added){
-        unseenRx+=added;
-        if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif("Nueva reacción 💩", `${n} reaccionó ${last.emoji} a tu caca`));
-        else showLocalNotif("Nuevas reacciones 💩", `Tienes ${added} reacciones nuevas en tus cacas`);
-      }
-    }
-    notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
-    // resuelve nombres desconocidos para la lista de la campanita y vuelve a pintar
-    const unknown=[...new Set(notifRx.map(v=>v.reactorUid))].filter(ru=>ru!==uid && !notifFriends[ru]);
-    if(unknown.length) Promise.all(unknown.map(getUser)).then(us=>{ us.forEach((u,i)=>{ if(u) notifFriends[unknown[i]]=u.displayName||"Alguien"; }); refreshNotif(); });
-    refreshNotif();
-  }));
+  // (las reacciones a MIS cacas se detectan en el listener del feed → detectReactionNotifs)
 }
-function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; renderNotifBadge(); }
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; stopFeed(); rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");
@@ -531,7 +556,7 @@ async function openPersonSheet(entry){
     <div class="stat"><b>${st.bestDay}</b><span>mejor día</span></div>`;
   if(st.activeDays){ $("psRecords").textContent=`${st.activeDays} días con caca este año`; $("psRecords").hidden=false; }
   $("psChart").innerHTML=barsHTML(st.monthly, PM);
-  const gs=(entry.contexts||[]).filter(c=>c.type==="group");
+  const gs=entryContexts(entry);   // grupos en común (autor ∩ mis grupos)
   $("psGroupsWrap").hidden = !gs.length;
   $("psGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg" data-gid="${g.gid}">🏆 ${g.name}</button>`).join("");
   const fr=fships.find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
@@ -562,9 +587,7 @@ $("addBtn").addEventListener("click",async e=>{
   try{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
     await addCaca(uid, loc); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
-    // entrada optimista: se ve al instante; loadActivity la sustituye con datos reales
-    homeFeedData.unshift({ ts:Date.now(), uid, id:"local-"+Date.now(), name:me?.displayName||"", color:me?.color||colorForUid(uid), contexts:[{type:"tú"}], n:(me?.totalCount||0)+1, reactions:{} });
-    if(document.querySelector(".view.is-active")?.dataset.view==="inicio"){ feedShown=Math.min(feedShown+1,homeFeedData.length); renderFeed(); }
+    recordActivity(Date.now(), (me?.totalCount||0)+1);   // el listener del feed lo muestra al instante
     loadActivity("force");
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
@@ -597,7 +620,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
+  try{ const loc=await getGeo(); await addCaca(uid,loc); recordActivity(Date.now(),(me?.totalCount||0)+1); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
   catch(err){ toast("No se pudo guardar"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -609,7 +632,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast("Fecha no válida");
   if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
+  try{ await addCacaAt(uid,ts); recordActivity(ts,(me?.totalCount||0)+1); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
   catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 

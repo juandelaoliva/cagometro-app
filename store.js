@@ -76,6 +76,18 @@ export async function addCaca(uid, loc){
   await updateDoc(doc(db, "users", uid), { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
 }
 export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
+
+// ── Feed de actividad (fan-out en escritura) ────────────────────────────
+// Un evento por caca; `audience` = uids que pueden verlo (amigos + miembros de
+// grupo + el propio autor). El feed se lee con UNA consulta (array-contains),
+// en vez de leer las cacas de cada persona. `groups` = grupos del autor (para
+// que el lector pinte el chip si comparte grupo).
+export const writeActivity = (author, data) =>
+  addDoc(collection(db, "activity"), { uid: author, reactions: {}, createdAt: serverTimestamp(), ...data });
+// Feed en tiempo real con UNA sola consulta (en vez de leer las cacas de cada persona).
+export const watchActivity = (uid, cb, n = 60) =>
+  onSnapshot(query(collection(db, "activity"), where("audience", "array-contains", uid), orderBy("ts", "desc"), limit(n)),
+    s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
 // Ajustes del perfil (nickname, color, notificaciones…)
 export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 
@@ -138,8 +150,8 @@ export async function setCount(uid, n){
 // Reacciones tipo Telegram: cada usuario puede poner varios emojis.
 // Se guarda como mapa reactions:{ reactorUid: [emoji, …] } en el doc de la caca.
 // add=true añade el emoji; add=false lo quita (arrayUnion/Remove → seguro ante concurrencia).
-export const setReaction = (ownerUid, cacaId, myUid, emoji, add) =>
-  updateDoc(doc(db, "users", ownerUid, "cacas", cacaId),
+export const setReaction = (activityId, myUid, emoji, add) =>
+  updateDoc(doc(db, "activity", activityId),
     { [`reactions.${myUid}`]: add ? arrayUnion(emoji) : arrayRemove(emoji) });
 
 export async function myActivity(uid, n = 200){

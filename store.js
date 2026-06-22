@@ -164,7 +164,16 @@ export async function sendFriendRequest(myUid, email){
   enqueuePush(myUid, other.uid, "friend_request", "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
   return other;
 }
-export const acceptFriend = id => updateDoc(doc(db,"friendships",id), { status:"accepted" });
+export async function acceptFriend(id, myUid){
+  const ref = doc(db,"friendships",id);
+  const snap = await getDoc(ref);
+  await updateDoc(ref, { status:"accepted" });
+  const requester = snap.exists() ? snap.data().requestedBy : null;
+  if(requester && requester!==myUid){
+    const me = await getUser(myUid);
+    enqueuePush(myUid, requester, "friend_accepted", "¡Nueva amistad! 🤝", `${me?.displayName||"Alguien"} aceptó tu solicitud`).catch(()=>{});
+  }
+}
 export const removeFriend = id => deleteDoc(doc(db,"friendships",id));
 
 // Amistad directa (desde un enlace de invitación): el que abre el enlace acepta
@@ -173,6 +182,8 @@ export async function addFriendDirect(myUid, otherUid){
   if (otherUid === myUid) throw new Error("self");
   await setDoc(doc(db,"friendships", pairId(myUid, otherUid)),
     { uids:[myUid, otherUid].sort(), status:"accepted", source:"link", createdAt:serverTimestamp() }, { merge:true });
+  const me = await getUser(myUid);
+  enqueuePush(myUid, otherUid, "friend_accepted", "¡Nueva amistad! 🤝", `${me?.displayName||"Alguien"} aceptó tu invitación`).catch(()=>{});
 }
 
 // Listeners en tiempo real para el centro de notificaciones in-app

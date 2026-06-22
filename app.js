@@ -124,7 +124,7 @@ function showApp(){
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
     $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
     paintProgress(total); renderLocSel(m.locationMode);
-    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit)celebrate(hit); }
+    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit){ celebrate(hit); notifyFriendsMilestone(hit); } }
     lastTotal=total;
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
@@ -379,6 +379,13 @@ async function requestNotifPermission(){
   try{ return await Notification.requestPermission(); }catch(e){ return Notification.permission; }
 }
 // banner del sistema disparado por la propia app (funciona con la app abierta/en marcha)
+// Al cruzar un hito, avisa a mis amigos (push tipo "milestone", inmediato).
+async function notifyFriendsMilestone(n){
+  try{
+    const fr=await getFriends(uid); const name=me?.displayName||"Alguien";
+    fr.forEach(f=> enqueuePush(uid, f.id, "milestone", "¡Hito de un amigo! 🎉", `${name} llegó a ${n} 💩`).catch(()=>{}) );
+  }catch(e){ console.error(e); }
+}
 // Registra el dispositivo en FCM para recibir push con la app cerrada (vía la Pi).
 let _fcmToken=null;
 async function enablePush(){
@@ -598,7 +605,7 @@ async function renderAmigos(){
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
   const gli=e.target.closest("#groupList li[data-gid]");
-  if(a){ await acceptFriend(a.dataset.accept); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
+  if(a){ await acceptFriend(a.dataset.accept, uid); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
   if(gli){ openGroupById(gli.dataset.gid); }
 });

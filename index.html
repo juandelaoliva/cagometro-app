@@ -97,8 +97,11 @@
         </section>
         <section class="block">
           <div class="block__head"><h2>Actividad</h2><span class="block__hint">tú, amigos y grupos</span></div>
-          <div class="feedchips" id="feedChips"></div>
-          <input class="field feedsearch" id="feedSearch" type="search" placeholder="🔎 Buscar persona…" autocomplete="off" />
+          <div class="feedbar">
+            <div class="feedchips" id="feedChips"></div>
+            <button class="feedsearch-btn" id="feedSearchBtn" aria-label="Buscar persona">🔎</button>
+          </div>
+          <input class="field feedsearch" id="feedSearch" type="search" placeholder="Buscar persona…" autocomplete="off" hidden />
           <ul class="feed" id="feed"></ul>
           <button class="loadmore" id="loadMore" hidden>Cargar más</button>
         </section>

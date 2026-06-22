@@ -192,6 +192,12 @@ function filteredFeed(){
 $("feedChips").addEventListener("click", e=>{ const b=e.target.closest("[data-fscope]"); if(!b)return;
   feedScope=b.dataset.fscope; feedShown=FEED_PAGE; renderFeedChips(); renderFeed(); });
 $("feedSearch").addEventListener("input", e=>{ feedQ=e.target.value.trim(); feedShown=FEED_PAGE; renderFeed(); });
+$("feedSearchBtn").addEventListener("click", ()=>{
+  const inp=$("feedSearch"); const show=inp.hidden;
+  inp.hidden=!show; $("feedSearchBtn").classList.toggle("on", show);
+  if(show){ inp.focus(); }
+  else if(feedQ){ feedQ=""; inp.value=""; feedShown=FEED_PAGE; renderFeed(); }   // al cerrar, limpia el filtro
+});
 // Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
 const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
 function _feedItem(c,i){

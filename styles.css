@@ -231,12 +231,18 @@ ol,ul{list-style:none}
 .stat--accent b{color:#fff}
 .stat--accent span{color:rgba(255,255,255,.85)}
 
-.chart{display:flex;align-items:flex-end;gap:8px;height:130px;padding:14px;background:var(--card);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow)}
-.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
-.bar i{width:100%;max-width:26px;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--gold),var(--brand-2));min-height:4px;transition:height .7s cubic-bezier(.2,.7,.2,1)}
+.chart{display:flex;align-items:stretch;gap:8px;height:152px;padding:12px 14px;background:var(--card);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow)}
+/* cada barra es un grid de 3 filas: valor · barra(flex) · etiqueta — reserva el
+   espacio de valor y etiqueta, así las barras nunca se desplazan ni saltan */
+.bar{flex:1;min-width:0;display:grid;grid-template-rows:14px 1fr 16px;align-items:end;justify-items:center;gap:2px}
+.barval{font-size:10px;font-weight:800;color:var(--brand-2);line-height:14px}
+.bar i{width:100%;max-width:26px;align-self:end;border-radius:7px 7px 3px 3px;background:linear-gradient(180deg,var(--gold),var(--brand-2));transition:height .6s cubic-bezier(.2,.7,.2,1)}
 .bar.peak i{background:linear-gradient(180deg,#F4B650,var(--brand))}
-.bar span{font-size:10.5px;font-weight:700;color:var(--ink-faint)}
-.chart--hours .bar i{max-width:14px}
+.bar.peak .barval{color:var(--brand)}
+.barlbl{font-size:10.5px;font-weight:700;color:var(--ink-faint);line-height:16px;white-space:nowrap}
+.chart--hours{gap:3px}
+.chart--hours .bar i{max-width:12px}
+.chart--hours .barlbl{font-size:9px}
 
 /* ── tab bar ─────────────────────────────────────────────────────── */
 .tabbar{

@@ -29,6 +29,21 @@ function fmtWhen(ts){
   return sameDay ? `${hh}:${mm}` : `${d.getDate()} ${_meses[d.getMonth()]} ${hh}:${mm}`;
 }
 
+// Helper único de gráficos de barras. Maquetación en grid (valor · barra · etiqueta)
+// que reserva el espacio de cada fila → mismas posiciones siempre (sin saltos).
+function barsHTML(values, labels, {showVal=true}={}){
+  const max=Math.max(1,...values);
+  let peak=-1, pv=0; values.forEach((v,i)=>{ if(v>pv){ pv=v; peak=i; } });
+  return values.map((v,i)=>{
+    const h = v>0 ? Math.max(6, Math.round(v/max*100)) : 0;
+    const isPeak = v>0 && i===peak;
+    return `<div class="bar ${isPeak?'peak':''}">`
+      + `<span class="barval">${showVal&&v>0?v:''}</span>`
+      + `<i style="height:${h}%"></i>`
+      + `<span class="barlbl">${labels[i]??''}</span></div>`;
+  }).join("");
+}
+
 let uid=null, me=null, unsub=null, lastTotal=null;
 
 /* ---------- enlaces de invitación ---------- */
@@ -237,8 +252,7 @@ async function openPersonSheet(entry){
     <div class="stat"><b>${st.avg}</b><span>media/día activo</span></div>
     <div class="stat"><b>${st.bestDay}</b><span>mejor día</span></div>`;
   if(st.activeDays){ $("psRecords").textContent=`${st.activeDays} días con caca este año`; $("psRecords").hidden=false; }
-  const max=Math.max(1,...st.monthly);
-  $("psChart").innerHTML=st.monthly.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${PM[i]}</span></div>`).join("");
+  $("psChart").innerHTML=barsHTML(st.monthly, PM);
   const gs=(entry.contexts||[]).filter(c=>c.type==="group");
   $("psGroupsWrap").hidden = !gs.length;
   $("psGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg" data-gid="${g.gid}">🏆 ${g.name}</button>`).join("");
@@ -400,8 +414,7 @@ async function openGroup(group){
     <div class="stat"><b>${members}</b><span>miembros</span></div>
     <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>mejor mes</span></div>
     <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
-  const gmax=Math.max(1,...byMonth);
-  $("gChartMonth").innerHTML=byMonth.map((v,i)=>`<div class="bar ${v===gmax&&v>0?'peak':''}"><i style="height:${Math.round(v/gmax*100)}%"></i><span>${PM[i]}</span></div>`).join("");
+  $("gChartMonth").innerHTML=barsHTML(byMonth, PM);
 }
 
 /* ---------- nav ---------- */
@@ -461,21 +474,21 @@ function renderStats(){
   if(statsScope==="all"){
     $("chartTitle").textContent="Por año";
     const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }
-    const ys=Object.keys(by).sort(); const max=Math.max(1,...Object.values(by));
-    $("chartPrimary").innerHTML=ys.map(y=>`<div class="bar"><i style="height:${Math.round(by[y]/max*100)}%"></i><span>${String(y).slice(2)}</span></div>`).join("")||'<div class="bar"><span>—</span></div>';
+    const ys=Object.keys(by).sort();
+    $("chartPrimary").innerHTML=barsHTML(ys.map(y=>by[y]), ys.map(y=>String(y).slice(2))) || `<div class="bar"><span class="barlbl">—</span></div>`;
   } else {
     $("chartTitle").textContent="Por mes";
     const m=new Array(12).fill(0); for(const c of items) m[tzParts(c.ts,c.tz).month-1]++;
-    const max=Math.max(1,...m); const M=["E","F","M","A","M","J","J","A","S","O","N","D"];
-    $("chartPrimary").innerHTML=m.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${M[i]}</span></div>`).join("");
+    const M=["E","F","M","A","M","J","J","A","S","O","N","D"];
+    $("chartPrimary").innerHTML=barsHTML(m, M);
   }
   const h=new Array(24).fill(0); for(const c of items) h[tzParts(c.ts,c.tz).hour]++;
-  const hMax=Math.max(1,...h); const peak=total?h.indexOf(Math.max(...h)):-1;
-  $("peakHour").textContent = peak>=0?`punta: ${String(peak).padStart(2,"0")}:00`:"—";
-  $("chartHours").innerHTML=h.map((v,i)=>`<div class="bar ${i===peak&&v>0?'peak':''}"><i style="height:${Math.round(v/hMax*100)}%"></i><span>${i%6===0?i:''}</span></div>`).join("");
+  const peak=total?h.indexOf(Math.max(...h)):-1;
+  $("peakHour").textContent = peak>=0?`punta: ${String(peak).padStart(2,"0")}:00 · ${h[peak]}`:"—";
+  $("chartHours").innerHTML=barsHTML(h, h.map((_,i)=>i%6===0?i:""), {showVal:false});
   const w=new Array(7).fill(0); for(const c of items) w[tzParts(c.ts,c.tz).weekday]++;
-  const wMax=Math.max(1,...w); const WD=["L","M","X","J","V","S","D"];
-  $("chartWeek").innerHTML=w.map((v,i)=>`<div class="bar ${v===wMax&&v>0?'peak':''}"><i style="height:${Math.round(v/wMax*100)}%"></i><span>${WD[i]}</span></div>`).join("");
+  const WD=["L","M","X","J","V","S","D"];
+  $("chartWeek").innerHTML=barsHTML(w, WD);
 }
 
 /* ---------- refrescar al volver a primer plano ---------- */

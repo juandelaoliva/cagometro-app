@@ -164,6 +164,14 @@ export async function addFriendDirect(myUid, otherUid){
     { uids:[myUid, otherUid].sort(), status:"accepted", source:"link", createdAt:serverTimestamp() }, { merge:true });
 }
 
+// Listeners en tiempo real para el centro de notificaciones in-app
+export const watchFriendships = (myUid, cb) =>
+  onSnapshot(query(collection(db,"friendships"), where("uids","array-contains",myUid)),
+    s => cb(s.docs.map(d => ({ id:d.id, ...d.data() }))));
+export const watchMyCacas = (myUid, cb, n = 40) =>
+  onSnapshot(query(collection(db,"users",myUid,"cacas"), orderBy("ts","desc"), limit(n)),
+    s => cb(s.docs.map(d => ({ id:d.id, ...d.data() }))));
+
 export async function myFriendships(myUid){
   const snap = await getDocs(query(collection(db,"friendships"), where("uids","array-contains",myUid)));
   return snap.docs.map(d => ({ id:d.id, ...d.data() }));

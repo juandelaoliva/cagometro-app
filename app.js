@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction,
+  setReaction, watchFriendships, watchMyCacas,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -111,7 +111,7 @@ onUser(async user=>{
 // Failsafe: si la sesión no resuelve en 9s (red/CDN lento en la PWA instalada),
 // no dejamos el splash colgado: mostramos el acceso para que el usuario pueda actuar.
 setTimeout(()=>{ if(!_authResolved){ $("splash").hidden=true; if(!uid) showGate(); } }, 9000);
-function showGate(){ if(unsub){unsub();unsub=null;} $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
+function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;
@@ -130,6 +130,7 @@ function showApp(){
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
   processInvite();
+  startNotifications();
 }
 
 /* ---------- hoja: aceptar invitación de amigo ---------- */
@@ -349,6 +350,53 @@ $("feed").addEventListener("pointermove", _clearLP);
 $("feed").addEventListener("pointercancel", _clearLP);
 document.addEventListener("pointerdown", e=>{ if(_rxTip && !e.target.closest(".rxtip")) hideReactors(); }, true);
 window.addEventListener("scroll", hideReactors, true);
+
+/* ---------- centro de notificaciones (in-app, tiempo real) ---------- */
+let notifReqs=[], notifRx=[], rxBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
+function startNotifications(){
+  stopNotifications();
+  getFriends(uid).then(fr=>{ notifFriends={}; fr.forEach(f=>{ notifFriends[f.id]=f.displayName; }); }).catch(()=>{});
+  // solicitudes de amistad entrantes
+  notifUnsub.push(watchFriendships(uid, async fships=>{
+    const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
+    notifReqs=await Promise.all(pend.map(async f=>{
+      const o=await getUser(f.uids.find(u=>u!==uid));
+      return { id:f.id, name:o?.displayName||"Alguien", color:o?.color };
+    }));
+    refreshNotif();
+  }));
+  // reacciones a MIS cacas (diff en vivo)
+  notifUnsub.push(watchMyCacas(uid, cacas=>{
+    const cur=new Map();
+    for(const c of cacas){ const r=c.reactions||{}; for(const ru in r){ if(ru===uid) continue; for(const e of asArr(r[ru])) cur.set(`${c.id}|${ru}|${e}`, {reactorUid:ru,emoji:e,ts:c.ts,cacaId:c.id}); } }
+    if(rxBaseline===null){                              // 1er snapshot = línea base (no notifica)
+      rxBaseline=new Set(cur.keys());
+    } else {
+      let added=0;
+      for(const k of cur.keys()) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; }
+      for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
+      if(added) unseenRx+=added;
+    }
+    notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
+    refreshNotif();
+  }));
+}
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; renderNotifBadge(); }
+function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
+function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
+const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");
+function renderNotifSheet(){
+  const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>quiere ser tu amigo/a</small></span><button class="btn-accept" data-accept="${r.id}">Aceptar</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
+  const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> reaccionó a tu caca</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
+  let html="";
+  if(reqs) html+=`<div class="notif-sec"><h4 class="notif-h">Solicitudes</h4><ul class="reqlist">${reqs}</ul></div>`;
+  if(rx)   html+=`<div class="notif-sec"><h4 class="notif-h">Reacciones a tus cacas</h4><ul class="notif-list">${rx}</ul></div>`;
+  $("notifBody").innerHTML = html || `<p class="notif-empty">Sin notificaciones todavía.<br/><small>Aquí verás reacciones a tus cacas y solicitudes de amistad.</small></p>`;
+}
+function openNotif(){ unseenRx=0; renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
+$("notifBtn").addEventListener("click", openNotif);
+$("notifClose").addEventListener("click", ()=>$("notifSheet").hidden=true);
+$("notifSheet").addEventListener("click", e=>{ if(e.target===$("notifSheet")) $("notifSheet").hidden=true; });
 // Estadísticas de una persona a partir de sus cacas (año actual + racha global)
 function personStats(cacas){
   const yr=new Date().getFullYear();

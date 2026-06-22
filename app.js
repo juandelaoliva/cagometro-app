@@ -458,11 +458,14 @@ function startNotifications(){
       for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
       if(added){
         unseenRx+=added;
-        if(added===1 && last) showLocalNotif("Nueva reacción 💩", `${_notifName(last.reactorUid)} reaccionó ${last.emoji} a tu caca`);
+        if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif("Nueva reacción 💩", `${n} reaccionó ${last.emoji} a tu caca`));
         else showLocalNotif("Nuevas reacciones 💩", `Tienes ${added} reacciones nuevas en tus cacas`);
       }
     }
     notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
+    // resuelve nombres desconocidos para la lista de la campanita y vuelve a pintar
+    const unknown=[...new Set(notifRx.map(v=>v.reactorUid))].filter(ru=>ru!==uid && !notifFriends[ru]);
+    if(unknown.length) Promise.all(unknown.map(getUser)).then(us=>{ us.forEach((u,i)=>{ if(u) notifFriends[unknown[i]]=u.displayName||"Alguien"; }); refreshNotif(); });
     refreshNotif();
   }));
 }
@@ -470,6 +473,13 @@ function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notif
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");
+// Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
+async function resolveName(ru){
+  if(ru===uid) return "Tú";
+  if(notifFriends[ru]) return notifFriends[ru];
+  try{ const u=await getUser(ru); const n=u?.displayName||"Alguien"; notifFriends[ru]=n; return n; }
+  catch{ return "Alguien"; }
+}
 function renderNotifSheet(){
   const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>quiere ser tu amigo/a</small></span><button class="btn-accept" data-accept="${r.id}">Aceptar</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
   const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> reaccionó a tu caca</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");

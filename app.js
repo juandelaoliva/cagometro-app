@@ -1,0 +1,185 @@
+/* ============================================================
+   Cagómetro · UI (Firebase) — Phases A + A+ + B
+   ============================================================ */
+import {
+  onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
+  watchMe, addCaca, removeCaca, setCount, myActivity,
+  sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
+  getUser, colorForUid
+} from "./store.js";
+import { IS_LOCAL } from "./firebase.js";
+
+const $ = id => document.getElementById(id);
+const MILESTONES = [10,25,50,75,100,150,200,250,300,400,500];
+const nextMilestone = n => MILESTONES.find(m => m > n) || (Math.floor(n/100)*100 + 100);
+const prevMilestone = n => [...MILESTONES].reverse().find(m => m <= n) || 0;
+const initial = s => (s||"?").trim().charAt(0).toUpperCase();
+const DAY = 86400000;
+const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const av = (name,color) => `<span class="av" style="background:${color||'#6E3F1C'}">${initial(name)}</span>`;
+function timeAgo(ts){ const s=Math.max(1,Math.round((Date.now()-ts)/1000));
+  if(s<60)return"ahora"; const m=Math.round(s/60); if(m<60)return`hace ${m} min`;
+  const h=Math.round(m/60); if(h<24)return`hace ${h} h`; return`hace ${Math.round(h/24)} d`; }
+
+let uid=null, me=null, unsub=null, lastTotal=null;
+
+/* ---------- auth gate ---------- */
+let mode="signup";
+function applyMode(){
+  const s=mode==="signup";
+  $("primaryBtn").textContent=s?"Crear cuenta":"Entrar";
+  $("gateSub").textContent=s?"Crea tu cuenta y empieza a contar.":"Bienvenido de nuevo.";
+  $("toggleText").textContent=s?"¿Ya tienes cuenta?":"¿Nueva por aquí?";
+  $("toggleMode").textContent=s?"Inicia sesión":"Crea una cuenta";
+  $("fName").style.display=s?"":"none";
+}
+$("toggleMode").addEventListener("click",()=>{mode=mode==="signup"?"signin":"signup";clearErr();applyMode();});
+const ERR={"auth/email-already-in-use":"Ese email ya está registrado. Inicia sesión.","auth/invalid-credential":"Email o contraseña incorrectos.","auth/invalid-email":"Email no válido.","auth/weak-password":"La contraseña debe tener al menos 6 caracteres.","auth/popup-closed-by-user":"Has cerrado la ventana de Google."};
+const showErr=e=>{const el=$("formErr");el.textContent=ERR[e?.code]||e?.message||"Algo salió mal.";el.hidden=false;};
+const clearErr=()=>$("formErr").hidden=true;
+$("authForm").addEventListener("submit",async e=>{
+  e.preventDefault();clearErr();
+  const name=$("fName").value.trim(),email=$("fEmail").value.trim(),pass=$("fPass").value;
+  const b=$("primaryBtn");b.disabled=true;const t=b.textContent;b.textContent="…";
+  try{ mode==="signup"?await signUp(email,pass,name):await signIn(email,pass); }catch(err){showErr(err);}
+  finally{b.disabled=false;b.textContent=t;}
+});
+$("googleBtn").addEventListener("click",async()=>{clearErr();try{await googleSignIn();}catch(err){showErr(err);}});
+$("logoutBtn").addEventListener("click",()=>signOutUser());
+
+/* ---------- session ---------- */
+onUser(async user=>{
+  if(!user){ showGate(); return; }
+  uid=user.uid; await ensureProfile(user); showApp();
+});
+function showGate(){ if(unsub){unsub();unsub=null;} $("app").hidden=true; $("gate").style.display="grid"; uid=null; me=null; lastTotal=null; }
+
+function showApp(){
+  $("gate").style.display="none"; $("app").hidden=false;
+  if(unsub)unsub();
+  unsub=watchMe(uid, m=>{
+    if(!m)return; me=m; const total=m.totalCount||0;
+    $("meCount").textContent=total; $("meName").textContent=m.displayName||"";
+    $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
+    $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
+    $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
+    $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
+    paintProgress(total); renderYears(m);
+    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit)celebrate(hit); }
+    lastTotal=total;
+  });
+  $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
+  loadActivity();
+}
+function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
+  $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
+  $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
+
+function renderYears(m){
+  const by={...(m.countsByYear||{})}; if(!Object.keys(by).length) by[new Date().getFullYear()]=m.totalCount||0;
+  const rows=Object.entries(by).sort((a,b)=>b[0]-a[0]).map(([y,n])=>`<li><span class="yr">${y}</span><span class="yn">${n} 💩</span></li>`).join("");
+  $("yearList").innerHTML=rows+`<li class="life"><span class="yr">Todos los años</span><span class="yn">${m.lifetimeCount||m.totalCount||0} 💩</span></li>`;
+}
+
+async function loadActivity(){
+  const cacas=await myActivity(uid,200);
+  const t0=startOfToday(),wk=Date.now()-7*DAY; let today=0,week=0; const days=new Set();
+  for(const c of cacas){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
+  let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
+  $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
+  $("feed").innerHTML=cacas.slice(0,20).map((c,i)=>`<li class="feed__item" style="animation-delay:${i*45}ms"><span class="feed__badge">💩</span><span class="feed__txt">Sumaste una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
+    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Aún no hay cacas. ¡Suma la primera! 👆</span></li>`;
+}
+
+/* ---------- +1 / −1 / corregir ---------- */
+let busy=false;
+$("addBtn").addEventListener("click",async e=>{
+  if(busy||!uid)return; busy=true;
+  const btn=$("addBtn"),r=btn.getBoundingClientRect();
+  btn.classList.add("flash");setTimeout(()=>btn.classList.remove("flash"),350);navigator.vibrate?.(18);
+  const num=$("meCount");num.textContent=(parseInt(num.textContent,10)||0)+1;
+  num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
+  try{ await addCaca(uid); toast("¡Caca registrada! 💩"); loadActivity(); }
+  catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
+  finally{ setTimeout(()=>busy=false,250); }
+});
+$("undoBtn").addEventListener("click",async()=>{
+  if(busy||!uid)return; busy=true;
+  try{ const ok=await removeCaca(uid); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity(); }
+  catch(err){ toast("No se pudo deshacer"); console.error(err); }
+  finally{ setTimeout(()=>busy=false,250); }
+});
+$("fixBtn").addEventListener("click",async()=>{
+  const cur=me?.totalCount||0;
+  const v=prompt("¿A cuántas cacas quieres ajustar tu contador de este año?",cur);
+  if(v===null)return; const n=parseInt(v,10); if(isNaN(n)||n<0)return toast("Número no válido");
+  try{ await setCount(uid,n); loadActivity(); toast("Contador ajustado ✅"); }
+  catch(err){ toast("No se pudo ajustar"); console.error(err); }
+});
+
+/* ---------- amigos ---------- */
+$("addFriendBtn").addEventListener("click",async()=>{
+  const email=$("friendEmail").value.trim(); const msg=$("friendMsg");
+  if(!email)return; msg.hidden=true;
+  try{ const o=await sendFriendRequest(uid,email); $("friendEmail").value="";
+    msg.textContent=`Solicitud enviada a ${o.displayName} ✅`; msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
+  catch(err){ msg.style.color="var(--rose)";
+    msg.textContent=err.message==="no-user"?"No hay ningún usuario con ese email.":err.message==="self"?"Ese eres tú 😄":"No se pudo enviar."; msg.hidden=false; }
+});
+async function renderAmigos(){
+  const [fships, friends, feed] = await Promise.all([ myFriendships(uid), getFriends(uid), friendsFeed(uid) ]);
+  // requests
+  const pending=fships.filter(f=>f.status==="pending");
+  const incoming=pending.filter(f=>f.requestedBy!==uid);
+  const outgoing=pending.filter(f=>f.requestedBy===uid);
+  $("reqBlock").hidden = !pending.length;
+  const incHtml=await Promise.all(incoming.map(async f=>{
+    const other=await getUser(f.uids.find(u=>u!==uid));
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>quiere ser tu amigo/a</small></span>
+      <button class="btn-accept" data-accept="${f.id}">Aceptar</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
+  }));
+  const outHtml=await Promise.all(outgoing.map(async f=>{
+    const other=await getUser(f.uids.find(u=>u!==uid));
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>solicitud pendiente…</small></span></li>`;
+  }));
+  $("reqList").innerHTML=[...incHtml,...outHtml].join("");
+  // leaderboard (me + friends, this year)
+  const board=[{id:uid,displayName:me?.displayName,color:me?.color,totalCount:me?.totalCount||0}, ...friends]
+    .sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+  $("friendsRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
+    ||`<li><span class="nm" style="color:var(--ink-faint)">Añade amigos para competir 👇</span></li>`;
+  // feed
+  $("friendsFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
+    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad de amigos todavía.</span></li>`;
+}
+document.addEventListener("click",async e=>{
+  const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
+  if(a){ await acceptFriend(a.dataset.accept); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
+  if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
+});
+
+/* ---------- nav ---------- */
+document.querySelectorAll("[data-view]").forEach(b=>{ if(b.classList.contains("view"))return;
+  b.addEventListener("click",()=>setView(b.dataset.view)); });
+function setView(name){
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("is-active",v.dataset.view===name));
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("is-active",t.dataset.view===name));
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(name==="amigos") renderAmigos();
+}
+
+/* ---------- delight ---------- */
+function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("div");p.className="poo-fly";p.textContent="💩";
+  p.style.left=(cx+(Math.random()*60-30))+"px";p.style.top=(cy-6)+"px";p.style.setProperty("--rot",(Math.random()*60-30)+"deg");
+  p.style.animationDelay=(i*70)+"ms";document.body.appendChild(p);setTimeout(()=>p.remove(),1200);} }
+const HYPE=["¡Nuevo hito!","¡Máquina!","¡Imparable!","¡Leyenda del trono! 👑","¡A por más!"];
+function celebrate(num){ $("celebrateNum").textContent=num; $("celebrateText").textContent=num>=200?"¡Leyenda del trono! 👑":HYPE[Math.floor(Math.random()*HYPE.length)];
+  const c=$("celebrate");c.hidden=false;confetti();navigator.vibrate?.([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
+function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];
+  for(let i=0;i<90;i++){ const d=document.createElement("div");d.className="confetti";d.style.left=Math.random()*100+"vw";
+    d.style.background=cols[i%cols.length];d.style.animationDuration=(1.4+Math.random()*1.4)+"s";d.style.animationDelay=(Math.random()*.3)+"s";
+    d.style.transform=`rotate(${Math.random()*360}deg)`;document.body.appendChild(d);setTimeout(()=>d.remove(),3200);} }
+let toastT; function toast(m){ const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1800); }
+
+applyMode();
+if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));

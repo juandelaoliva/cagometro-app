@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <title>Cagómetro</title>
+  <meta name="description" content="Tu cagómetro personal. Suma tus cacas, sigue a tus amigos y compite en grupos." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#FBF6EC" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Cagómetro" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg" aria-hidden="true"></div>
+
+  <!-- ───────── App (shown when signed in) ───────── -->
+  <div id="app" class="app" hidden>
+    <header class="topbar">
+      <div class="brand"><span class="brand__mark">💩</span><span class="brand__name">Cagómetro</span></div>
+      <button class="profile" data-view="perfil"><span class="avatar" id="hdrAvatar">··</span></button>
+    </header>
+
+    <main class="screen">
+      <!-- INICIO -->
+      <section class="view is-active" id="view-inicio" data-view="inicio">
+        <section class="hero">
+          <div class="hero__top"><span class="hero__eyebrow">Tu marcador</span><span class="hero__name" id="meName">—</span></div>
+          <div class="counter"><div class="counter__num" id="meCount">0</div><div class="counter__unit">cacas<br/><span>este año</span></div></div>
+          <div class="progress"><div class="progress__bar"><i id="meProgressFill" style="width:0%"></i></div><div class="progress__label" id="meProgressLabel">—</div></div>
+          <button class="addbtn" id="addBtn"><span class="addbtn__plus">+1</span><span class="addbtn__poo">💩</span><span class="addbtn__label">Sumar caca</span></button>
+          <button class="undobtn" id="undoBtn">↩︎ deshacer (−1)</button>
+          <div class="chips">
+            <div class="chip"><b id="statToday">0</b><span>hoy</span></div>
+            <div class="chip"><b id="statWeek">0</b><span>semana</span></div>
+            <div class="chip"><b id="statStreak">0</b><span>racha</span></div>
+          </div>
+        </section>
+        <section class="block">
+          <div class="block__head"><h2>Tu actividad</h2><span class="block__hint">tus últimas cacas</span></div>
+          <ul class="feed" id="feed"></ul>
+        </section>
+        <p class="footnote">Pronto: amigos, grupos y feeds 👀</p>
+      </section>
+
+      <!-- AMIGOS -->
+      <section class="view" id="view-amigos" data-view="amigos">
+        <h1 class="view__title">Amigos</h1>
+        <div class="addfriend">
+          <input class="field" id="friendEmail" type="email" placeholder="Email de tu amigo/a" autocomplete="off" />
+          <button class="btn-solid" id="addFriendBtn">Añadir</button>
+        </div>
+        <p class="formerr" id="friendMsg" hidden></p>
+
+        <div class="block" id="reqBlock" hidden>
+          <div class="block__head"><h2>Solicitudes</h2></div>
+          <ul class="reqlist" id="reqList"></ul>
+        </div>
+
+        <div class="block">
+          <div class="block__head"><h2>Clasificación</h2><span class="block__hint">tú y tus amigos · este año</span></div>
+          <ol class="rank" id="friendsRank"></ol>
+        </div>
+
+        <div class="block">
+          <div class="block__head"><h2>Actividad de amigos</h2></div>
+          <ul class="feed" id="friendsFeed"></ul>
+        </div>
+      </section>
+
+      <!-- GRUPOS (stub) -->
+      <section class="view" id="view-grupos" data-view="grupos">
+        <h1 class="view__title">Grupos</h1>
+        <div class="soon"><div class="soon__ico">🚧</div><p>Pronto podrás crear grupos y competir en su clasificación.</p></div>
+      </section>
+
+      <!-- PERFIL -->
+      <section class="view" id="view-perfil" data-view="perfil">
+        <h1 class="view__title">Perfil</h1>
+        <div class="pcard">
+          <span class="avatar avatar--lg" id="pAvatar">··</span>
+          <div class="pcard__name" id="pName">—</div>
+          <div class="pcard__email" id="pEmail">—</div>
+          <div class="pcard__total"><b id="pTotal">0</b> cacas este año</div>
+          <div class="pcard__sub" id="pLifetime"></div>
+        </div>
+
+        <div class="block">
+          <div class="block__head"><h2>Por año</h2></div>
+          <ul class="yearlist" id="yearList"></ul>
+        </div>
+
+        <button class="btn-ghost" id="fixBtn">Corregir mi contador (este año)</button>
+        <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
+        <p class="footnote" id="pMode"></p>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab is-active" data-view="inicio"><span class="tab__ico">🏠</span><span>Inicio</span></button>
+      <button class="tab" data-view="amigos"><span class="tab__ico">👥</span><span>Amigos</span></button>
+      <button class="tab" data-view="grupos"><span class="tab__ico">🏆</span><span>Grupos</span></button>
+      <button class="tab" data-view="perfil"><span class="tab__ico">👤</span><span>Perfil</span></button>
+    </nav>
+  </div>
+
+  <!-- ───────── Auth gate ───────── -->
+  <div class="gate" id="gate">
+    <div class="gate__card">
+      <div class="gate__mark">💩</div>
+      <h1 class="gate__title">Cagómetro</h1>
+      <p class="gate__sub" id="gateSub">Crea tu cuenta y empieza a contar.</p>
+
+      <form id="authForm" class="authform" autocomplete="on">
+        <input class="field" id="fName" type="text" placeholder="Tu nombre" autocomplete="name" />
+        <input class="field" id="fEmail" type="email" placeholder="Email" autocomplete="email" required />
+        <input class="field" id="fPass" type="password" placeholder="Contraseña" autocomplete="current-password" required minlength="6" />
+        <p class="formerr" id="formErr" hidden></p>
+        <button class="gate__btn" id="primaryBtn" type="submit">Crear cuenta</button>
+      </form>
+
+      <button class="btn-google" id="googleBtn"><span aria-hidden="true">🇬</span> Continuar con Google</button>
+
+      <p class="gate__toggle">
+        <span id="toggleText">¿Ya tienes cuenta?</span>
+        <button class="link" id="toggleMode" type="button">Inicia sesión</button>
+      </p>
+    </div>
+  </div>
+
+  <!-- celebration + toast -->
+  <div class="celebrate" id="celebrate" hidden>
+    <div class="celebrate__inner"><div class="celebrate__poo">💩</div><div class="celebrate__num" id="celebrateNum">100</div><div class="celebrate__text" id="celebrateText">¡Nuevo hito!</div></div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

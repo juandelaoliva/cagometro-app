@@ -1,0 +1,17 @@
+{
+  "name": "Cagómetro",
+  "short_name": "Cagómetro",
+  "description": "El marcador de cacas del grupo. Suma tu caca, mira el ranking y celebra los hitos.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF6EC",
+  "theme_color": "#FBF6EC",
+  "categories": ["lifestyle", "social"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -71,7 +71,8 @@ ol,ul{list-style:none}
   padding:14px 2px 12px;
   background:linear-gradient(var(--paper) 70%, transparent);
 }
-.brand{display:flex;align-items:center;gap:8px}
+.brand{display:flex;align-items:center;gap:8px;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.brand:active{opacity:.7}
 .brand__mark{font-size:22px;filter:drop-shadow(0 2px 2px rgba(110,63,28,.25))}
 .brand__logo{width:30px;height:30px;border-radius:9px;display:block;box-shadow:0 1px 3px rgba(110,63,28,.25)}
 .brand__name{

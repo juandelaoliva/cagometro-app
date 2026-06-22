@@ -305,7 +305,8 @@ $("feed").addEventListener("click", e=>{
   const rx=e.target.closest("[data-rx]"), add=e.target.closest("[data-rxadd]");
   if(add){ openReactPicker(entry); return; }       // botón 🙂 → selector
   if(rx){ if(_lpFired){ _lpFired=false; return; }   // venía de un long-press → no alternar
-          applyReaction(entry, rx.dataset.rx); return; }   // chip → alterna mi reacción
+          if(entry.uid===uid){ showReactors(rx); return; }   // en TU actividad → muestra quién reaccionó
+          applyReaction(entry, rx.dataset.rx); return; }      // en la de otros → alterna mi reacción
   openPersonSheet(entry);
 });
 // reacciones (varias por persona)
@@ -333,33 +334,30 @@ $("rxPick").addEventListener("click", e=>{
 
 // ── long-press en un chip → tooltip con quién ha reaccionado (privacidad estilo Telegram) ──
 let friendNames={};               // uid -> nombre, solo de MIS amigos (para revelar identidades)
-function reactorNames(entry, emoji){
-  const r=entry.reactions||{}; const names=[]; let anon=0;
-  for(const ruid in r){
-    if(!asArr(r[ruid]).includes(emoji)) continue;
-    if(ruid===uid) names.unshift("Tú");
-    else if(friendNames[ruid]) names.push(friendNames[ruid]);   // amigo en común → nombre
-    else anon++;                                                // no amigo → anónimo
-  }
-  return { names, anon };
-}
 let _rxTip=null, _lpTimer=null, _lpFired=false;
 const _clearLP=()=>{ if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer=null; } };
 function hideReactors(){ if(_rxTip){ _rxTip.remove(); _rxTip=null; } }
-function showReactors(chip){
+async function showReactors(chip){
   hideReactors();
   const li=chip.closest(".feed__item[data-i]"); if(!li)return;
   const entry=homeFeedData[+li.dataset.i]; if(!entry)return;
-  const emoji=chip.dataset.rx; const {names,anon}=reactorNames(entry,emoji);
+  const emoji=chip.dataset.rx; const r=entry.reactions||{};
+  const ruids=Object.keys(r).filter(ru=>asArr(r[ru]).includes(emoji));
+  let names=[], anon=0;
+  if(entry.uid===uid){                                  // tu propia caca → revela todos
+    names = await Promise.all(ruids.map(ru=> ru===uid ? "Tú" : resolveName(ru)));
+  } else {                                              // de otros → solo amigos en común; el resto, anónimo
+    for(const ru of ruids){ if(ru===uid) names.unshift("Tú"); else if(friendNames[ru]) names.push(friendNames[ru]); else anon++; }
+  }
   let txt=names.join(", ");
   if(anon>0) txt += (txt?" y ":"") + (anon===1?"1 más":`${anon} más`);
   if(!txt) txt="Nadie";
   const tip=document.createElement("div"); tip.className="rxtip";
   tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${txt}`;
   document.body.appendChild(tip);
-  const r=chip.getBoundingClientRect();
-  tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, r.left)) + "px";
-  tip.style.top  = Math.max(8, r.top - tip.offsetHeight - 8) + "px";
+  const rect=chip.getBoundingClientRect();
+  tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, rect.left)) + "px";
+  tip.style.top  = Math.max(8, rect.top - tip.offsetHeight - 8) + "px";
   _rxTip=tip; navigator.vibrate?.(12);
 }
 $("feed").addEventListener("pointerdown", e=>{

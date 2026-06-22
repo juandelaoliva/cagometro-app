@@ -437,7 +437,8 @@ ol,ul{list-style:none}
 .rx{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--paper);border:1px solid var(--line-2);color:var(--ink-soft);line-height:1.5;transition:.12s;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .rx:active{transform:scale(.94)}
 .rx--mine{background:var(--gold-soft);border-color:transparent;color:#7a4e18}
-.rx--add{border-style:dashed;padding:3px 9px}
+.rx--add{border-style:dashed;padding:3px 10px;display:inline-flex;align-items:center;gap:1px}
+.rx-plus{font-weight:900;font-size:13px;color:var(--brand-2)}
 /* entrada de hito */
 .feed__item--hito{background:linear-gradient(100deg,#FFF1D6,rgba(255,241,214,0) 72%);border-radius:14px;padding-left:8px;padding-right:8px}
 .feed__item--hito .feed__line{font-weight:700}

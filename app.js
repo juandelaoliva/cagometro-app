@@ -267,7 +267,7 @@ function reactionsRow(c){
   for(const k in r) for(const e of asArr(r[k])) counts[e]=(counts[e]||0)+1;
   const mine=new Set(asArr(r[uid]));
   const chips=Object.keys(counts).map(e=>`<button class="rx ${mine.has(e)?'rx--mine':''}" data-rx="${e}">${e}&nbsp;${counts[e]}</button>`).join("");
-  const add = c.uid===uid ? "" : `<button class="rx rx--add" data-rxadd aria-label="Reaccionar">🙂</button>`;
+  const add = c.uid===uid ? "" : `<button class="rx rx--add" data-rxadd aria-label="Añadir reacción"><span class="rx-plus">+</span>🙂</button>`;
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
 function _feedItem(c,i){

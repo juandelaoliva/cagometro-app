@@ -371,10 +371,17 @@ ol,ul{list-style:none}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
 .sheet__title{font-family:var(--font-d);font-weight:900;font-size:22px}
 .sheet__sub{color:var(--ink-soft);font-size:14px;margin:4px 0 16px}
-.sheet .field{width:100%}
+.sheet .field{width:100%;max-width:100%;min-width:0;font-size:16px}  /* min-width:0 evita el desborde del datetime en iOS */
 .sheet__actions{display:flex;gap:10px;margin-top:16px}
 .sheet__actions .btn-ghost{flex:1;width:auto;padding:14px;margin-top:0}
 .sheet__actions .btn-solid{flex:1;padding:14px}
+
+/* menú de acciones (⋯) */
+.sheet__panel--menu{display:flex;flex-direction:column;gap:2px;padding-top:14px}
+.menu-item{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px 12px;border-radius:14px;font-weight:700;font-size:16px;color:var(--ink)}
+.menu-item span{font-size:20px;width:24px;text-align:center;flex:none}
+.menu-item:active{background:var(--paper)}
+.menu-item--cancel{justify-content:center;color:var(--ink-soft);margin-top:6px}
 
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}

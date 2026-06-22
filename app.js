@@ -99,12 +99,12 @@ $("addBtn").addEventListener("click",async e=>{
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
-$("undoBtn").addEventListener("click",async()=>{
+async function undoCaca(){
   if(busy||!uid)return; busy=true;
   try{ const ok=await removeCaca(uid); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity(); }
   catch(err){ toast("No se pudo deshacer"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
-});
+}
 $("fixBtn").addEventListener("click",async()=>{
   const cur=me?.totalCount||0;
   const v=prompt("¿A cuántas cacas quieres ajustar tu contador de este año?",cur);
@@ -116,7 +116,13 @@ $("fixBtn").addEventListener("click",async()=>{
 /* ---------- caca olvidada (late) ---------- */
 const _pad=n=>String(n).padStart(2,"0");
 const localDT=(d=new Date())=>`${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
-$("lateBtn").addEventListener("click",()=>{ const now=new Date(); $("lateWhen").value=localDT(now); $("lateWhen").max=localDT(now); $("lateSheet").hidden=false; });
+function openLateSheet(){ const now=new Date(); $("lateWhen").value=localDT(now); $("lateWhen").max=localDT(now); $("lateSheet").hidden=false; }
+$("menuBtn").addEventListener("click",()=>{ $("menuSheet").hidden=false; });
+$("menuSheet").addEventListener("click",e=>{ if(e.target===$("menuSheet")) $("menuSheet").hidden=true; });
+$("miCancel").addEventListener("click",()=>$("menuSheet").hidden=true);
+$("miLate").addEventListener("click",()=>{ $("menuSheet").hidden=true; openLateSheet(); });
+$("miStats").addEventListener("click",()=>{ $("menuSheet").hidden=true; setView("perfil"); });
+$("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(); });
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
 $("lateConfirm").addEventListener("click",async()=>{

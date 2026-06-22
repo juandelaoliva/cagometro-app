@@ -38,9 +38,8 @@
           <div class="progress"><div class="progress__bar"><i id="meProgressFill" style="width:0%"></i></div><div class="progress__label" id="meProgressLabel">—</div></div>
           <div class="addrow">
             <button class="addbtn" id="addBtn"><span class="addbtn__plus">+1</span><span class="addbtn__poo">💩</span><span class="addbtn__label">Sumar caca</span></button>
-            <button class="addbtn__more" id="lateBtn" aria-label="Añadir caca olvidada" title="Caca olvidada">⋯</button>
+            <button class="addbtn__more" id="menuBtn" aria-label="Más opciones">⋯</button>
           </div>
-          <button class="undobtn" id="undoBtn">↩︎ deshacer (−1)</button>
           <div class="chips">
             <div class="chip"><b id="statToday">0</b><span>hoy</span></div>
             <div class="chip"><b id="statWeek">0</b><span>semana</span></div>
@@ -155,6 +154,16 @@
         <span id="toggleText">¿Ya tienes cuenta?</span>
         <button class="link" id="toggleMode" type="button">Inicia sesión</button>
       </p>
+    </div>
+  </div>
+
+  <!-- ───────── Menú de acciones (⋯) ───────── -->
+  <div class="sheet" id="menuSheet" hidden>
+    <div class="sheet__panel sheet__panel--menu">
+      <button class="menu-item" id="miLate"><span>💩</span> Caca olvidada</button>
+      <button class="menu-item" id="miStats"><span>📊</span> Ver estadísticas</button>
+      <button class="menu-item" id="miUndo"><span>↩︎</span> Deshacer última (−1)</button>
+      <button class="menu-item menu-item--cancel" id="miCancel">Cancelar</button>
     </div>
   </div>
 

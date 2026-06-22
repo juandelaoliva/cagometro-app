@@ -339,6 +339,12 @@ ol,ul{list-style:none}
   background:radial-gradient(120% 80% at 80% -10%, #FFF7E8 0,transparent 55%),
              radial-gradient(120% 90% at -10% 0%, #FBEAD2 0,transparent 50%), var(--paper)}
 .splash__mark{font-size:64px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 1.4s ease-in-out infinite}
+#bootfail{z-index:101}
+.bootfail__box{text-align:center;padding:24px;max-width:320px}
+.bootfail__msg{font-weight:700;color:var(--ink);margin:14px 0 18px;line-height:1.4}
+.bootfail__msg small{font-weight:500;color:var(--ink-soft)}
+.bootfail__btn{padding:13px 26px;border-radius:14px;border:none;background:linear-gradient(160deg,var(--brand-2),var(--brand));color:#fff;font-weight:800;font-size:16px;box-shadow:var(--shadow)}
+.bootfail__btn:disabled{opacity:.6}
 
 /* ── grupos ──────────────────────────────────────────────────────── */
 .grouplist{display:flex;flex-direction:column;gap:8px}

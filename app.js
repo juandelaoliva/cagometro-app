@@ -11,6 +11,7 @@ import {
 import { IS_LOCAL } from "./firebase.js";
 
 const $ = id => document.getElementById(id);
+window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
 const MILESTONES = [10,25,50,75,100,150,200,250,300,400,500];
 const nextMilestone = n => MILESTONES.find(m => m > n) || (Math.floor(n/100)*100 + 100);
 const prevMilestone = n => [...MILESTONES].reverse().find(m => m <= n) || 0;
@@ -84,11 +85,16 @@ $("googleBtn").addEventListener("click",async()=>{clearErr();try{await googleSig
 $("logoutBtn").addEventListener("click",()=>signOutUser());
 
 /* ---------- session ---------- */
+let _authResolved=false;
 onUser(async user=>{
+  _authResolved=true;
   $("splash").hidden = true;                 // auth resolved → hide the loading screen
   if(!user){ showGate(); return; }
   uid=user.uid; await ensureProfile(user); showApp();
 });
+// Failsafe: si la sesión no resuelve en 9s (red/CDN lento en la PWA instalada),
+// no dejamos el splash colgado: mostramos el acceso para que el usuario pueda actuar.
+setTimeout(()=>{ if(!_authResolved){ $("splash").hidden=true; if(!uid) showGate(); } }, 9000);
 function showGate(){ if(unsub){unsub();unsub=null;} $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
 function showApp(){
@@ -522,7 +528,11 @@ applyMode();
 // nuevo toma control y la app se recarga sola (no más caché vieja en el móvil).
 if("serviceWorker"in navigator){
   let _reloading=false, _swReg=null;
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading)return; _reloading=true; location.reload(); });
+  // hadController=false al arrancar (típico en iOS standalone) ⇒ NO recargamos al
+  // reclamar el control la primera vez (evita el bucle de recarga / splash colgado).
+  // Solo auto-recargamos cuando hay una versión NUEVA sobre una página ya controlada.
+  const _hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading||!_hadController)return; _reloading=true; location.reload(); });
   window.addEventListener("load", async ()=>{
     try{ _swReg=await navigator.serviceWorker.register("sw.js"); _swReg.update(); setInterval(()=>_swReg.update().catch(()=>{}), 60000); }catch(e){}
   });

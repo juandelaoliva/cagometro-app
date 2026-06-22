@@ -26,6 +26,35 @@
   <!-- ───────── Splash (shown until auth resolves) ───────── -->
   <div class="splash" id="splash"><div class="splash__mark">💩</div></div>
 
+  <!-- Pantalla de fallo de arranque (si el bundle no carga: p.ej. CDN de Firebase) -->
+  <div class="splash" id="bootfail" hidden>
+    <div class="bootfail__box">
+      <div class="splash__mark">💩</div>
+      <p class="bootfail__msg">No se pudo cargar la app.<br/><small>Suele arreglarse reintentando.</small></p>
+      <button class="bootfail__btn" id="bootfailBtn">Reintentar</button>
+    </div>
+  </div>
+  <script>
+    /* Failsafe de arranque: si el módulo (app.js + SDK de Firebase desde el CDN)
+       no ha cargado en 10s, no dejamos el splash colgado para siempre. */
+    (function(){
+      var t = setTimeout(function(){
+        if(window.__appBooted) return;
+        var s=document.getElementById('splash'); if(s) s.hidden=true;
+        var f=document.getElementById('bootfail'); if(f) f.hidden=false;
+      }, 10000);
+      var btn=document.getElementById('bootfailBtn');
+      if(btn) btn.addEventListener('click', async function(){
+        btn.textContent='Limpiando…'; btn.disabled=true;
+        try{
+          if('serviceWorker' in navigator){ var rs=await navigator.serviceWorker.getRegistrations(); for(var i=0;i<rs.length;i++) await rs[i].unregister(); }
+          if(window.caches){ var ks=await caches.keys(); for(var j=0;j<ks.length;j++) await caches.delete(ks[j]); }
+        }catch(e){}
+        location.reload();
+      });
+    })();
+  </script>
+
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
     <header class="topbar">

@@ -79,6 +79,14 @@ export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), {
 // Ajustes del perfil (nickname, color, notificaciones…)
 export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 
+// ── Push (FCM) ──────────────────────────────────────────────────────────
+// Tokens del dispositivo en una subcolección PRIVADA (solo el dueño / el emisor admin).
+export const saveToken   = (uid, token) => setDoc(doc(db,"users",uid,"private","push"), { tokens: arrayUnion(token) }, { merge:true });
+export const removeToken = (uid, token) => updateDoc(doc(db,"users",uid,"private","push"), { tokens: arrayRemove(token) });
+// Cola de envíos: el emisor (Raspberry, firebase-admin) la vigila y manda los push.
+export const enqueuePush = (fromUid, toUid, title, body) =>
+  addDoc(collection(db,"pushQueue"), { fromUid, toUid, title, body, sent:false, ts: serverTimestamp() });
+
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.
 export async function addCacaAt(uid, ts){
@@ -151,6 +159,8 @@ export async function sendFriendRequest(myUid, email){
   if (other.uid === myUid) throw new Error("self");
   await setDoc(doc(db,"friendships", pairId(myUid, other.uid)),
     { uids:[myUid, other.uid], status:"pending", requestedBy:myUid, createdAt:serverTimestamp() }, { merge:true });
+  const me = await getUser(myUid);
+  enqueuePush(myUid, other.uid, "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
   return other;
 }
 export const acceptFriend = id => updateDoc(doc(db,"friendships",id), { status:"accepted" });

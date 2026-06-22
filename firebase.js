@@ -7,6 +7,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 // Use emulators on localhost, EXCEPT when ?prod is in the URL (to test the real
 // project from your Mac before hosting). On a real domain it's always prod.
@@ -30,6 +31,16 @@ const PROD_CONFIG = {
 export const app  = initializeApp(IS_LOCAL ? DEMO_CONFIG : PROD_CONFIG);
 export const auth = getAuth(app);
 export const db   = getFirestore(app);
+
+// ── Cloud Messaging (push) ─────────────────────────────────────────────
+// Clave pública del certificado push web (Console → Cloud Messaging).
+export const VAPID_KEY = "BBTE4Qf92an4In805pKi72wb63haMD2zOIskrMQkBmiqRIW9fHAmT9qWDz5w_YrIWUwFjcHgX_2cJztD2h7U1p8";
+export { getToken, onMessage };
+// Devuelve la instancia de messaging si el navegador lo soporta (y no es emulador).
+export async function getMessagingIfSupported(){
+  try{ if (IS_LOCAL) return null; if (!(await isSupported())) return null; return getMessaging(app); }
+  catch(e){ return null; }
+}
 
 if (IS_LOCAL) {
   connectAuthEmulator(auth, "http://localhost:9099", { disableWarnings: true });

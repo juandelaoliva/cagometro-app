@@ -14,6 +14,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -128,6 +132,12 @@
         <div class="block"><div class="block__head"><h2>Tus horas</h2><span class="block__hint" id="peakHour">—</span></div><div class="chart chart--hours" id="chartHours"></div></div>
         <div class="block"><div class="block__head"><h2>Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
 
+        <div class="block">
+          <div class="block__head"><h2>Ubicación</h2><span class="block__hint">al sumar una caca</span></div>
+          <div class="yearsel" id="locSel"></div>
+          <button class="btn-solid mapbtn" id="openMapBtn">🗺️ Ver mi mapa</button>
+        </div>
+
         <button class="btn-ghost" id="fixBtn">Corregir mi contador (este año)</button>
         <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
         <p class="footnote" id="pMode"></p>
@@ -169,6 +179,7 @@
   <div class="sheet" id="menuSheet" hidden>
     <div class="sheet__panel sheet__panel--menu">
       <button class="menu-item" id="miLate"><span>💩</span> Caca olvidada</button>
+      <button class="menu-item" id="miGeo"><span>📍</span> Sumar con ubicación</button>
       <button class="menu-item" id="miStats"><span>📊</span> Ver estadísticas</button>
       <button class="menu-item" id="miUndo"><span>↩︎</span> Deshacer última (−1)</button>
       <button class="menu-item menu-item--cancel" id="miCancel">Cancelar</button>
@@ -200,6 +211,13 @@
       <div class="psg-row" id="psGroups"></div>
       <button class="btn-ghost" id="psClose">Cerrar</button>
     </div>
+  </div>
+
+  <!-- ───────── Mapa ───────── -->
+  <div class="mapsheet" id="mapSheet" hidden>
+    <div id="map" class="mapfull"></div>
+    <div class="map-empty" id="mapEmpty" hidden>📍 Aún no tienes ubicaciones.<br/>Cambia el modo en <b>Ubicación</b> (Perfil) y suma una caca.</div>
+    <button class="map-close" id="mapClose" aria-label="Cerrar">✕</button>
   </div>
 
   <!-- celebration + toast -->

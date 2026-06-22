@@ -403,6 +403,17 @@ ol,ul{list-style:none}
 .psg{padding:13px;border-radius:13px;width:100%}
 #psClose{margin-top:14px}
 
+/* ── mapa (Leaflet) ──────────────────────────────────────────────── */
+.mapbtn{width:100%;padding:14px;margin-top:8px}
+.mapsheet{position:fixed;inset:0;z-index:96;background:var(--paper)}
+.mapfull{position:absolute;inset:0}
+.map-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:1000;
+  width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--shadow-lg);
+  font-size:18px;font-weight:800;color:var(--ink);display:grid;place-items:center}
+.map-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;text-align:center;
+  color:var(--ink-soft);background:rgba(255,255,255,.92);padding:18px 22px;border-radius:16px;box-shadow:var(--shadow);font-size:14px;line-height:1.5}
+.leaflet-container{font-family:var(--font-b)}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

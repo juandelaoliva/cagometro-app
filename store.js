@@ -68,11 +68,14 @@ export const watchMe = (uid, cb) =>
 export const getUser = async uid => { const s = await getDoc(doc(db,"users",uid)); return s.exists()?{id:s.id,...s.data()}:null; };
 
 /* ---------- counters (per-year) ---------- */
-export async function addCaca(uid){
+export async function addCaca(uid, loc){
   const y = yearNow();
-  await addDoc(collection(db, "users", uid, "cacas"), { uid, ts:Date.now(), tz:tz(), source:"app", year:y, createdAt:serverTimestamp() });
+  const data = { uid, ts:Date.now(), tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
+  if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { data.lat = loc.lat; data.lng = loc.lng; }
+  await addDoc(collection(db, "users", uid, "cacas"), data);
   await updateDoc(doc(db, "users", uid), { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
 }
+export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
 
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.

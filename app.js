@@ -3,7 +3,7 @@
    ============================================================ */
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
-  watchMe, addCaca, addCacaAt, removeCaca, setCount, myActivity,
+  watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed, groupYearCacas,
   getUser, colorForUid
@@ -72,7 +72,7 @@ function showApp(){
     $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
     $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
-    paintProgress(total);
+    paintProgress(total); renderLocSel(m.locationMode);
     if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit)celebrate(hit); }
     lastTotal=total;
   });
@@ -154,7 +154,10 @@ $("addBtn").addEventListener("click",async e=>{
   btn.classList.add("flash");setTimeout(()=>btn.classList.remove("flash"),350);navigator.vibrate?.(18);
   const num=$("meCount");num.textContent=(parseInt(num.textContent,10)||0)+1;
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
-  try{ await addCaca(uid); toast("¡Caca registrada! 💩"); loadActivity(); }
+  try{
+    const loc = me?.locationMode==="always" ? await getGeo() : null;
+    await addCaca(uid, loc); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩"); loadActivity();
+  }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -182,6 +185,13 @@ $("miCancel").addEventListener("click",()=>$("menuSheet").hidden=true);
 $("miLate").addEventListener("click",()=>{ $("menuSheet").hidden=true; openLateSheet(); });
 $("miStats").addEventListener("click",()=>{ $("menuSheet").hidden=true; setView("perfil"); });
 $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(); });
+$("miGeo").addEventListener("click", async ()=>{
+  $("menuSheet").hidden=true;
+  if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
+  try{ const loc=await getGeo(); await addCaca(uid,loc); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity(); }
+  catch(err){ toast("No se pudo guardar"); console.error(err); }
+  finally{ setTimeout(()=>busy=false,250); }
+});
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
 $("lateConfirm").addEventListener("click",async()=>{
@@ -361,6 +371,46 @@ function refreshActiveView(){
 }
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshActiveView(); });
 window.addEventListener("focus", refreshActiveView);
+
+/* ---------- ubicación + mapa ---------- */
+const LOC_LABELS={never:"Nunca",choose:"Elegir",always:"Siempre"};
+function renderLocSel(mode){
+  mode=mode||"never";
+  $("locSel").innerHTML=Object.keys(LOC_LABELS).map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${LOC_LABELS[k]}</button>`).join("");
+}
+$("locSel").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-loc]"); if(!b||!uid)return;
+  renderLocSel(b.dataset.loc);
+  try{ await setLocationMode(uid,b.dataset.loc); toast("Ubicación: "+LOC_LABELS[b.dataset.loc]); }catch(err){ console.error(err); }
+});
+function getGeo(){
+  return new Promise(res=>{
+    if(!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(
+      p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),
+      ()=>res(null),
+      {enableHighAccuracy:false,timeout:8000,maximumAge:60000});
+  });
+}
+let _map=null,_markers=[];
+$("openMapBtn").addEventListener("click", openMap);
+$("mapClose").addEventListener("click", ()=>$("mapSheet").hidden=true);
+async function openMap(){
+  $("mapSheet").hidden=false; $("mapEmpty").hidden=true;
+  if(typeof L==="undefined"){ toast("No se pudo cargar el mapa"); return; }
+  if(!_map){
+    _map=L.map("map",{zoomControl:true});
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_map);
+  }
+  setTimeout(()=>_map.invalidateSize(),120);
+  _markers.forEach(m=>_map.removeLayer(m)); _markers=[];
+  const cacas=await myActivity(uid,3000);
+  const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
+  const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
+  _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));
+  if(_markers.length) setTimeout(()=>_map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)),160);
+  else { _map.setView([40.4168,-3.7038],5); $("mapEmpty").hidden=false; }
+}
 
 /* ---------- delight ---------- */
 function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("div");p.className="poo-fly";p.textContent="💩";

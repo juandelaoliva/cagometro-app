@@ -202,6 +202,8 @@ async function loadActivity(){
   $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
   // feed combinado: tú + amigos + grupos
   homeFeedData=await homeFeed(uid);
+  // nombres de MIS amigos (para poder revelar quién reaccionó; el resto, anónimo)
+  try{ const fr=await getFriends(uid); friendNames={}; fr.forEach(f=>{ friendNames[f.id]=f.displayName; }); }catch(e){}
   feedShown=FEED_PAGE;
   renderFeedChips(); renderFeed();
 }
@@ -237,12 +239,14 @@ $("feedSearchBtn").addEventListener("click", ()=>{
 });
 // Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
 const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
+// normaliza el valor de reacción de un usuario (compat: datos antiguos eran string)
+const asArr = v => Array.isArray(v) ? v : (v ? [v] : []);
 // fila de reacciones (chips agregados por emoji + botón para reaccionar)
 function reactionsRow(c){
   const r=c.reactions||{}; const counts={};
-  for(const k in r) counts[r[k]]=(counts[r[k]]||0)+1;
-  const mine=r[uid];
-  const chips=Object.keys(counts).map(e=>`<button class="rx ${mine===e?'rx--mine':''}" data-rx="${e}">${e}&nbsp;${counts[e]}</button>`).join("");
+  for(const k in r) for(const e of asArr(r[k])) counts[e]=(counts[e]||0)+1;
+  const mine=new Set(asArr(r[uid]));
+  const chips=Object.keys(counts).map(e=>`<button class="rx ${mine.has(e)?'rx--mine':''}" data-rx="${e}">${e}&nbsp;${counts[e]}</button>`).join("");
   const add = c.uid===uid ? "" : `<button class="rx rx--add" data-rxadd aria-label="Reaccionar">🙂</button>`;
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
@@ -280,18 +284,20 @@ $("feed").addEventListener("click", e=>{
   const entry=homeFeedData[+li.dataset.i]; if(!entry)return;
   const rx=e.target.closest("[data-rx]"), add=e.target.closest("[data-rxadd]");
   if(add){ openReactPicker(entry); return; }       // botón 🙂 → selector
-  if(rx){ applyReaction(entry, rx.dataset.rx); return; }   // chip → alterna mi reacción
+  if(rx){ if(_lpFired){ _lpFired=false; return; }   // venía de un long-press → no alternar
+          applyReaction(entry, rx.dataset.rx); return; }   // chip → alterna mi reacción
   openPersonSheet(entry);
 });
-// reacciones
+// reacciones (varias por persona)
 let _rxTarget=null;
 async function applyReaction(entry, emoji){
   if(entry.uid===uid) return;                      // no reaccionas a tus propias cacas
   const r=entry.reactions={...(entry.reactions||{})};
-  const next = r[uid]===emoji ? null : emoji;
-  if(next===null) delete r[uid]; else r[uid]=next; // optimista
+  const mine=asArr(r[uid]); const has=mine.includes(emoji);
+  const next = has ? mine.filter(e=>e!==emoji) : [...mine, emoji];   // alterna ese emoji
+  if(next.length) r[uid]=next; else delete r[uid];                   // optimista
   renderFeed();
-  try{ await setReaction(entry.uid, entry.id, uid, next); }
+  try{ await setReaction(entry.uid, entry.id, uid, emoji, !has); }
   catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
 }
 function openReactPicker(entry){ _rxTarget=entry; $("reactSheet").hidden=false; }
@@ -301,6 +307,48 @@ $("rxPick").addEventListener("click", e=>{
   const b=e.target.closest("[data-rxpick]"); if(!b||!_rxTarget)return;
   $("reactSheet").hidden=true; applyReaction(_rxTarget, b.dataset.rxpick); _rxTarget=null;
 });
+
+// ── long-press en un chip → tooltip con quién ha reaccionado (privacidad estilo Telegram) ──
+let friendNames={};               // uid -> nombre, solo de MIS amigos (para revelar identidades)
+function reactorNames(entry, emoji){
+  const r=entry.reactions||{}; const names=[]; let anon=0;
+  for(const ruid in r){
+    if(!asArr(r[ruid]).includes(emoji)) continue;
+    if(ruid===uid) names.unshift("Tú");
+    else if(friendNames[ruid]) names.push(friendNames[ruid]);   // amigo en común → nombre
+    else anon++;                                                // no amigo → anónimo
+  }
+  return { names, anon };
+}
+let _rxTip=null, _lpTimer=null, _lpFired=false;
+const _clearLP=()=>{ if(_lpTimer){ clearTimeout(_lpTimer); _lpTimer=null; } };
+function hideReactors(){ if(_rxTip){ _rxTip.remove(); _rxTip=null; } }
+function showReactors(chip){
+  hideReactors();
+  const li=chip.closest(".feed__item[data-i]"); if(!li)return;
+  const entry=homeFeedData[+li.dataset.i]; if(!entry)return;
+  const emoji=chip.dataset.rx; const {names,anon}=reactorNames(entry,emoji);
+  let txt=names.join(", ");
+  if(anon>0) txt += (txt?" y ":"") + (anon===1?"1 más":`${anon} más`);
+  if(!txt) txt="Nadie";
+  const tip=document.createElement("div"); tip.className="rxtip";
+  tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${txt}`;
+  document.body.appendChild(tip);
+  const r=chip.getBoundingClientRect();
+  tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, r.left)) + "px";
+  tip.style.top  = Math.max(8, r.top - tip.offsetHeight - 8) + "px";
+  _rxTip=tip; navigator.vibrate?.(12);
+}
+$("feed").addEventListener("pointerdown", e=>{
+  const chip=e.target.closest("[data-rx]"); if(!chip)return;
+  _lpFired=false; _clearLP();
+  _lpTimer=setTimeout(()=>{ _lpFired=true; showReactors(chip); }, 450);
+});
+$("feed").addEventListener("pointerup", _clearLP);
+$("feed").addEventListener("pointermove", _clearLP);
+$("feed").addEventListener("pointercancel", _clearLP);
+document.addEventListener("pointerdown", e=>{ if(_rxTip && !e.target.closest(".rxtip")) hideReactors(); }, true);
+window.addEventListener("scroll", hideReactors, true);
 // Estadísticas de una persona a partir de sus cacas (año actual + racha global)
 function personStats(cacas){
   const yr=new Date().getFullYear();

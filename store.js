@@ -13,7 +13,7 @@ import {
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
   serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs,
-  arrayUnion, arrayRemove, deleteField
+  arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
@@ -126,11 +126,12 @@ export async function setCount(uid, n){
   return delta;
 }
 
-// Reacciona (o quita la reacción con emoji=null) a una caca de cualquiera.
-// Se guarda como mapa reactions:{ reactorUid: emoji } en el propio doc de la caca.
-export const setReaction = (ownerUid, cacaId, myUid, emoji) =>
+// Reacciones tipo Telegram: cada usuario puede poner varios emojis.
+// Se guarda como mapa reactions:{ reactorUid: [emoji, …] } en el doc de la caca.
+// add=true añade el emoji; add=false lo quita (arrayUnion/Remove → seguro ante concurrencia).
+export const setReaction = (ownerUid, cacaId, myUid, emoji, add) =>
   updateDoc(doc(db, "users", ownerUid, "cacas", cacaId),
-    { [`reactions.${myUid}`]: emoji === null ? deleteField() : emoji });
+    { [`reactions.${myUid}`]: add ? arrayUnion(emoji) : arrayRemove(emoji) });
 
 export async function myActivity(uid, n = 200){
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(n)));

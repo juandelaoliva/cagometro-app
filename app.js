@@ -769,15 +769,50 @@ function renderStats(){
 /* ---------- refrescar al volver a primer plano ---------- */
 // La PWA se "reanuda" en la misma pestaña sin navegar; recargamos sus datos.
 function refreshActiveView(){
-  if(!uid) return;
+  if(!uid) return Promise.resolve();
   const active = document.querySelector(".view.is-active")?.dataset.view;
-  if(active==="inicio") loadActivity();
-  else if(active==="amigos") renderAmigos();
-  else if(active==="grupos") renderGrupos();
-  else if(active==="perfil") loadStats();
+  if(active==="inicio") return loadActivity();
+  if(active==="amigos") return renderAmigos();
+  if(active==="grupos") return renderGrupos();
+  if(active==="perfil") return loadStats();
+  return Promise.resolve();
 }
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshActiveView(); });
 window.addEventListener("focus", refreshActiveView);
+
+/* ---------- pull-to-refresh (solo PWA instalada; en web ya lo hace el navegador) ---------- */
+const _standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+if(_standalone){
+  const ptr=$("ptr"), TH=72, DAMP=0.5;
+  let sy=0, sx=0, active=false, dist=0;
+  const atTop=()=> (window.scrollY||document.documentElement.scrollTop||0) <= 0;
+  const overlayOpen=()=> !!document.querySelector(".sheet:not([hidden]),.mapsheet:not([hidden]),.gate:not([hidden])");
+  const reset=()=>{ ptr.classList.remove("refreshing"); ptr.style.transition="transform .25s,opacity .25s"; ptr.style.transform="translateY(-54px)"; ptr.style.opacity="0"; };
+  document.addEventListener("touchstart", e=>{
+    if(e.touches.length!==1 || !uid || !atTop() || overlayOpen()){ active=false; return; }
+    sy=e.touches[0].clientY; sx=e.touches[0].clientX; active=true; dist=0; ptr.style.transition="none";
+  }, {passive:true});
+  document.addEventListener("touchmove", e=>{
+    if(!active) return;
+    const dy=e.touches[0].clientY-sy, dx=e.touches[0].clientX-sx;
+    if(dy<=0 || Math.abs(dx)>Math.abs(dy) || !atTop()){ active=false; reset(); return; }   // arriba / horizontal / ya no en el tope
+    e.preventDefault();                                   // evita el rubber-band del sistema
+    dist=dy;
+    const pull=Math.min(dy*DAMP,100);
+    ptr.style.transform=`translateY(${pull-54}px)`;
+    ptr.style.opacity=String(Math.min(1,pull/TH));
+    ptr.style.setProperty("--rot",(pull*3)+"deg");
+  }, {passive:false});
+  document.addEventListener("touchend", async ()=>{
+    if(!active) return; active=false;
+    if(dist*DAMP>=TH){
+      ptr.style.transition="transform .2s"; ptr.style.transform="translateY(14px)"; ptr.style.opacity="1"; ptr.classList.add("refreshing");
+      const t0=Date.now();
+      try{ await refreshActiveView(); }catch(_){}
+      setTimeout(reset, Math.max(0, 450-(Date.now()-t0)));   // deja ver el spin un mínimo
+    } else reset();
+  });
+}
 
 /* ---------- ubicación + mapa ---------- */
 const LOC_LABELS={never:"Nunca",choose:"Elegir",always:"Siempre"};

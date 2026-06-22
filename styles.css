@@ -358,6 +358,11 @@ ol,ul{list-style:none}
   background:radial-gradient(120% 80% at 80% -10%, #FFF7E8 0,transparent 55%),
              radial-gradient(120% 90% at -10% 0%, #FBEAD2 0,transparent 50%), var(--paper)}
 .splash__mark{font-size:64px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 1.4s ease-in-out infinite}
+/* pull-to-refresh (PWA) */
+.ptr{position:fixed;top:calc(env(safe-area-inset-top) + 0px);left:0;right:0;height:54px;z-index:36;display:grid;place-items:center;transform:translateY(-54px);opacity:0;pointer-events:none}
+.ptr__icon{font-size:26px;display:inline-block;transform:rotate(var(--rot,0deg));filter:drop-shadow(0 2px 4px rgba(110,63,28,.3))}
+.ptr.refreshing .ptr__icon{animation:ptrspin .7s linear infinite}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
 #bootfail{z-index:101}
 .bootfail__box{text-align:center;padding:24px;max-width:320px}
 .bootfail__msg{font-weight:700;color:var(--ink);margin:14px 0 18px;line-height:1.4}

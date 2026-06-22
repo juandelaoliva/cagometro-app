@@ -205,3 +205,27 @@ export async function groupFeed(group, perMember = 4){
   }));
   return chunks.flat().sort((a,b)=>b.ts-a.ts).slice(0,25);
 }
+
+/* ---------- combined home feed (you + friends + groups) ---------- */
+// Each entry is tagged with its context(s) relative to you: "tú" / "amigo" /
+// group name(s). Someone who's both your friend AND in your group gets several.
+// `n` = the counter number that caca reached (most recent = current total).
+export async function homeFeed(uid, perPerson = 25){
+  const [friendsArr, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
+  const ctx = {};                              // personUid -> Set of context labels
+  const add = (u, label) => { (ctx[u] = ctx[u] || new Set()).add(label); };
+  add(uid, "tú");
+  friendsArr.forEach(f => add(f.id, "amigo"));
+  groups.forEach(g => (g.members||[]).forEach(m => { if (m !== uid) add(m, g.name); }));
+
+  const chunks = await Promise.all(Object.keys(ctx).map(async p => {
+    const u = await getUser(p); if (!u) return [];
+    const snap = await getDocs(query(collection(db,"users",p,"cacas"), orderBy("ts","desc"), limit(perPerson)));
+    const total = u.totalCount || 0;
+    return snap.docs.map((d, i) => ({
+      ...d.data(), uid: p, name: u.displayName, color: u.color || colorForUid(p),
+      contexts: [...ctx[p]], n: Math.max(1, total - i),
+    }));
+  }));
+  return chunks.flat().sort((a,b) => b.ts - a.ts);
+}

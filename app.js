@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, setCount, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed, homeFeed,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL } from "./firebase.js";
@@ -18,9 +18,15 @@ const initial = s => (s||"?").trim().charAt(0).toUpperCase();
 const DAY = 86400000;
 const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
 const av = (name,color) => `<span class="av" style="background:${color||'#6E3F1C'}">${initial(name)}</span>`;
-function timeAgo(ts){ const s=Math.max(1,Math.round((Date.now()-ts)/1000));
-  if(s<60)return"ahora"; const m=Math.round(s/60); if(m<60)return`hace ${m} min`;
-  const h=Math.round(m/60); if(h<24)return`hace ${h} h`; return`hace ${Math.round(h/24)} d`; }
+const _meses=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function fmtWhen(ts){
+  const diff=Date.now()-ts;
+  if(diff<3600000){ const m=Math.max(1,Math.round(diff/60000)); return m<2?"ahora":`hace ${m} min`; }
+  const d=new Date(ts), n=new Date();
+  const hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+  const sameDay = d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
+  return sameDay ? `${hh}:${mm}` : `${d.getDate()} ${_meses[d.getMonth()]} ${hh}:${mm}`;
+}
 
 let uid=null, me=null, unsub=null, lastTotal=null;
 
@@ -77,15 +83,39 @@ function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(to
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
 
+let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 async function loadActivity(){
-  const cacas=await myActivity(uid,200);
+  // chips (mis estadísticas) desde mis cacas
+  const mine=await myActivity(uid,300);
   const t0=startOfToday(),wk=Date.now()-7*DAY; let today=0,week=0; const days=new Set();
-  for(const c of cacas){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
+  for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
   let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
   $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-  $("feed").innerHTML=cacas.slice(0,20).map((c,i)=>`<li class="feed__item" style="animation-delay:${i*45}ms"><span class="feed__badge">💩</span><span class="feed__txt">Sumaste una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
-    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Aún no hay cacas. ¡Suma la primera! 👆</span></li>`;
+  // feed combinado: tú + amigos + grupos
+  homeFeedData=await homeFeed(uid);
+  feedShown=Math.min(FEED_PAGE, homeFeedData.length);
+  renderFeed();
 }
+const _ctxChip=l=>`<span class="cc ${l==='amigo'?'cc--friend':'cc--group'}">${l}</span>`;
+function _feedItem(c){
+  const chips=(c.contexts||[]).filter(l=>l!=="tú").map(_ctxChip).join("");
+  const head=c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`;
+  return `<li class="feed__item">
+    <span class="av" style="background:${c.color}">${initial(c.name)}</span>
+    <div class="feed__body">
+      <div class="feed__line">${head} <b class="feed__n">${c.n}</b></div>
+      ${chips?`<div class="feed__ctx">${chips}</div>`:""}
+    </div>
+    <span class="feed__time">${fmtWhen(c.ts)}</span>
+  </li>`;
+}
+function renderFeed(){
+  const items=homeFeedData.slice(0,feedShown);
+  $("feed").innerHTML = items.length ? items.map(_feedItem).join("")
+    : `<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Aún no hay actividad. ¡Suma la primera! 👆</span></li>`;
+  $("loadMore").hidden = feedShown>=homeFeedData.length;
+}
+$("loadMore").addEventListener("click",()=>{ feedShown=Math.min(feedShown+FEED_PAGE, homeFeedData.length); renderFeed(); });
 
 /* ---------- +1 / −1 / corregir ---------- */
 let busy=false;
@@ -167,7 +197,7 @@ async function renderAmigos(){
   $("friendsRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
     ||`<li><span class="nm" style="color:var(--ink-faint)">Añade amigos para competir 👇</span></li>`;
   // feed
-  $("friendsFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
+  $("friendsFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${fmtWhen(c.ts)}</span></li>`).join("")
     ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad de amigos todavía.</span></li>`;
 }
 document.addEventListener("click",async e=>{
@@ -211,7 +241,7 @@ async function openGroup(group){
   $("gdName").textContent=group.name; $("shareCode").textContent=`Código: ${group.inviteCode}`;
   const [board,feed]=await Promise.all([groupLeaderboard(group), groupFeed(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
-  $("groupFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
+  $("groupFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${fmtWhen(c.ts)}</span></li>`).join("")
     ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad todavía.</span></li>`;
 }
 

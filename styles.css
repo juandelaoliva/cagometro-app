@@ -383,6 +383,18 @@ ol,ul{list-style:none}
 .menu-item:active{background:var(--paper)}
 .menu-item--cancel{justify-content:center;color:var(--ink-soft);margin-top:6px}
 
+/* ── feed combinado (Actividad) ──────────────────────────────────── */
+.feed__body{flex:1;min-width:0}
+.feed__line{font-size:14px;line-height:1.3}
+.feed__line b{font-weight:800}
+.feed__n{margin-left:6px;color:var(--brand);font-family:var(--font-d);font-weight:900}
+.feed__ctx{display:flex;gap:5px;flex-wrap:wrap;margin-top:4px}
+.cc{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.cc--friend{background:var(--mint-soft);color:#1c6b46}
+.cc--group{background:var(--gold-soft);color:#7a4e18}
+.loadmore{display:block;width:100%;margin-top:12px;padding:12px;border-radius:13px;background:var(--card);border:1px solid var(--line);font-weight:700;color:var(--brand-2);box-shadow:var(--shadow)}
+.loadmore:active{transform:translateY(1px)}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

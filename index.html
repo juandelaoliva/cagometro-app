@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-  <title>Cagómetro</title>
+  <title>El Cagómetro</title>
   <meta name="description" content="Tu cagómetro personal. Suma tus cacas, sigue a tus amigos y compite en grupos." />
   <link rel="manifest" href="manifest.webmanifest" />
   <meta name="theme-color" content="#FBF6EC" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="Cagómetro" />
+  <meta name="apple-mobile-web-app-title" content="El Cagómetro" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -25,7 +25,7 @@
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
     <header class="topbar">
-      <div class="brand"><span class="brand__mark">💩</span><span class="brand__name">Cagómetro</span></div>
+      <div class="brand"><span class="brand__mark">💩</span><span class="brand__name">El Cagómetro</span></div>
       <button class="profile" data-view="perfil"><span class="avatar" id="hdrAvatar">··</span></button>
     </header>
 
@@ -47,10 +47,10 @@
           </div>
         </section>
         <section class="block">
-          <div class="block__head"><h2>Tu actividad</h2><span class="block__hint">tus últimas cacas</span></div>
+          <div class="block__head"><h2>Actividad</h2><span class="block__hint">tú, amigos y grupos</span></div>
           <ul class="feed" id="feed"></ul>
+          <button class="loadmore" id="loadMore" hidden>Cargar más</button>
         </section>
-        <p class="footnote">Pronto: amigos, grupos y feeds 👀</p>
       </section>
 
       <!-- AMIGOS -->
@@ -137,7 +137,7 @@
   <div class="gate" id="gate" hidden>
     <div class="gate__card">
       <div class="gate__mark">💩</div>
-      <h1 class="gate__title">Cagómetro</h1>
+      <h1 class="gate__title">El Cagómetro</h1>
       <p class="gate__sub" id="gateSub">Crea tu cuenta y empieza a contar.</p>
 
       <form id="authForm" class="authform" autocomplete="on">

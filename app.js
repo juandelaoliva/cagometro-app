@@ -287,4 +287,12 @@ function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA
 let toastT; function toast(m){ const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1800); }
 
 applyMode();
-if("serviceWorker"in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
+// Service worker + auto-update: cuando se despliega una versión nueva, el SW
+// nuevo toma control y la app se recarga sola (no más caché vieja en el móvil).
+if("serviceWorker"in navigator){
+  let _reloading=false;
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading)return; _reloading=true; location.reload(); });
+  window.addEventListener("load", async ()=>{
+    try{ const reg=await navigator.serviceWorker.register("sw.js"); reg.update(); setInterval(()=>reg.update().catch(()=>{}), 60000); }catch(e){}
+  });
+}

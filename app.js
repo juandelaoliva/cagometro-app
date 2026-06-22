@@ -19,6 +19,8 @@ const prevMilestone = n => [...MILESTONES].reverse().find(m => m <= n) || 0;
 const initial = s => (s||"?").trim().charAt(0).toUpperCase();
 const DAY = 86400000;
 const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+// Inicio de la semana natural (lunes 00:00 local)
+const startOfWeek = () => { const d=new Date(); d.setHours(0,0,0,0); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d.getTime(); };
 const av = (name,color) => `<span class="av" style="background:${color||'#6E3F1C'}">${initial(name)}</span>`;
 const _meses=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function fmtWhen(ts){
@@ -213,7 +215,7 @@ let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 async function loadActivity(){
   // chips (mis estadísticas) desde mis cacas
   const mine=await myActivity(uid,300);
-  const t0=startOfToday(),wk=Date.now()-7*DAY; let today=0,week=0; const days=new Set();
+  const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
   for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
   let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
   $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;

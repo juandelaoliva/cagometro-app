@@ -1,5 +1,5 @@
-/* Cagómetro service worker — offline app shell (network-first) */
-const CACHE = "cagometro-20260622-193735";
+/* Cagómetro service worker — app shell (network-first) + actualización controlada */
+const CACHE = "cagometro-20260622-194305";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./store.js", "./firebase.js",
@@ -7,17 +7,27 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", e => {
+  // Precarga el shell, pero NO hace skipWaiting automático: el cliente decide
+  // cuándo activar la versión nueva (evita servir un shell mezclado/a medias).
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(()=>{}));
-  self.skipWaiting();
 });
+
+self.addEventListener("message", e => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("activate", e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))));
-  self.clients.claim();
+  e.waitUntil(
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
+  );
 });
+
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
-  if (url.origin !== location.origin) return;   // let Firebase/Google CDN go straight to network
+  if (url.origin !== location.origin) return;   // Firebase/Google CDN → directo a red
   e.respondWith(
     fetch(e.request).then(res => {
       const copy = res.clone();

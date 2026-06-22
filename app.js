@@ -568,13 +568,24 @@ applyMode();
 // nuevo toma control y la app se recarga sola (no más caché vieja en el móvil).
 if("serviceWorker"in navigator){
   let _reloading=false, _swReg=null;
-  // hadController=false al arrancar (típico en iOS standalone) ⇒ NO recargamos al
-  // reclamar el control la primera vez (evita el bucle de recarga / splash colgado).
-  // Solo auto-recargamos cuando hay una versión NUEVA sobre una página ya controlada.
-  const _hadController = !!navigator.serviceWorker.controller;
-  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading||!_hadController)return; _reloading=true; location.reload(); });
+  // Cuando el SW nuevo toma el control, recargamos UNA vez. El flag _reloading evita
+  // recargas múltiples; como el SW nuevo solo se activa cuando NOSOTROS se lo pedimos
+  // (mensaje SKIP_WAITING al detectar una versión nueva), no hay bucle.
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading)return; _reloading=true; location.reload(); });
+  // Si hay un SW nuevo esperando/instalándose, lo activamos para que entre la versión nueva.
+  function _activate(reg){
+    if(reg.waiting) reg.waiting.postMessage({type:"SKIP_WAITING"});
+    if(reg.installing) reg.installing.addEventListener("statechange", function(){
+      if(this.state==="installed" && navigator.serviceWorker.controller) this.postMessage({type:"SKIP_WAITING"});
+    });
+  }
   window.addEventListener("load", async ()=>{
-    try{ _swReg=await navigator.serviceWorker.register("sw.js"); _swReg.update(); setInterval(()=>_swReg.update().catch(()=>{}), 60000); }catch(e){}
+    try{
+      _swReg=await navigator.serviceWorker.register("sw.js");
+      _activate(_swReg);
+      _swReg.addEventListener("updatefound", ()=>_activate(_swReg));
+      setInterval(()=>_swReg.update().catch(()=>{}), 60000);
+    }catch(e){}
   });
   // al volver a primer plano (típico en iOS standalone), buscar versión nueva
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && _swReg) _swReg.update().catch(()=>{}); });

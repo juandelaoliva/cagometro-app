@@ -126,6 +126,8 @@
           <div class="pcard__sub" id="pLifetime"></div>
         </div>
 
+        <div class="psg-row psg-row--wrap" id="pGroups"></div>
+
         <div class="yearsel" id="yearSel"></div>
         <div class="statgrid" id="statGrid"></div>
         <div class="block"><div class="block__head"><h2 id="chartTitle">Por mes</h2></div><div class="chart" id="chartPrimary"></div></div>
@@ -201,14 +203,20 @@
 
   <!-- ───────── Ficha de persona (desde Actividad) ───────── -->
   <div class="sheet" id="psSheet" hidden>
-    <div class="sheet__panel">
+    <div class="sheet__panel sheet__panel--profile">
       <div class="ps-head">
         <span class="avatar avatar--lg" id="psAvatar">··</span>
         <div><div class="pcard__name" id="psName">—</div><div class="pcard__email" id="psTotal">—</div></div>
       </div>
+      <div class="statgrid" id="psStats"></div>
+      <p class="ps-records" id="psRecords" hidden></p>
       <div class="block__head"><h2>Por mes</h2><span class="block__hint">este año</span></div>
       <div class="chart" id="psChart"></div>
-      <div class="psg-row" id="psGroups"></div>
+      <div id="psGroupsWrap" hidden>
+        <div class="block__head"><h2>Grupos en común</h2></div>
+        <div class="psg-row" id="psGroups"></div>
+      </div>
+      <div class="ps-actions" id="psActions"></div>
       <button class="btn-ghost" id="psClose">Cerrar</button>
     </div>
   </div>

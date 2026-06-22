@@ -124,22 +124,52 @@ $("feed").addEventListener("click", e=>{
   const li=e.target.closest(".feed__item[data-i]"); if(!li)return;
   const entry=homeFeedData[+li.dataset.i]; if(entry) openPersonSheet(entry);
 });
+// Estadísticas de una persona a partir de sus cacas (año actual + racha global)
+function personStats(cacas){
+  const yr=new Date().getFullYear();
+  const yc=cacas.filter(c=>tzParts(c.ts,c.tz).year===yr);
+  const allDays=new Set(); for(const c of cacas){ const d=new Date(c.ts); d.setHours(0,0,0,0); allDays.add(d.getTime()); }
+  let streak=0,cur=startOfToday(); if(!allDays.has(cur))cur-=DAY; while(allDays.has(cur)){streak++;cur-=DAY;}
+  const dayCount={}; for(const c of yc){ const p=tzParts(c.ts,c.tz); const k=`${p.year}-${p.month}-${p.day}`; dayCount[k]=(dayCount[k]||0)+1; }
+  const activeDays=Object.keys(dayCount).length, total=yc.length;
+  const bestDay=Math.max(0,...Object.values(dayCount));
+  const avg=activeDays?(total/activeDays).toFixed(1):"0";
+  const m=new Array(12).fill(0); for(const c of yc) m[tzParts(c.ts,c.tz).month-1]++;
+  return { total, streak, activeDays, bestDay, avg, monthly:m };
+}
 async function openPersonSheet(entry){
   if(entry.uid===uid){ setView("perfil"); return; }    // tu propia caca → tu perfil
   $("psAvatar").textContent=initial(entry.name); $("psAvatar").style.background=entry.color;
-  $("psName").textContent=entry.name; $("psTotal").textContent="…"; $("psChart").innerHTML=""; $("psGroups").innerHTML="";
+  $("psName").textContent=entry.name; $("psTotal").textContent="…";
+  $("psStats").innerHTML=""; $("psRecords").hidden=true; $("psChart").innerHTML=""; $("psGroups").innerHTML=""; $("psActions").innerHTML="";
   $("psSheet").hidden=false;
-  const [u,cacas]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,2000)]);
-  $("psTotal").textContent=`${u?.totalCount||0} cacas este año`;
-  const yr=new Date().getFullYear(); const m=new Array(12).fill(0);
-  for(const c of cacas){ const p=tzParts(c.ts,c.tz); if(p.year===yr) m[p.month-1]++; }
-  const max=Math.max(1,...m);
-  $("psChart").innerHTML=m.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${PM[i]}</span></div>`).join("");
+  const [u,cacas,fships]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,5000), myFriendships(uid)]);
+  const st=personStats(cacas);
+  const year = u?.totalCount ?? st.total;
+  const life = u?.lifetimeCount || cacas.length;
+  $("psTotal").textContent=`${year} este año · ${life} en total`;
+  $("psStats").innerHTML=`
+    <div class="stat stat--accent"><b>${year}</b><span>este año</span></div>
+    <div class="stat"><b>${st.streak}</b><span>racha (días)</span></div>
+    <div class="stat"><b>${st.avg}</b><span>media/día activo</span></div>
+    <div class="stat"><b>${st.bestDay}</b><span>mejor día</span></div>`;
+  if(st.activeDays){ $("psRecords").textContent=`${st.activeDays} días con caca este año`; $("psRecords").hidden=false; }
+  const max=Math.max(1,...st.monthly);
+  $("psChart").innerHTML=st.monthly.map((v,i)=>`<div class="bar ${v===max&&v>0?'peak':''}"><i style="height:${Math.round(v/max*100)}%"></i><span>${PM[i]}</span></div>`).join("");
   const gs=(entry.contexts||[]).filter(c=>c.type==="group");
+  $("psGroupsWrap").hidden = !gs.length;
   $("psGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg" data-gid="${g.gid}">🏆 ${g.name}</button>`).join("");
+  const fr=fships.find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
+  $("psActions").innerHTML = fr ? `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>` : "";
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
 $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
+$("psActions").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-rmfriend]"); if(!b)return;
+  if(!confirm("¿Eliminar a esta persona de tus amigos?")) return;
+  try{ await removeFriend(b.dataset.rmfriend); toast("Amigo eliminado"); $("psSheet").hidden=true; if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
+  catch(err){ toast("No se pudo"); console.error(err); }
+});
 $("psGroups").addEventListener("click", async e=>{
   const b=e.target.closest("[data-gid]"); if(!b)return;
   $("psSheet").hidden=true; setView("grupos");
@@ -315,8 +345,18 @@ const _wd={Sun:6,Mon:0,Tue:1,Wed:2,Thu:3,Fri:4,Sat:5};
 function tzParts(ts,tz){ const p=tzFmt(tz).formatToParts(new Date(ts)); const g=t=>p.find(x=>x.type===t)?.value;
   return { year:+g("year"), month:+g("month"), day:+g("day"), hour:(+g("hour"))%24, weekday:_wd[g("weekday")]??0 }; }
 
+async function renderProfileGroups(){
+  const gs=await myGroups(uid); myGroupsCache=gs;
+  $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${g.id}">🏆 ${g.name}</button>`).join("");
+}
+$("pGroups").addEventListener("click", e=>{
+  const b=e.target.closest("[data-pgid]"); if(!b)return;
+  setView("grupos"); openGroupById(b.dataset.pgid);
+});
+
 let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear();
 async function loadStats(){
+  renderProfileGroups();
   statsCacas = await myActivity(uid, 5000);
   statsYears = [...new Set(statsCacas.map(c=>tzParts(c.ts,c.tz).year))].sort((a,b)=>b-a);
   if(!(statsScope==="all" || statsYears.includes(statsScope))) statsScope = statsYears[0] || new Date().getFullYear();

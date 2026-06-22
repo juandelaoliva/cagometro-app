@@ -334,6 +334,21 @@ ol,ul{list-style:none}
 .btn-ghost+.btn-ghost{margin-top:10px}
 .btn-ghost--danger{color:var(--rose)}
 
+/* ── splash (carga) ──────────────────────────────────────────────── */
+.splash{position:fixed;inset:0;z-index:100;display:grid;place-items:center;
+  background:radial-gradient(120% 80% at 80% -10%, #FFF7E8 0,transparent 55%),
+             radial-gradient(120% 90% at -10% 0%, #FBEAD2 0,transparent 50%), var(--paper)}
+.splash__mark{font-size:64px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 1.4s ease-in-out infinite}
+
+/* ── grupos ──────────────────────────────────────────────────────── */
+.grouplist{display:flex;flex-direction:column;gap:8px}
+.grouplist li{display:flex;align-items:center;justify-content:space-between;background:var(--card);
+  border:1px solid var(--line-2);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer}
+.grouplist li:active{transform:translateY(1px)}
+.grouplist .gname{font-weight:700}
+.grouplist .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600}
+.grouplist .gempty{justify-content:center;text-align:center;color:var(--ink-faint);font-size:13.5px;cursor:default}
+
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}
 }

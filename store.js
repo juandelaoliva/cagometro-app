@@ -12,7 +12,8 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
-  serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs
+  serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs,
+  arrayUnion, arrayRemove
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
@@ -152,6 +153,45 @@ export async function friendsFeed(myUid, perFriend = 5){
   const chunks = await Promise.all(friends.map(async f => {
     const snap = await getDocs(query(collection(db,"users",f.id,"cacas"), orderBy("ts","desc"), limit(perFriend)));
     return snap.docs.map(d => ({ ...d.data(), name:f.displayName, color:f.color || colorForUid(f.id) }));
+  }));
+  return chunks.flat().sort((a,b)=>b.ts-a.ts).slice(0,25);
+}
+
+/* ---------- groups ---------- */
+const genCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+
+export async function createGroup(uid, name){
+  const ref = await addDoc(collection(db,"groups"), {
+    name: (name||"").trim() || "Mi grupo", createdBy: uid, members: [uid],
+    inviteCode: genCode(), createdAt: serverTimestamp(),
+  });
+  return { id: ref.id, ...(await getDoc(ref)).data() };
+}
+export async function joinGroup(uid, code){
+  const snap = await getDocs(query(collection(db,"groups"), where("inviteCode","==",(code||"").toUpperCase().trim()), limit(1)));
+  if (snap.empty) throw new Error("no-group");
+  const g = snap.docs[0];
+  if (!(g.data().members||[]).includes(uid)) await updateDoc(g.ref, { members: arrayUnion(uid) });
+  return { id: g.id, ...(await getDoc(g.ref)).data() };
+}
+export const leaveGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });
+
+export async function myGroups(uid){
+  const snap = await getDocs(query(collection(db,"groups"), where("members","array-contains",uid)));
+  return snap.docs.map(d => ({ id:d.id, ...d.data() }));
+}
+
+// leaderboard (members' current-year totals, desc)
+export async function groupLeaderboard(group){
+  const users = await Promise.all((group.members||[]).map(getUser));
+  return users.filter(Boolean).sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+}
+// merged recent activity of group members
+export async function groupFeed(group, perMember = 4){
+  const chunks = await Promise.all((group.members||[]).map(async m => {
+    const u = await getUser(m); if (!u) return [];
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), orderBy("ts","desc"), limit(perMember)));
+    return snap.docs.map(d => ({ ...d.data(), name:u.displayName, color:u.color || colorForUid(m) }));
   }));
   return chunks.flat().sort((a,b)=>b.ts-a.ts).slice(0,25);
 }

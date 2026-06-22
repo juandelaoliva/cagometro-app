@@ -5,6 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, removeCaca, setCount, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, getFriends, friendsFeed,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupFeed,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL } from "./firebase.js";
@@ -49,13 +50,14 @@ $("logoutBtn").addEventListener("click",()=>signOutUser());
 
 /* ---------- session ---------- */
 onUser(async user=>{
+  $("splash").hidden = true;                 // auth resolved → hide the loading screen
   if(!user){ showGate(); return; }
   uid=user.uid; await ensureProfile(user); showApp();
 });
-function showGate(){ if(unsub){unsub();unsub=null;} $("app").hidden=true; $("gate").style.display="grid"; uid=null; me=null; lastTotal=null; }
+function showGate(){ if(unsub){unsub();unsub=null;} $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
 function showApp(){
-  $("gate").style.display="none"; $("app").hidden=false;
+  $("gate").hidden=true; $("app").hidden=false;
   if(unsub)unsub();
   unsub=watchMe(uid, m=>{
     if(!m)return; me=m; const total=m.totalCount||0;
@@ -154,9 +156,48 @@ async function renderAmigos(){
 }
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
+  const gli=e.target.closest("#groupList li[data-gid]");
   if(a){ await acceptFriend(a.dataset.accept); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
+  if(gli){ openGroupById(gli.dataset.gid); }
 });
+
+/* ---------- grupos ---------- */
+let activeGroup=null, myGroupsCache=[];
+$("createGroupBtn").addEventListener("click", async ()=>{
+  const name=$("newGroupName").value.trim(); const msg=$("groupMsg"); msg.hidden=true;
+  if(!name)return;
+  try{ const g=await createGroup(uid,name); $("newGroupName").value=""; toast("Grupo creado 🎉"); await renderGrupos(); openGroup(g); }
+  catch(err){ msg.style.color="var(--rose)"; msg.textContent="No se pudo crear el grupo."; msg.hidden=false; console.error(err); }
+});
+$("joinGroupBtn").addEventListener("click", async ()=>{
+  const code=$("joinCode").value.trim(); const msg=$("groupMsg"); msg.hidden=true;
+  if(!code)return;
+  try{ const g=await joinGroup(uid,code); $("joinCode").value=""; toast(`Te uniste a ${g.name} 🎉`); await renderGrupos(); openGroup(g); }
+  catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?"No existe ningún grupo con ese código.":"No se pudo unir."; msg.hidden=false; }
+});
+$("shareCode").addEventListener("click", ()=>{ if(activeGroup) navigator.clipboard?.writeText(activeGroup.inviteCode).then(()=>toast("Código copiado 📋")).catch(()=>{}); });
+$("leaveGroupBtn").addEventListener("click", async ()=>{
+  if(!activeGroup)return; if(!confirm(`¿Salir de "${activeGroup.name}"?`))return;
+  try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast("Has salido del grupo"); renderGrupos(); }
+  catch(err){ toast("No se pudo salir"); console.error(err); }
+});
+async function renderGrupos(){
+  myGroupsCache = await myGroups(uid);
+  $("groupList").innerHTML = myGroupsCache.length ? myGroupsCache.map(g=>`
+    <li data-gid="${g.id}"><span class="gname">${g.name}</span><span class="gmeta">${(g.members||[]).length} 👤</span></li>`).join("")
+    : `<li class="gempty">Aún no estás en ningún grupo. Crea uno o únete con un código 👆</li>`;
+  if(activeGroup){ const still=myGroupsCache.find(g=>g.id===activeGroup.id); if(still) openGroup(still); else { activeGroup=null; $("groupDetail").hidden=true; } }
+}
+function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) openGroup(g); }
+async function openGroup(group){
+  activeGroup=group; $("groupDetail").hidden=false;
+  $("gdName").textContent=group.name; $("shareCode").textContent=`Código: ${group.inviteCode}`;
+  const [board,feed]=await Promise.all([groupLeaderboard(group), groupFeed(group)]);
+  $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
+  $("groupFeed").innerHTML=feed.map(c=>`<li class="feed__item">${av(c.name,c.color)}<span class="feed__txt"><b>${c.name}</b> sumó una caca</span><span class="feed__time">${timeAgo(c.ts)}</span></li>`).join("")
+    ||`<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">Sin actividad todavía.</span></li>`;
+}
 
 /* ---------- nav ---------- */
 document.querySelectorAll("[data-view]").forEach(b=>{ if(b.classList.contains("view"))return;
@@ -166,6 +207,7 @@ function setView(name){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("is-active",t.dataset.view===name));
   window.scrollTo({top:0,behavior:"smooth"});
   if(name==="amigos") renderAmigos();
+  if(name==="grupos") renderGrupos();
 }
 
 /* ---------- delight ---------- */

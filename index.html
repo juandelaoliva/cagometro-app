@@ -19,6 +19,9 @@
 <body>
   <div class="bg" aria-hidden="true"></div>
 
+  <!-- ───────── Splash (shown until auth resolves) ───────── -->
+  <div class="splash" id="splash"><div class="splash__mark">💩</div></div>
+
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
     <header class="topbar">
@@ -73,10 +76,29 @@
         </div>
       </section>
 
-      <!-- GRUPOS (stub) -->
+      <!-- GRUPOS -->
       <section class="view" id="view-grupos" data-view="grupos">
         <h1 class="view__title">Grupos</h1>
-        <div class="soon"><div class="soon__ico">🚧</div><p>Pronto podrás crear grupos y competir en su clasificación.</p></div>
+        <div class="addfriend"><input class="field" id="newGroupName" type="text" placeholder="Nombre del grupo nuevo" /><button class="btn-solid" id="createGroupBtn">Crear</button></div>
+        <div class="addfriend"><input class="field" id="joinCode" type="text" placeholder="Código de invitación" /><button class="btn-solid" id="joinGroupBtn">Unirse</button></div>
+        <p class="formerr" id="groupMsg" hidden></p>
+
+        <div class="block">
+          <div class="block__head"><h2>Tus grupos</h2></div>
+          <ul class="grouplist" id="groupList"></ul>
+        </div>
+
+        <div id="groupDetail" hidden>
+          <div class="block">
+            <div class="block__head"><h2 id="gdName">—</h2><button class="link" id="shareCode">Código: —</button></div>
+            <ol class="rank" id="groupRank"></ol>
+          </div>
+          <div class="block">
+            <div class="block__head"><h2>Actividad del grupo</h2></div>
+            <ul class="feed" id="groupFeed"></ul>
+          </div>
+          <button class="btn-ghost btn-ghost--danger" id="leaveGroupBtn">Salir del grupo</button>
+        </div>
       </section>
 
       <!-- PERFIL -->
@@ -105,12 +127,11 @@
       <button class="tab is-active" data-view="inicio"><span class="tab__ico">🏠</span><span>Inicio</span></button>
       <button class="tab" data-view="amigos"><span class="tab__ico">👥</span><span>Amigos</span></button>
       <button class="tab" data-view="grupos"><span class="tab__ico">🏆</span><span>Grupos</span></button>
-      <button class="tab" data-view="perfil"><span class="tab__ico">👤</span><span>Perfil</span></button>
     </nav>
   </div>
 
   <!-- ───────── Auth gate ───────── -->
-  <div class="gate" id="gate">
+  <div class="gate" id="gate" hidden>
     <div class="gate__card">
       <div class="gate__mark">💩</div>
       <h1 class="gate__title">Cagómetro</h1>

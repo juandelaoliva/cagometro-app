@@ -5,7 +5,7 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchActivity, saveToken, removeToken, enqueuePush,
+  setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -246,7 +246,8 @@ async function loadActivity(mode){
   if(!force && Date.now()-_feedLoadedAt < 12000) return;   // chips/grafo recientes → no re-leer
   _feedLoading=true;
   try{
-    const [mine, friends, groups] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid) ]);
+    // lectura puntual del feed (lo pinta YA) + chips + grafo, en paralelo
+    const [mine, friends, groups, acts] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid), getActivity(uid,60).catch(()=>null) ]);
     const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
     for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
     let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
@@ -257,8 +258,9 @@ async function loadActivity(mode){
       audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
       groups: groups.map(g=>({ gid:g.id, name:g.name })),
     };
+    if(acts){ homeFeedData = acts; if(!feedShown) feedShown=FEED_PAGE; }
     _feedLoadedAt=Date.now();
-    renderFeedChips(); renderFeed();           // re-pinta por si cambian los chips de grupo (dependen de _myGroupIds)
+    renderFeedChips(); renderFeed();
   } finally { _feedLoading=false; }
 }
 // reacciones a MIS eventos (desde el listener del feed) → campanita + banner local

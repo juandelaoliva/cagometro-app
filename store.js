@@ -96,6 +96,12 @@ export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), {
 // que el lector pinte el chip si comparte grupo).
 export const writeActivity = (author, data) =>
   addDoc(collection(db, "activity"), { uid: author, reactions: {}, createdAt: serverTimestamp(), ...data });
+// Lectura puntual del feed (para pintarlo al instante al abrir/resume, sin depender
+// de que el listener haya entregado todavía).
+export async function getActivity(uid, n = 60){
+  const s = await getDocs(query(collection(db, "activity"), where("audience", "array-contains", uid), orderBy("ts", "desc"), limit(n)));
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
 // Feed en tiempo real con UNA sola consulta (en vez de leer las cacas de cada persona).
 export const watchActivity = (uid, cb, n = 60, onError) =>
   onSnapshot(query(collection(db, "activity"), where("audience", "array-contains", uid), orderBy("ts", "desc"), limit(n)),

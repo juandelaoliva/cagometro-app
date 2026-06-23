@@ -13,7 +13,7 @@ import {
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
   serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs,
-  arrayUnion, arrayRemove
+  arrayUnion, arrayRemove, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
@@ -68,12 +68,24 @@ export const watchMe = (uid, cb) =>
 export const getUser = async uid => { const s = await getDoc(doc(db,"users",uid)); return s.exists()?{id:s.id,...s.data()}:null; };
 
 /* ---------- counters (per-year) ---------- */
-export async function addCaca(uid, loc){
-  const y = yearNow();
-  const data = { uid, ts:Date.now(), tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
-  if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { data.lat = loc.lat; data.lng = loc.lng; }
-  await addDoc(collection(db, "users", uid, "cacas"), data);
-  await updateDoc(doc(db, "users", uid), { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
+// Suma una caca. En una transacción: lee el total real, escribe la caca, sube los
+// contadores y crea el evento de actividad con el `n` EXACTO (sin desfases).
+export async function addCaca(uid, loc, act){
+  const ts = Date.now(), y = yearNow();
+  await runTransaction(db, async tx => {
+    const uref = doc(db, "users", uid);
+    const us = await tx.get(uref);
+    const n = (us.data()?.totalCount || 0) + 1;
+    const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
+    if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
+    tx.set(doc(collection(db,"users",uid,"cacas")), cdata);
+    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
+    if (act) tx.set(doc(collection(db,"activity")), {
+      uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n,
+      audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
+      ...(cdata.lat!=null ? { lat:cdata.lat, lng:cdata.lng } : {}),
+    });
+  });
 }
 export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
 
@@ -103,16 +115,26 @@ export const enqueuePush = (fromUid, toUid, type, title, body) =>
 
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.
-export async function addCacaAt(uid, ts){
+export async function addCacaAt(uid, ts, act){
   const y = new Date(ts).getFullYear();
-  await addDoc(collection(db, "users", uid, "cacas"), { uid, ts, tz: tz(), source: "app", year: y, late: true, createdAt: serverTimestamp() });
-  const upd = { lifetimeCount: increment(1), [`countsByYear.${y}`]: increment(1) };
-  if (y === new Date().getFullYear()) upd.totalCount = increment(1);
-  await updateDoc(doc(db, "users", uid), upd);
+  await runTransaction(db, async tx => {
+    const uref = doc(db, "users", uid);
+    const us = await tx.get(uref);
+    const cur = (y === yearNow()) ? (us.data()?.totalCount || 0) : (us.data()?.countsByYear?.[y] || 0);
+    const n = cur + 1;
+    tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
+    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) };
+    if (y === yearNow()) upd.totalCount = increment(1);
+    tx.update(uref, upd);
+    if (act) tx.set(doc(collection(db,"activity")), {
+      uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n, late:true,
+      audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
+    });
+  });
 }
 
-// undo: delete most recent caca, decrement (never below 0)
-export async function removeCaca(uid){
+// undo: borra la última caca, baja contadores y deja constancia en el feed (kind:"undo")
+export async function removeCaca(uid, act){
   const me = await getUser(uid);
   if (!me || (me.totalCount||0) <= 0) return false;
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(1)));
@@ -123,29 +145,31 @@ export async function removeCaca(uid){
   const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1) };
   if (y === yearNow()) upd.totalCount = increment(-1);
   await updateDoc(doc(db,"users",uid), upd);
+  if (act) writeActivity(uid, { kind:"undo", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
+    audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
   return true;
 }
 
-// correct the current-year count to N (reconciles events; capped for safety)
-export async function setCount(uid, n){
-  n = Math.max(0, Math.min(2000, Math.floor(n)));
-  const me = await getUser(uid);
-  const cur = me?.totalCount || 0;
-  let delta = n - cur;
-  const y = yearNow();
-  delta = Math.max(-300, Math.min(300, delta));   // batch-safe cap
-  if (delta === 0) return 0;
-  const batch = writeBatch(db);
-  if (delta > 0){
-    for (let i=0;i<delta;i++)
-      batch.set(doc(collection(db,"users",uid,"cacas")), { uid, ts:Date.now()-i*1000, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() });
-  } else {
-    const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(-delta)));
-    snap.docs.forEach(d => batch.delete(d.ref));
+// RESET total: borra TODAS las cacas del usuario, sus eventos de actividad y pone
+// los contadores a 0. Deja constancia en el feed (kind:"reset"). Sin edición arbitraria.
+export async function resetCacas(uid, act){
+  // borra todas las cacas en lotes
+  for(;;){
+    const snap = await getDocs(query(collection(db,"users",uid,"cacas"), limit(400)));
+    if (snap.empty) break;
+    const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
+    if (snap.size < 400) break;
   }
-  batch.update(doc(db,"users",uid), { totalCount:increment(delta), lifetimeCount:increment(delta), [`countsByYear.${y}`]:increment(delta) });
-  await batch.commit();
-  return delta;
+  // borra mis eventos de actividad antiguos (para no dejar el feed inconsistente)
+  for(;;){
+    const snap = await getDocs(query(collection(db,"activity"), where("uid","==",uid), limit(400)));
+    if (snap.empty) break;
+    const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
+    if (snap.size < 400) break;
+  }
+  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{} });
+  if (act) writeActivity(uid, { kind:"reset", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
+    audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
 }
 
 // Reacciones tipo Telegram: cada usuario puede poner varios emojis.

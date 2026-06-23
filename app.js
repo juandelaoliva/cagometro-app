@@ -3,9 +3,9 @@
    ============================================================ */
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
-  watchMe, addCaca, addCacaAt, removeCaca, setCount, setLocationMode, updateMe, myActivity,
+  watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchActivity, saveToken, removeToken, enqueuePush, writeActivity,
+  setReaction, watchFriendships, watchActivity, saveToken, removeToken, enqueuePush,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -213,15 +213,12 @@ function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(to
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 let _graph={ audience:[], groups:[] };   // grafo social cacheado para escribir eventos de actividad
-function recordActivity(ts, n){
-  if(!me) return;
-  writeActivity(uid, {
-    name: me.displayName||"", color: me.color||colorForUid(uid),
-    ts, year: new Date(ts).getFullYear(), n,
-    audience: _graph.audience.length ? _graph.audience : [uid],
-    groups: _graph.groups || [],
-  }).catch(e=>console.error("activity:", e));
-}
+// metadatos para el evento de actividad (lo escribe el store de forma transaccional)
+const actMeta = () => ({
+  name: me?.displayName||"", color: me?.color||colorForUid(uid),
+  audience: _graph.audience.length ? _graph.audience : [uid],
+  groups: _graph.groups || [],
+});
 // El FEED ya no hace fan-out: lo provee un único listener en tiempo real sobre `activity`.
 let _feedUnsub=null, _myGroupIds=new Set();
 function startFeed(){
@@ -331,17 +328,25 @@ function reactionsRow(c){
 }
 function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
-  const hito = MILESTONES.includes(c.n);
-  const head = hito
-    ? (c.uid===uid ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
-    : (c.uid===uid ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
-  const nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
-  return `<li class="feed__item ${hito?'feed__item--hito':''}" data-i="${i}">
+  const mine=c.uid===uid;
+  let head, nBadge="", sys=false, reactable=true;
+  if(c.kind==="undo"){
+    head = mine ? "Te quitaste una caca ↩︎" : `<b>${c.name}</b> se quitó una caca ↩︎`; sys=true; reactable=false;
+  } else if(c.kind==="reset"){
+    head = mine ? "Reiniciaste tu contador 🧹" : `<b>${c.name}</b> reinició su contador 🧹`; sys=true; reactable=false;
+  } else {
+    const hito = MILESTONES.includes(c.n);
+    head = hito ? (mine ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
+                : (mine ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
+    nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
+  }
+  const cls = `feed__item${(c.kind!=="undo"&&c.kind!=="reset"&&MILESTONES.includes(c.n))?' feed__item--hito':''}${sys?' feed__item--sys':''}`;
+  return `<li class="${cls}" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
       <div class="feed__line">${head} ${nBadge}</div>
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
-      ${reactionsRow(c)}
+      ${reactable?reactionsRow(c):""}
     </div>
     <span class="feed__time">${fmtWhen(c.ts)}</span>
   </li>`;
@@ -590,25 +595,23 @@ $("addBtn").addEventListener("click",async e=>{
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    await addCaca(uid, loc); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
-    recordActivity(Date.now(), (me?.totalCount||0)+1);   // el listener del feed lo muestra al instante
-    loadActivity("force");
+    await addCaca(uid, loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
+    loadActivity("force");   // el listener del feed la muestra al instante
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
 async function undoCaca(){
   if(busy||!uid)return; busy=true;
-  try{ const ok=await removeCaca(uid); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity("force"); }
+  try{ const ok=await removeCaca(uid, actMeta()); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity("force"); }
   catch(err){ toast("No se pudo deshacer"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 }
 $("fixBtn").addEventListener("click",async()=>{
-  const cur=me?.totalCount||0;
-  const v=prompt("¿A cuántas cacas quieres ajustar tu contador de este año?",cur);
-  if(v===null)return; const n=parseInt(v,10); if(isNaN(n)||n<0)return toast("Número no válido");
-  try{ await setCount(uid,n); loadActivity("force"); toast("Contador ajustado ✅"); }
-  catch(err){ toast("No se pudo ajustar"); console.error(err); }
+  if(!confirm("⚠️ Esto BORRARÁ todas tus cacas y pondrá tu contador a 0. No se puede deshacer. ¿Seguro?")) return;
+  if(!confirm("De verdad: se borra TODO tu historial de cacas. ¿Confirmas el reinicio?")) return;
+  try{ $("settingsSheet").hidden=true; toast("Reiniciando…"); await resetCacas(uid, actMeta()); loadActivity("force"); toast("Contador reiniciado 🧹"); }
+  catch(err){ toast("No se pudo reiniciar"); console.error(err); }
 });
 
 /* ---------- caca olvidada (late) ---------- */
@@ -624,7 +627,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc); recordActivity(Date.now(),(me?.totalCount||0)+1); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
+  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
   catch(err){ toast("No se pudo guardar"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -636,7 +639,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast("Fecha no válida");
   if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts); recordActivity(ts,(me?.totalCount||0)+1); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
+  try{ await addCacaAt(uid,ts, actMeta()); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
   catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 

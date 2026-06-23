@@ -745,36 +745,43 @@ function setGroupForms(show){
   if(show) setTimeout(()=>$("newGroupName")?.focus(), 60);
 }
 $("toggleGroupForms").addEventListener("click", ()=> setGroupForms($("groupForms").hidden));
+// aparca el detalle FUERA de la lista (para que innerHTML no lo destruya). Sync, sin await.
+function parkDetail(){ const det=$("groupDetail"); if(det){ det.hidden=true; $("view-grupos").appendChild(det); } }
 function collapseGroup(){
-  const det=$("groupDetail"); det.hidden=true; $("view-grupos").appendChild(det);   // saca el detalle de la lista
+  parkDetail();
   document.querySelectorAll("#groupList li").forEach(x=>x.classList.remove("is-open"));
   activeGroup=null;
 }
+let _gruposBusy=false;
 async function renderGrupos(){
-  // saca el detalle de la lista antes de re-render (si no, innerHTML lo destruiría)
-  const det=$("groupDetail"); det.hidden=true; $("view-grupos").appendChild(det);
-  myGroupsCache = await myGroups(uid);
-  const n = myGroupsCache.length;
-  $("groupList").innerHTML = n ? myGroupsCache.map(g=>`
-    <li data-gid="${g.id}">
-      <div class="ghead" data-gtoggle="${g.id}">
-        <span class="gname">${g.name}</span>
-        <span class="gmeta">${(g.members||[]).length} 👤</span>
-        <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
-      </div>
-    </li>`).join("")
-    : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;
-  setGroupForms(n===0);                         // sin grupos → form abierto; con grupos → oculto tras ＋
-  const still = activeGroup && myGroupsCache.find(g=>g.id===activeGroup.id);
-  activeGroup=null;                             // openGroup lo re-asigna
-  if(still) openGroup(still);                   // mantén el abierto
-  else if(n===1) openGroup(myGroupsCache[0]);   // solo uno → expandido por defecto
+  if(_gruposBusy) return;                       // evita renders solapados (race que destruía #groupDetail)
+  _gruposBusy=true;
+  try{
+    const groups = await myGroups(uid);         // 1) traer datos ANTES de tocar el DOM
+    myGroupsCache = groups;
+    parkDetail();                               // 2) aparcar detalle y reescribir lista SIN await en medio
+    const n = groups.length;
+    $("groupList").innerHTML = n ? groups.map(g=>`
+      <li data-gid="${g.id}">
+        <div class="ghead" data-gtoggle="${g.id}">
+          <span class="gname">${g.name}</span>
+          <span class="gmeta">${(g.members||[]).length} 👤</span>
+          <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </li>`).join("")
+      : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;
+    setGroupForms(n===0);
+    const still = activeGroup && groups.find(g=>g.id===activeGroup.id);
+    activeGroup=null;
+    if(still) await openGroup(still);
+    else if(n===1) await openGroup(groups[0]);
+  } finally { _gruposBusy=false; }
 }
 function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) openGroup(g); }
 const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 async function openGroup(group){
+  const det=$("groupDetail"); if(!det) return;  // protección: si no existe, no reventamos
   activeGroup=group;
-  const det=$("groupDetail");
   const li=document.querySelector(`#groupList li[data-gid="${group.id}"]`);
   if(li) li.appendChild(det);                   // mete el detalle bajo la cabecera (acordeón)
   det.hidden=false;

@@ -85,9 +85,10 @@ export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), {
 export const writeActivity = (author, data) =>
   addDoc(collection(db, "activity"), { uid: author, reactions: {}, createdAt: serverTimestamp(), ...data });
 // Feed en tiempo real con UNA sola consulta (en vez de leer las cacas de cada persona).
-export const watchActivity = (uid, cb, n = 60) =>
+export const watchActivity = (uid, cb, n = 60, onError) =>
   onSnapshot(query(collection(db, "activity"), where("audience", "array-contains", uid), orderBy("ts", "desc"), limit(n)),
-    s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+    s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))),
+    e => { if (onError) onError(e); });
 // Ajustes del perfil (nickname, color, notificaciones…)
 export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 

@@ -231,6 +231,10 @@ function startFeed(){
     if(!feedShown) feedShown=FEED_PAGE;
     detectReactionNotifs(acts);                // reacciones a MIS eventos → campanita/banner
     renderFeedChips(); renderFeed();
+  }, 60, err=>{                                 // p.ej. índice construyéndose → reintenta solo
+    console.warn("feed listener:", err?.code||err);
+    stopFeed();
+    setTimeout(()=>{ if(uid) startFeed(); }, 4000);
   });
 }
 function stopFeed(){ if(_feedUnsub){ try{_feedUnsub()}catch(e){} _feedUnsub=null; } }

@@ -385,7 +385,13 @@ ol,ul{list-style:none}
 .grouplist li{display:flex;align-items:center;justify-content:space-between;background:var(--card);
   border:1px solid var(--line-2);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer}
 .grouplist li:active{transform:translateY(1px)}
+.grouplist li.is-open{border-color:var(--brand);box-shadow:0 0 0 2px var(--gold-soft),var(--shadow)}
 .grouplist .gname{font-weight:700}
+/* botón ＋ junto a "Tus grupos" para crear/unirse */
+.addchip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:19px;font-weight:800;
+  background:var(--gold-soft);color:var(--brand-2);line-height:1;transition:transform .2s,background .2s}
+.addchip.on{transform:rotate(45deg);background:linear-gradient(160deg,var(--brand-2),var(--brand));color:#fff}
+#groupForms{margin-bottom:6px}
 .grouplist .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600}
 .grouplist .gempty{justify-content:center;text-align:center;color:var(--ink-faint);font-size:13.5px;cursor:default}
 

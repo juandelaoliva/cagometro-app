@@ -143,12 +143,17 @@
       <!-- GRUPOS -->
       <section class="view" id="view-grupos" data-view="grupos">
         <h1 class="view__title">Grupos</h1>
-        <div class="addfriend"><input class="field" id="newGroupName" type="text" placeholder="Nombre del grupo nuevo" /><button class="btn-solid" id="createGroupBtn">Crear</button></div>
-        <div class="addfriend"><input class="field" id="joinCode" type="text" placeholder="Código de invitación" /><button class="btn-solid" id="joinGroupBtn">Unirse</button></div>
-        <p class="formerr" id="groupMsg" hidden></p>
 
         <div class="block">
-          <div class="block__head"><h2>Tus grupos</h2></div>
+          <div class="block__head">
+            <h2>Tus grupos</h2>
+            <button class="addchip" id="toggleGroupForms" aria-label="Crear o unirse a un grupo">＋</button>
+          </div>
+          <div id="groupForms" hidden>
+            <div class="addfriend"><input class="field" id="newGroupName" type="text" placeholder="Nombre del grupo nuevo" /><button class="btn-solid" id="createGroupBtn">Crear</button></div>
+            <div class="addfriend"><input class="field" id="joinCode" type="text" placeholder="Código de invitación" /><button class="btn-solid" id="joinGroupBtn">Unirse</button></div>
+            <p class="formerr" id="groupMsg" hidden></p>
+          </div>
           <ul class="grouplist" id="groupList"></ul>
         </div>
 

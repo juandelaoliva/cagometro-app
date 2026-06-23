@@ -706,17 +706,29 @@ $("leaveGroupBtn").addEventListener("click", async ()=>{
   try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast("Has salido del grupo"); renderGrupos(); }
   catch(err){ toast("No se pudo salir"); console.error(err); }
 });
+function setGroupForms(show){
+  $("groupForms").hidden = !show;
+  $("toggleGroupForms").classList.toggle("on", show);
+  if(show) setTimeout(()=>$("newGroupName")?.focus(), 60);
+}
+$("toggleGroupForms").addEventListener("click", ()=> setGroupForms($("groupForms").hidden));
 async function renderGrupos(){
   myGroupsCache = await myGroups(uid);
-  $("groupList").innerHTML = myGroupsCache.length ? myGroupsCache.map(g=>`
-    <li data-gid="${g.id}"><span class="gname">${g.name}</span><span class="gmeta">${(g.members||[]).length} 👤</span></li>`).join("")
-    : `<li class="gempty">Aún no estás en ningún grupo. Crea uno o únete con un código 👆</li>`;
-  if(activeGroup){ const still=myGroupsCache.find(g=>g.id===activeGroup.id); if(still) openGroup(still); else { activeGroup=null; $("groupDetail").hidden=true; } }
+  const n = myGroupsCache.length;
+  $("groupList").innerHTML = n ? myGroupsCache.map(g=>`
+    <li data-gid="${g.id}" class="${activeGroup&&activeGroup.id===g.id?'is-open':''}"><span class="gname">${g.name}</span><span class="gmeta">${(g.members||[]).length} 👤</span></li>`).join("")
+    : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;
+  setGroupForms(n===0);                         // sin grupos → form abierto; con grupos → oculto tras ＋
+  const still = activeGroup && myGroupsCache.find(g=>g.id===activeGroup.id);
+  if(still) openGroup(still);                   // mantén el abierto
+  else if(n===1) openGroup(myGroupsCache[0]);   // solo uno → expandido por defecto
+  else { activeGroup=null; $("groupDetail").hidden=true; }
 }
 function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) openGroup(g); }
 const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 async function openGroup(group){
   activeGroup=group; $("groupDetail").hidden=false;
+  document.querySelectorAll("#groupList li[data-gid]").forEach(li=>li.classList.toggle("is-open", li.dataset.gid===group.id));
   $("gdName").textContent=group.name; $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
   const [board,yc]=await Promise.all([groupLeaderboard(group), groupYearCacas(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");

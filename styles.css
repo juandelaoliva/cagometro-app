@@ -398,7 +398,9 @@ ol,ul{list-style:none}
 .grouplist > li.is-open .ghead{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:var(--line-2)}
 .ghead .gname{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ghead .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600;flex:none}
-.ghead .gchev{font-size:15px;line-height:1;color:var(--ink-faint);flex:none;width:20px;height:20px;display:grid;place-items:center;transition:transform .2s;transform-origin:50% 50%}
+/* chevron en SVG centrado en su viewBox → gira sobre su centro sin moverse */
+.ghead .gchev{flex:none;width:20px;height:20px;display:grid;place-items:center;transition:transform .2s;transform-origin:50% 50%}
+.ghead .gchev svg{width:16px;height:16px;display:block;fill:none;stroke:var(--ink-faint);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .grouplist > li.is-open .gchev{transform:rotate(180deg)}
 /* detalle dentro del acordeón */
 .grouplist > li.is-open #groupDetail{display:flex;flex-direction:column;gap:10px;padding:12px;

@@ -732,7 +732,7 @@ async function renderGrupos(){
       <div class="ghead" data-gtoggle="${g.id}">
         <span class="gname">${g.name}</span>
         <span class="gmeta">${(g.members||[]).length} 👤</span>
-        <span class="gchev" aria-hidden="true">⌄</span>
+        <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
       </div>
     </li>`).join("")
     : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;

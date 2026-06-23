@@ -122,12 +122,6 @@
       <!-- AMIGOS -->
       <section class="view" id="view-amigos" data-view="amigos">
         <h1 class="view__title">Amigos</h1>
-        <div class="addfriend">
-          <input class="field" id="friendEmail" type="email" placeholder="Email de tu amigo/a" autocomplete="off" />
-          <button class="btn-solid" id="addFriendBtn">Añadir</button>
-        </div>
-        <p class="formerr" id="friendMsg" hidden></p>
-        <button class="btn-ghost" id="inviteFriendBtn">🔗 Invitar por enlace</button>
 
         <div class="block" id="reqBlock" hidden>
           <div class="block__head"><h2>Solicitudes</h2></div>
@@ -135,8 +129,23 @@
         </div>
 
         <div class="block">
-          <div class="block__head"><h2>Clasificación</h2><span class="block__hint">tú y tus amigos · este año</span></div>
-          <ol class="rank" id="friendsRank"></ol>
+          <div class="block__head">
+            <h2>Tus amigos</h2>
+            <button class="addchip" id="toggleFriendForm" aria-label="Añadir amigo">＋</button>
+          </div>
+          <div id="friendForm" hidden>
+            <div class="addfriend">
+              <input class="field" id="friendEmail" type="email" placeholder="Email de tu amigo/a" autocomplete="off" />
+              <button class="btn-solid" id="addFriendBtn">Añadir</button>
+            </div>
+            <button class="btn-ghost" id="inviteFriendBtn">🔗 Invitar por enlace</button>
+            <p class="formerr" id="friendMsg" hidden></p>
+          </div>
+          <div class="sortbar">
+            <button class="ychip on" data-sort="rank">🏆 Ranking</button>
+            <button class="ychip" data-sort="alpha">🔤 A–Z</button>
+          </div>
+          <ol class="rank rank--compact" id="friendsRank"></ol>
         </div>
       </section>
 

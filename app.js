@@ -549,13 +549,13 @@ function personStats(cacas){
   const m=new Array(12).fill(0); for(const c of yc) m[tzParts(c.ts,c.tz).month-1]++;
   return { total, streak, activeDays, bestDay, avg, monthly:m };
 }
-async function openPersonSheet(entry){
-  if(entry.uid===uid){ setView("perfil"); return; }    // tu propia caca → tu perfil
+async function openPersonSheet(entry, opts={}){
+  if(entry.uid===uid){ setView("perfil"); return; }    // tú → tu perfil
   $("psAvatar").textContent=initial(entry.name); $("psAvatar").style.background=entry.color;
   $("psName").textContent=entry.name; $("psTotal").textContent="…";
   $("psStats").innerHTML=""; $("psRecords").hidden=true; $("psChart").innerHTML=""; $("psGroups").innerHTML=""; $("psActions").innerHTML="";
   $("psSheet").hidden=false;
-  const [u,cacas,fships]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,5000), myFriendships(uid)]);
+  const [u,cacas,fships,groups]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,5000), myFriendships(uid), myGroups(uid)]);
   const st=personStats(cacas);
   const year = u?.totalCount ?? st.total;
   const life = u?.lifetimeCount || cacas.length;
@@ -567,11 +567,16 @@ async function openPersonSheet(entry){
     <div class="stat"><b>${st.bestDay}</b><span>mejor día</span></div>`;
   if(st.activeDays){ $("psRecords").textContent=`${st.activeDays} días con caca este año`; $("psRecords").hidden=false; }
   $("psChart").innerHTML=barsHTML(st.monthly, PM);
-  const gs=entryContexts(entry);   // grupos en común (autor ∩ mis grupos)
-  $("psGroupsWrap").hidden = !gs.length;
-  $("psGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg" data-gid="${g.gid}">🏆 ${g.name}</button>`).join("");
+  const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));   // grupos en común reales
+  $("psGroupsWrap").hidden = !shared.length;
+  $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
+  // gestión de amistad: solo desde la pestaña Amigos (canManage). Si compartís grupo, no se puede quitar.
   const fr=fships.find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
-  $("psActions").innerHTML = fr ? `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>` : "";
+  if(opts.canManage && fr){
+    $("psActions").innerHTML = shared.length
+      ? `<button class="btn-ghost ps-disabled" disabled>🤝 Estáis en un grupo juntos · sois amigos</button>`
+      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>`;
+  } else $("psActions").innerHTML="";
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
 $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
@@ -646,6 +651,11 @@ $("lateConfirm").addEventListener("click",async()=>{
 });
 
 /* ---------- amigos ---------- */
+function setFriendForm(show){
+  $("friendForm").hidden=!show; $("toggleFriendForm").classList.toggle("on",show);
+  if(show) setTimeout(()=>$("friendEmail")?.focus(),60);
+}
+$("toggleFriendForm").addEventListener("click", ()=> setFriendForm($("friendForm").hidden));
 $("addFriendBtn").addEventListener("click",async()=>{
   const email=$("friendEmail").value.trim(); const msg=$("friendMsg");
   if(!email)return; msg.hidden=true;
@@ -654,8 +664,23 @@ $("addFriendBtn").addEventListener("click",async()=>{
   catch(err){ msg.style.color="var(--rose)";
     msg.textContent=err.message==="no-user"?"No hay ningún usuario con ese email.":err.message==="self"?"Ese eres tú 😄":"No se pudo enviar."; msg.hidden=false; }
 });
+let friendSort="rank", _friends=[];
+document.querySelector(".sortbar").addEventListener("click", e=>{
+  const b=e.target.closest("[data-sort]"); if(!b)return;
+  friendSort=b.dataset.sort;
+  document.querySelectorAll(".sortbar [data-sort]").forEach(x=>x.classList.toggle("on",x.dataset.sort===friendSort));
+  renderFriendsList();
+});
+function renderFriendsList(){
+  const board=[{id:uid,displayName:me?.displayName,color:me?.color,totalCount:me?.totalCount||0}, ..._friends];
+  if(friendSort==="alpha") board.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"","es",{sensitivity:"base"}));
+  else board.sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
+    : `<li class="gempty">Aún no tienes amigos. Pulsa ＋ para añadir o invitar.</li>`;
+}
 async function renderAmigos(){
   const [fships, friends] = await Promise.all([ myFriendships(uid), getFriends(uid) ]);
+  _friends=friends;
   // requests
   const pending=fships.filter(f=>f.status==="pending");
   const incoming=pending.filter(f=>f.requestedBy!==uid);
@@ -671,12 +696,15 @@ async function renderAmigos(){
     return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>solicitud pendiente…</small></span></li>`;
   }));
   $("reqList").innerHTML=[...incHtml,...outHtml].join("");
-  // leaderboard (me + friends, this year)
-  const board=[{id:uid,displayName:me?.displayName,color:me?.color,totalCount:me?.totalCount||0}, ...friends]
-    .sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
-  $("friendsRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
-    ||`<li><span class="nm" style="color:var(--ink-faint)">Añade amigos para competir 👇</span></li>`;
+  setFriendForm(false);            // empezamos con el form oculto tras ＋
+  renderFriendsList();
 }
+// clic en un amigo de la lista → su ficha (con gestión: eliminar)
+$("friendsRank").addEventListener("click", e=>{
+  const li=e.target.closest("li[data-uid]"); if(!li)return;
+  const f=_friends.find(x=>x.id===li.dataset.uid);
+  if(f) openPersonSheet({ uid:f.id, name:f.displayName, color:f.color||colorForUid(f.id) }, { canManage:true });
+});
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
   if(a){ await acceptFriend(a.dataset.accept, uid); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }

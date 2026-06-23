@@ -243,6 +243,11 @@ ol,ul{list-style:none}
 .rank--compact .pos{width:18px;font-size:13px}
 .rank--compact .nm{font-size:13.5px}
 .rank--compact .ct{font-size:16px}
+.rank li[data-uid]{cursor:pointer}
+.rank li[data-uid]:active{transform:translateY(1px)}
+/* barra de orden (amigos) */
+.sortbar{display:flex;gap:8px;margin-bottom:10px}
+.ps-disabled{opacity:.75;color:var(--ink-soft);font-size:13px;cursor:default;text-align:center;width:100%}
 
 /* ── STATS view ──────────────────────────────────────────────────── */
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:8px}

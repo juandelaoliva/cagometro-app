@@ -299,6 +299,16 @@
     </div>
   </div>
 
+  <!-- ───────── Admin (solo tu uid) ───────── -->
+  <div class="sheet" id="adminSheet" hidden>
+    <div class="sheet__panel sheet__panel--profile">
+      <h3 class="sheet__title">🛠️ Administración</h3>
+      <p class="sheet__sub">Gestión de usuarios. "Vaciar" borra todos sus datos (cacas, actividad, amistades, grupos, perfil). NO borra su cuenta de acceso.</p>
+      <div id="adminUsers"></div>
+      <button class="btn-ghost" id="adminClose">Cerrar</button>
+    </div>
+  </div>
+
   <!-- ───────── Notificaciones (campanita) ───────── -->
   <div class="sheet" id="notifSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">
@@ -338,6 +348,7 @@
       </label>
 
       <div class="set-actions">
+        <button class="btn-ghost" id="adminBtn" hidden>🛠️ Administración</button>
         <button class="btn-ghost btn-ghost--danger" id="fixBtn">Reiniciar (borra todas mis cacas)</button>
         <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
       </div>

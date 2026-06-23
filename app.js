@@ -5,7 +5,8 @@ import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush,
+  setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
+  adminListUsers, adminWipeUser,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
   getUser, colorForUid
 } from "./store.js";
@@ -14,6 +15,7 @@ import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } fro
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
 const MILESTONES = [10,25,50,75,100,150,200,250,300,400,500];
+const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // admin único (la barrera real está en las reglas)
 const nextMilestone = n => MILESTONES.find(m => m > n) || (Math.floor(n/100)*100 + 100);
 const prevMilestone = n => [...MILESTONES].reverse().find(m => m <= n) || 0;
 const initial = s => (s||"?").trim().charAt(0).toUpperCase();
@@ -171,10 +173,38 @@ function openSettings(){
   $("setEmail").textContent=me.email||"—";
   $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
   renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
+  $("adminBtn").hidden = uid!==ADMIN_UID;        // botón Admin solo para ti
   $("settingsSheet").hidden=false;
 }
 $("settingsBtn").addEventListener("click", openSettings);
 $("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
+
+/* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */
+async function renderAdminUsers(){
+  $("adminUsers").innerHTML=`<p class="notif-empty">Cargando…</p>`;
+  try{
+    const users=(await adminListUsers()).sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+    $("adminUsers").innerHTML = users.map(u=>`
+      <div class="adminrow">
+        <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
+        <div class="adminrow__txt"><b>${u.displayName||"?"}</b><small>${u.email||""} · ${u.totalCount||0} 💩</small></div>
+        ${u.id===uid?`<span class="adminrow__you">tú</span>`:`<button class="btn-decline" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}">Vaciar</button>`}
+      </div>`).join("") || `<p class="notif-empty">Sin usuarios.</p>`;
+  }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">No se pudo cargar (¿reglas admin publicadas?).</p>`; console.error(err); }
+}
+function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; renderAdminUsers(); }
+$("adminBtn").addEventListener("click", openAdmin);
+$("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
+$("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
+$("adminUsers").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-wipe]"); if(!b)return;
+  const tid=b.dataset.wipe, name=b.dataset.name||"ese usuario";
+  if(tid===uid){ toast("No puedes vaciarte a ti mismo aquí"); return; }
+  if(!confirm(`⚠️ Vaciar a "${name}": se borran TODOS sus datos (cacas, actividad, amistades, grupos, perfil). No se puede deshacer. ¿Seguro?`)) return;
+  b.disabled=true; b.textContent="Vaciando…";
+  try{ await adminWipeUser(tid); toast("Usuario vaciado ✅"); renderAdminUsers(); }
+  catch(err){ toast("No se pudo (revisa reglas admin)"); console.error(err); b.disabled=false; b.textContent="Vaciar"; }
+});
 $("settingsSheet").addEventListener("click", e=>{ if(e.target===$("settingsSheet")) $("settingsSheet").hidden=true; });
 $("setNameSave").addEventListener("click", async ()=>{
   const n=$("setName").value.trim(); if(!n) return toast("Pon un nombre");

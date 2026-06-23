@@ -190,6 +190,25 @@ export async function myActivity(uid, n = 200){
   return snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
 
+/* ---------- admin (gateado por uid en reglas) ---------- */
+export async function adminListUsers(){
+  const s = await getDocs(collection(db,"users"));
+  return s.docs.map(d => ({ id:d.id, ...d.data() }));
+}
+async function _delAll(q){   // borra en lotes los docs de una consulta
+  for(;;){ const s = await getDocs(q); if(s.empty) break; const b=writeBatch(db); s.docs.forEach(d=>b.delete(d.ref)); await b.commit(); if(s.size<300) break; }
+}
+// Vacía por completo los datos de un usuario (NO borra su cuenta de Auth: eso es Admin SDK).
+export async function adminWipeUser(targetUid){
+  await _delAll(query(collection(db,"users",targetUid,"cacas"), limit(300)));
+  await _delAll(query(collection(db,"activity"), where("uid","==",targetUid), limit(300)));
+  await _delAll(query(collection(db,"friendships"), where("uids","array-contains",targetUid), limit(300)));
+  // sacarlo de todos los grupos
+  for(;;){ const s=await getDocs(query(collection(db,"groups"), where("members","array-contains",targetUid), limit(300))); if(s.empty)break; const b=writeBatch(db); s.docs.forEach(d=>b.update(d.ref,{members:arrayRemove(targetUid)})); await b.commit(); if(s.size<300)break; }
+  try{ await deleteDoc(doc(db,"users",targetUid,"private","push")); }catch(e){}
+  await deleteDoc(doc(db,"users",targetUid));
+}
+
 /* ---------- friends ---------- */
 const pairId = (a,b) => [a,b].sort().join("_");
 

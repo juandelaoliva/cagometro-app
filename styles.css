@@ -236,6 +236,13 @@ ol,ul{list-style:none}
 .rank .nm small{display:block;font-weight:500;color:var(--ink-faint);font-size:11.5px}
 .rank .ct{font-family:var(--font-d);font-weight:900;font-size:20px;color:var(--brand)}
 .rank li.me{border-color:var(--gold);background:#FFFCF4}
+/* variante compacta (clasificación de grupo): filas más bajas para que quepan más */
+.rank--compact{gap:6px}
+.rank--compact li{padding:7px 12px;gap:10px;border-radius:11px}
+.rank--compact .av{width:26px;height:26px;font-size:11px;border-width:1.5px}
+.rank--compact .pos{width:18px;font-size:13px}
+.rank--compact .nm{font-size:13.5px}
+.rank--compact .ct{font-size:16px}
 
 /* ── STATS view ──────────────────────────────────────────────────── */
 .statgrid{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:8px}

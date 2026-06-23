@@ -238,7 +238,7 @@ ol,ul{list-style:none}
 .rank li.me{border-color:var(--gold);background:#FFFCF4}
 /* variante compacta (clasificación de grupo): filas más bajas para que quepan más */
 .rank--compact{gap:6px}
-.rank--compact li{padding:7px 12px;gap:10px;border-radius:11px}
+.rank--compact li{flex-direction: row; padding:7px 12px;gap:10px;border-radius:11px}
 .rank--compact .av{width:26px;height:26px;font-size:11px;border-width:1.5px}
 .rank--compact .pos{width:18px;font-size:13px}
 .rank--compact .nm{font-size:13.5px}
@@ -389,20 +389,21 @@ ol,ul{list-style:none}
 
 /* ── grupos ──────────────────────────────────────────────────────── */
 .grouplist{display:flex;flex-direction:column;gap:10px}
-.grouplist li{display:flex;flex-direction:column}            /* contenedor (acordeón) */
+/* OJO: hijos DIRECTOS (>) para no pisar los <li> de la clasificación anidada */
+.grouplist > li{display:flex;flex-direction:column}            /* contenedor (acordeón) */
 /* cabecera clicable de cada grupo */
 .ghead{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line-2);
   border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer}
 .ghead:active{transform:translateY(1px)}
-.grouplist li.is-open .ghead{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:var(--line-2)}
+.grouplist > li.is-open .ghead{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:var(--line-2)}
 .ghead .gname{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ghead .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600;flex:none}
 .ghead .gchev{font-size:15px;color:var(--ink-faint);flex:none;transition:transform .2s}
-.grouplist li.is-open .gchev{transform:rotate(180deg)}
+.grouplist > li.is-open .gchev{transform:rotate(180deg)}
 /* detalle dentro del acordeón */
-.grouplist li.is-open #groupDetail{display:flex;flex-direction:column;gap:10px;padding:12px;
+.grouplist > li.is-open #groupDetail{display:flex;flex-direction:column;gap:10px;padding:12px;
   border:1px solid var(--brand);border-top:none;border-radius:0 0 13px 13px;background:var(--paper-2,var(--paper))}
-.grouplist li.is-open #groupDetail .block{margin:0}
+.grouplist > li.is-open #groupDetail .block{margin:0}
 .gempty{background:var(--card);border:1px solid var(--line-2);border-radius:13px;padding:14px;
   text-align:center;color:var(--ink-faint);font-size:13.5px}
 /* botón ＋ junto a "Tus grupos" para crear/unirse */

@@ -381,19 +381,28 @@ ol,ul{list-style:none}
 .bootfail__btn:disabled{opacity:.6}
 
 /* ── grupos ──────────────────────────────────────────────────────── */
-.grouplist{display:flex;flex-direction:column;gap:8px}
-.grouplist li{display:flex;align-items:center;justify-content:space-between;background:var(--card);
-  border:1px solid var(--line-2);border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer}
-.grouplist li:active{transform:translateY(1px)}
-.grouplist li.is-open{border-color:var(--brand);box-shadow:0 0 0 2px var(--gold-soft),var(--shadow)}
-.grouplist .gname{font-weight:700}
+.grouplist{display:flex;flex-direction:column;gap:10px}
+.grouplist li{display:flex;flex-direction:column}            /* contenedor (acordeón) */
+/* cabecera clicable de cada grupo */
+.ghead{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line-2);
+  border-radius:13px;padding:13px 15px;box-shadow:var(--shadow);cursor:pointer}
+.ghead:active{transform:translateY(1px)}
+.grouplist li.is-open .ghead{border-color:var(--brand);border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:var(--line-2)}
+.ghead .gname{font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ghead .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600;flex:none}
+.ghead .gchev{font-size:15px;color:var(--ink-faint);flex:none;transition:transform .2s}
+.grouplist li.is-open .gchev{transform:rotate(180deg)}
+/* detalle dentro del acordeón */
+.grouplist li.is-open #groupDetail{display:flex;flex-direction:column;gap:10px;padding:12px;
+  border:1px solid var(--brand);border-top:none;border-radius:0 0 13px 13px;background:var(--paper-2,var(--paper))}
+.grouplist li.is-open #groupDetail .block{margin:0}
+.gempty{background:var(--card);border:1px solid var(--line-2);border-radius:13px;padding:14px;
+  text-align:center;color:var(--ink-faint);font-size:13.5px}
 /* botón ＋ junto a "Tus grupos" para crear/unirse */
 .addchip{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:19px;font-weight:800;
   background:var(--gold-soft);color:var(--brand-2);line-height:1;transition:transform .2s,background .2s}
 .addchip.on{transform:rotate(45deg);background:linear-gradient(160deg,var(--brand-2),var(--brand));color:#fff}
 #groupForms{margin-bottom:6px}
-.grouplist .gmeta{font-size:13px;color:var(--ink-soft);font-weight:600}
-.grouplist .gempty{justify-content:center;text-align:center;color:var(--ink-faint);font-size:13.5px;cursor:default}
 
 /* ── selector de año (stats) ─────────────────────────────────────── */
 .yearsel{display:flex;gap:8px;overflow-x:auto;padding:2px 0 4px;margin:2px 0 12px;-webkit-overflow-scrolling:touch}

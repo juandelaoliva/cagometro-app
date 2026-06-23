@@ -679,10 +679,15 @@ async function renderAmigos(){
 }
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
-  const gli=e.target.closest("#groupList li[data-gid]");
   if(a){ await acceptFriend(a.dataset.accept, uid); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
-  if(gli){ openGroupById(gli.dataset.gid); }
+});
+// acordeón de grupos: la cabecera despliega/colapsa el grupo
+$("groupList").addEventListener("click", e=>{
+  const h=e.target.closest("[data-gtoggle]"); if(!h)return;
+  const gid=h.dataset.gtoggle;
+  if(activeGroup && activeGroup.id===gid) collapseGroup();
+  else openGroupById(gid);
 });
 
 /* ---------- grupos ---------- */
@@ -712,24 +717,41 @@ function setGroupForms(show){
   if(show) setTimeout(()=>$("newGroupName")?.focus(), 60);
 }
 $("toggleGroupForms").addEventListener("click", ()=> setGroupForms($("groupForms").hidden));
+function collapseGroup(){
+  const det=$("groupDetail"); det.hidden=true; $("view-grupos").appendChild(det);   // saca el detalle de la lista
+  document.querySelectorAll("#groupList li").forEach(x=>x.classList.remove("is-open"));
+  activeGroup=null;
+}
 async function renderGrupos(){
+  // saca el detalle de la lista antes de re-render (si no, innerHTML lo destruiría)
+  const det=$("groupDetail"); det.hidden=true; $("view-grupos").appendChild(det);
   myGroupsCache = await myGroups(uid);
   const n = myGroupsCache.length;
   $("groupList").innerHTML = n ? myGroupsCache.map(g=>`
-    <li data-gid="${g.id}" class="${activeGroup&&activeGroup.id===g.id?'is-open':''}"><span class="gname">${g.name}</span><span class="gmeta">${(g.members||[]).length} 👤</span></li>`).join("")
+    <li data-gid="${g.id}">
+      <div class="ghead" data-gtoggle="${g.id}">
+        <span class="gname">${g.name}</span>
+        <span class="gmeta">${(g.members||[]).length} 👤</span>
+        <span class="gchev" aria-hidden="true">⌄</span>
+      </div>
+    </li>`).join("")
     : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;
   setGroupForms(n===0);                         // sin grupos → form abierto; con grupos → oculto tras ＋
   const still = activeGroup && myGroupsCache.find(g=>g.id===activeGroup.id);
+  activeGroup=null;                             // openGroup lo re-asigna
   if(still) openGroup(still);                   // mantén el abierto
   else if(n===1) openGroup(myGroupsCache[0]);   // solo uno → expandido por defecto
-  else { activeGroup=null; $("groupDetail").hidden=true; }
 }
 function openGroupById(gid){ const g=myGroupsCache.find(x=>x.id===gid); if(g) openGroup(g); }
 const MF=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 async function openGroup(group){
-  activeGroup=group; $("groupDetail").hidden=false;
-  document.querySelectorAll("#groupList li[data-gid]").forEach(li=>li.classList.toggle("is-open", li.dataset.gid===group.id));
-  $("gdName").textContent=group.name; $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
+  activeGroup=group;
+  const det=$("groupDetail");
+  const li=document.querySelector(`#groupList li[data-gid="${group.id}"]`);
+  if(li) li.appendChild(det);                   // mete el detalle bajo la cabecera (acordeón)
+  det.hidden=false;
+  document.querySelectorAll("#groupList li[data-gid]").forEach(x=>x.classList.toggle("is-open", x.dataset.gid===group.id));
+  $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
   const [board,yc]=await Promise.all([groupLeaderboard(group), groupYearCacas(group)]);
   $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
   // estadísticas del grupo (este año)

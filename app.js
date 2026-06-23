@@ -226,8 +226,8 @@ function startFeed(){
   _feedUnsub = watchActivity(uid, acts=>{
     homeFeedData = acts;                       // entradas crudas; los chips de grupo se calculan al pintar
     if(!feedShown) feedShown=FEED_PAGE;
-    detectReactionNotifs(acts);                // reacciones a MIS eventos → campanita/banner
-    renderFeedChips(); renderFeed();
+    renderFeedChips(); renderFeed();           // pinta SIEMPRE primero (lo importante)
+    try{ detectReactionNotifs(acts); }catch(e){ console.error("notif:", e); }   // que un fallo aquí no rompa el feed
   }, 60, err=>{                                 // p.ej. índice construyéndose → reintenta solo
     console.warn("feed listener:", err?.code||err);
     stopFeed();

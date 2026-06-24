@@ -319,6 +319,7 @@ ol,ul{list-style:none}
 @keyframes spin{from{transform:rotate(-25deg) scale(.5)}to{transform:rotate(0) scale(1)}}
 .celebrate__num{font-family:var(--font-d);font-weight:900;font-size:84px;line-height:1;margin-top:6px;text-shadow:0 6px 24px rgba(0,0,0,.3)}
 .celebrate__text{font-weight:800;font-size:18px;margin-top:6px;letter-spacing:.02em}
+.celebrate__sub{font-weight:600;font-size:14px;margin-top:6px;opacity:.92}
 .confetti{position:fixed;top:-12px;width:10px;height:14px;z-index:88;border-radius:2px;pointer-events:none;animation:fall linear forwards}
 @keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:.9}}
 
@@ -480,6 +481,8 @@ ol,ul{list-style:none}
 .feed__item--hito .feed__line{font-weight:700}
 .feed__item--sys{opacity:.7}
 .feed__item--sys .feed__line{color:var(--ink-soft);font-weight:600;font-size:13px}
+.feed__item--sync{background:linear-gradient(100deg,var(--mint-soft),rgba(205,235,217,0) 75%);border-radius:14px;padding-left:8px;padding-right:8px}
+.feed__item--sync .feed__line{font-weight:700}
 /* selector de reacciones */
 .rxpick{display:flex;justify-content:space-around;gap:6px;padding:8px 4px 4px}
 .rxpick button{font-size:34px;line-height:1;padding:8px;border-radius:14px;transition:.12s}

@@ -361,18 +361,24 @@ function reactionsRow(c){
 function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
-  let head, nBadge="", sys=false, reactable=true;
+  let head, nBadge="", sys=false, reactable=true, syncHi=false;
   if(c.kind==="undo"){
     head = mine ? "Te quitaste una caca ↩︎" : `<b>${c.name}</b> se quitó una caca ↩︎`; sys=true; reactable=false;
   } else if(c.kind==="reset"){
     head = mine ? "Reiniciaste tu contador 🧹" : `<b>${c.name}</b> reinició su contador 🧹`; sys=true; reactable=false;
+  } else if(c.kind==="sync"){
+    head = mine ? `🔗 Conexión de tuberías con <b>${c.withName}</b>`
+         : c.withUid===uid ? `🔗 <b>${c.name}</b> conectó tuberías contigo`
+         : `🔗 <b>${c.name}</b> y <b>${c.withName}</b> conectaron tuberías`;
+    syncHi=true;
   } else {
     const hito = MILESTONES.includes(c.n);
     head = hito ? (mine ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
                 : (mine ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
     nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
   }
-  const cls = `feed__item${(c.kind!=="undo"&&c.kind!=="reset"&&MILESTONES.includes(c.n))?' feed__item--hito':''}${sys?' feed__item--sys':''}`;
+  const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&MILESTONES.includes(c.n);
+  const cls = `feed__item${isHito?' feed__item--hito':''}${syncHi?' feed__item--sync':''}${sys?' feed__item--sys':''}`;
   return `<li class="${cls}" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
@@ -634,6 +640,7 @@ $("addBtn").addEventListener("click",async e=>{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
     await addCaca(uid, loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
     loadActivity("force");   // el listener del feed la muestra al instante
+    checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
@@ -664,7 +671,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); }
+  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); checkSyncPoop(); }
   catch(err){ toast("No se pudo guardar"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -1001,6 +1008,33 @@ function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("
 const HYPE=["¡Nuevo hito!","¡Máquina!","¡Imparable!","¡Leyenda del trono! 👑","¡A por más!"];
 function celebrate(num){ $("celebrateNum").textContent=num; $("celebrateText").textContent=num>=200?"¡Leyenda del trono! 👑":HYPE[Math.floor(Math.random()*HYPE.length)];
   const c=$("celebrate");c.hidden=false;confetti();navigator.vibrate?.([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
+// ── conexión de tuberías: tú + un amigo cagáis con < 5 min de diferencia ──
+const SYNC_WINDOW=5*60*1000;
+let _lastSyncEvt=null;   // id del evento de amigo con el que ya celebramos (evita repetir)
+function syncCelebrate(name){
+  $("syncSub").textContent=`Tú y ${name} cagando en sincronía 🚽`;
+  const c=$("syncOverlay"); c.hidden=false; confetti(); navigator.vibrate?.([20,40,20,40,20,40,80]);
+  setTimeout(()=>c.hidden=true,2800);
+}
+function checkSyncPoop(){
+  const now=Date.now();
+  // evento de caca de un AMIGO en los últimos 5 min (no tú, no eventos de sistema/sync)
+  const evt=homeFeedData.find(c =>
+    c.uid!==uid && (c.kind===undefined||c.kind==="add") && friendNames[c.uid]
+    && (now-c.ts)>=0 && (now-c.ts)<=SYNC_WINDOW);
+  if(!evt || _lastSyncEvt===evt.id) return;
+  _lastSyncEvt=evt.id;
+  const name=friendNames[evt.uid]||evt.name||"un amigo";
+  syncCelebrate(name);
+  // evento en el feed (visible a tu círculo + el amigo), reaccionable
+  writeActivity(uid, {
+    kind:"sync", name:me?.displayName||"", color:me?.color||colorForUid(uid),
+    withUid:evt.uid, withName:name, ts:now, year:new Date().getFullYear(),
+    audience:[...new Set([...(_graph.audience||[uid]), evt.uid])], groups:_graph.groups||[], reactions:{},
+  }).catch(e=>console.error("sync:",e));
+  // aviso al amigo
+  enqueuePush(uid, evt.uid, "sync", "¡Conexión de tuberías! 🚽", `${me?.displayName||"Alguien"} ha cagado a la vez que tú`).catch(()=>{});
+}
 function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];
   for(let i=0;i<90;i++){ const d=document.createElement("div");d.className="confetti";d.style.left=Math.random()*100+"vw";
     d.style.background=cols[i%cols.length];d.style.animationDuration=(1.4+Math.random()*1.4)+"s";d.style.animationDelay=(Math.random()*.3)+"s";

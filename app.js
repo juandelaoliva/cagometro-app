@@ -328,8 +328,14 @@ function renderFeedChips(){
     .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${g.gid}">🏆 ${g.name}</button>`));
   $("feedChips").innerHTML=chips.join("");
 }
+// una "conexión de tuberías" solo la ves si eres uno de los dos o amigo de AMBOS
+function canSeeSync(c){
+  if(c.kind!=="sync") return true;
+  if(c.uid===uid || c.withUid===uid) return true;
+  return !!(friendNames[c.uid] && friendNames[c.withUid]);
+}
 function filteredFeed(){
-  let arr=homeFeedData;
+  let arr=homeFeedData.filter(canSeeSync);     // oculta syncs en los que no eres amigo de los dos
   if(feedScope==="me") arr=arr.filter(c=>c.uid===uid);
   else if(feedScope==="friends") arr=arr.filter(c=>c.uid!==uid);
   else if(feedScope!=="all") arr=arr.filter(c=>(c.groups||[]).some(g=>g.gid===feedScope));

@@ -32,6 +32,7 @@ Campo `type` en la colección `pushQueue` (lo lee la Pi para decidir cómo entre
 | `milestone` | Un amigo cruza un hito (10/25/50/75/100/150/200/250/300/400/500) | quien cruza el hito | sus amigos | push | solo en múltiplos de la lista |
 | `overtake` | Te adelantan en el ranking de un **grupo** (rompen empate en tu nº) | quien adelanta | el adelantado | push | cliente ignora < 3 cacas · la Pi limita a **1/persona/día** |
 | `sync` | "Conexión de tuberías": un amigo cagó hace **< 5 min** cuando registras la tuya | el que registra después | el otro implicado | overlay + evento en feed + push | no repite con la misma caca del amigo |
+| `reminder` | **Recordatorio inteligente** (proactivo): no has cagado hoy y tu media ≥ 1/día | la **Pi** (cron) | el propio usuario | push | 1/día · franja local 10–22 · hora personalizada |
 
 ---
 
@@ -64,6 +65,14 @@ Campo `type` en la colección `pushQueue` (lo lee la Pi para decidir cómo entre
 - **Overlay** de celebración + confeti al que registra después.
 - **Feed:** crea un evento `kind:"sync"` reaccionable. **Privacidad:** solo lo ven los dos implicados o quien sea **amigo de ambos** (filtro al mostrar, `canSeeSync`).
 - **Push:** avisa al otro implicado.
+
+### reminder — recordatorio inteligente ⏰ (proactivo, lo inicia la Pi)
+- **Servicio:** `cagometro-reminders.service` en la Pi (`reminders.js`), ticker cada 30 min.
+- **A quién:** usuarios con **media ≥ 1/día** (últimos 14 días) que **no han cagado hoy** (en su tz), con notificaciones activadas y token.
+- **Cuándo:** a una **hora personalizada** = su hora típica de cagar + ~3 h + jitter determinista (0–1.5 h por uid+fecha), siempre dentro de la franja local **10:00–22:00**. Máx **1/día** (`lastReminderYmd`).
+- **Datos denormalizados** (en `users/{uid}`, los escribe el cliente): `tz`, `lastCacaTs`, `lastReminderYmd`.
+- **Sin coste de reglas:** la Pi usa Admin SDK; el cliente escribe `tz`/`lastCacaTs` en su propio doc (isOwner).
+- **Pruebas:** `DRY_RUN=1 node reminders.js` (no envía, solo log).
 
 ---
 

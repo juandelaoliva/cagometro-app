@@ -3,7 +3,7 @@
 Documento de referencia de todas las notificaciones del sistema: qué las dispara,
 quién las recibe, por qué canal y cómo se evita el spam.
 
-_Actualizado: 2026-06-24_
+_Actualizado: 2026-06-25_
 
 ---
 
@@ -29,7 +29,7 @@ Campo `type` en la colección `pushQueue` (lo lee la Pi para decidir cómo entre
 | `reaction` | Alguien reacciona a tu caca | quien reacciona | dueño de la caca | campanita + banner + push | **Agrupadas** por la Pi (ventana 20 s): varias → "N reacciones nuevas" |
 | `friend_request` | Te envían solicitud de amistad | quien la envía | destinatario | campanita + banner + push | inmediato |
 | `friend_accepted` | Aceptan tu solicitud o tu invitación por enlace | quien acepta | quien la pidió/invitó | push | inmediato |
-| `milestone` | Un amigo cruza un hito (10/25/50/75/100/150/200/250/300/400/500) | quien cruza el hito | sus amigos | push | solo en múltiplos de la lista |
+| `milestone` | Un amigo cruza un hito (10/25/50/75 y luego **cada 50 sin tope**: 100,150,200…550,600…) | quien cruza el hito | sus amigos | push | solo en hitos exactos |
 | `overtake` | Te adelantan en el ranking de un **grupo** (rompen empate en tu nº) | quien adelanta | el adelantado | push | cliente ignora < 3 cacas · la Pi limita a **1/persona/día** |
 | `sync` | "Conexión de tuberías": un amigo cagó hace **< 5 min** cuando registras la tuya | el que registra después | el otro implicado | overlay + evento en feed + push | no repite con la misma caca del amigo |
 | `reminder` | **Recordatorio inteligente** (proactivo): no has cagado hoy y tu media ≥ 1/día | la **Pi** (cron) | el propio usuario | push | 1/día · franja local 10–22 · hora personalizada |
@@ -54,6 +54,7 @@ Campo `type` en la colección `pushQueue` (lo lee la Pi para decidir cómo entre
 
 ### milestone — hito de un amigo
 - **Disparo:** en `watchMe`, al detectar que tu contador cruza un hito → `notifyFriendsMilestone()` avisa a **todos tus amigos**.
+- **Hitos:** `isMilestone(n)` = 10/25/50/75 o (n≥100 y múltiplo de 50). Sin tope superior.
 
 ### overtake — adelantamiento en ranking de grupo
 - **Disparo:** al subir tu contador (`checkGroupOvertakes`), en cada grupo común avisas a quien tenías empatado (le quitas el puesto).
@@ -94,8 +95,14 @@ Acción en la app
                  │   - lee tokens en users/{toUid}/private/push
                  ▼
          FCM  →  firebase-messaging-sw.js  →  banner del sistema
+
+   └── proactivo (sin acción del usuario) — recordatorios
+         Raspberry (cagometro-reminders.service)  →  FCM directo (no usa pushQueue)
 ```
 
+- **Dos servicios en la Pi** (`~/projects/cagometro-push/`, node nvm v18.20.8, systemd, Restart=always):
+  - `cagometro-push.service` (`index.js`) — entrega lo de `pushQueue`.
+  - `cagometro-reminders.service` (`reminders.js`) — recordatorios inteligentes (envía a FCM directamente, no pasa por la cola).
 - **Tokens:** se guardan en `users/{uid}/private/push.tokens` (privado). El interruptor de Ajustes pide permiso y registra el token; al desactivar, borra el token.
 - **Reglas:** `pushQueue` solo la crean los clientes (con su `fromUid`); solo la Pi (Admin SDK) la lee/borra.
 
@@ -110,4 +117,5 @@ Acción en la app
 ## Límites y futuro
 - **Depende de la Pi** para el push con app cerrada. Si se apaga, las tareas quedan en `pushQueue` (ojo: FCM tiene TTL; pushes muy viejos pueden caducar).
 - **Privacidad de `sync`:** filtrada al mostrar, no a nivel de datos (el cliente no puede calcular la audiencia mutua exacta).
-- **Ideas pendientes:** notificación de "te aceptaron en grupo", recordatorios programados (cron en la Pi: "llevas X días sin fichar"), resúmenes semanales, reacciones a eventos `sync`/`milestone` con push.
+- **Ideas pendientes:** notificación de "te uniste/te añadieron a un grupo", resúmenes semanales/Wrapped (cron en la Pi), push al reaccionar a eventos `sync`/`milestone`, recordatorio de "racha en peligro".
+- **Icono del banner:** `firebase-messaging-sw.js` usa `icon.svg`; pendiente cambiarlo a la mascota (`icon-192.png`).

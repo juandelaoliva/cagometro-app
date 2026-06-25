@@ -14,10 +14,12 @@ import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } fro
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
-const MILESTONES = [10,25,50,75,100,150,200,250,300,400,500];
 const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // admin único (la barrera real está en las reglas)
-const nextMilestone = n => MILESTONES.find(m => m > n) || (Math.floor(n/100)*100 + 100);
-const prevMilestone = n => [...MILESTONES].reverse().find(m => m <= n) || 0;
+// Hitos: pequeños al principio y, de 100 en adelante, SIEMPRE cada 50 (sin tope).
+const SMALL_MS = [10,25,50,75];
+const isMilestone = n => SMALL_MS.includes(n) || (n>=100 && n%50===0);
+const nextMilestone = n => { for(const m of SMALL_MS) if(m>n) return m; return n<100 ? 100 : (Math.floor(n/50)+1)*50; };
+const prevMilestone = n => { let p=0; for(const m of SMALL_MS) if(m<=n) p=m; if(n>=100) p=Math.max(p, Math.floor(n/50)*50); return p; };
 const initial = s => (s||"?").trim().charAt(0).toUpperCase();
 const DAY = 86400000;
 const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
@@ -128,7 +130,7 @@ function showApp(){
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
     $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
     paintProgress(total); renderLocSel(m.locationMode);
-    if(lastTotal!==null && total>lastTotal){ const hit=MILESTONES.find(x=>x>lastTotal&&x<=total); if(hit){ celebrate(hit); notifyFriendsMilestone(hit); } checkGroupOvertakes(lastTotal); }
+    if(lastTotal!==null && total>lastTotal){ if(isMilestone(total)){ celebrate(total); notifyFriendsMilestone(total); } checkGroupOvertakes(lastTotal); }
     lastTotal=total;
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
@@ -378,12 +380,12 @@ function _feedItem(c,i){
          : `🔗 <b>${c.name}</b> y <b>${c.withName}</b> conectaron tuberías`;
     syncHi=true;
   } else {
-    const hito = MILESTONES.includes(c.n);
+    const hito = isMilestone(c.n);
     head = hito ? (mine ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
                 : (mine ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
     nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
   }
-  const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&MILESTONES.includes(c.n);
+  const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&isMilestone(c.n);
   const cls = `feed__item${isHito?' feed__item--hito':''}${syncHi?' feed__item--sync':''}${sys?' feed__item--sys':''}`;
   return `<li class="${cls}" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>

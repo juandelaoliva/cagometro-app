@@ -56,10 +56,14 @@ export async function ensureProfile(user, displayName){
       countsByYear: {},
       privacy: "friends_groups",
       locationMode: "never",    // never | choose | always
+      tz: tz(),                 // zona horaria (para recordatorios inteligentes)
+      lastCacaTs: 0,            // ts de la última caca (denormalizado)
       telegramUserId: null,
       telegramUsername: null,
       createdAt: serverTimestamp(),
     });
+  } else if (snap.data().tz !== tz()) {
+    updateDoc(ref, { tz: tz() }).catch(()=>{});   // mantener tz al día (viaje/nuevo dispositivo)
   }
   return ref;
 }
@@ -79,7 +83,7 @@ export async function addCaca(uid, loc, act){
     const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
     tx.set(doc(collection(db,"users",uid,"cacas")), cdata);
-    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) });
+    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), lastCacaTs:ts, tz:tz() });
     if (act) tx.set(doc(collection(db,"activity")), {
       uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n,
       audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
@@ -129,8 +133,9 @@ export async function addCacaAt(uid, ts, act){
     const cur = (y === yearNow()) ? (us.data()?.totalCount || 0) : (us.data()?.countsByYear?.[y] || 0);
     const n = cur + 1;
     tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
-    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1) };
+    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
+    upd.lastCacaTs = Math.max(us.data()?.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
     tx.update(uref, upd);
     if (act) tx.set(doc(collection(db,"activity")), {
       uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n, late:true,
@@ -173,7 +178,7 @@ export async function resetCacas(uid, act){
     const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
     if (snap.size < 400) break;
   }
-  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{} });
+  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, lastCacaTs:0 });
   if (act) writeActivity(uid, { kind:"reset", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
 }

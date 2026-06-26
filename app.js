@@ -139,7 +139,7 @@ onUser(async user=>{
 // Failsafe: si la sesión no resuelve en 9s (red/CDN lento en la PWA instalada),
 // no dejamos el splash colgado: mostramos el acceso para que el usuario pueda actuar.
 setTimeout(()=>{ if(!_authResolved){ $("splash").hidden=true; if(!uid) showGate(); } }, 9000);
-function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
+function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); closeOverlays(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;

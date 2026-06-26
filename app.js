@@ -977,6 +977,18 @@ window.addEventListener("popstate", ()=>{
   history.pushState({ cago:1 }, "");          // re-arma el trap (back se queda dentro)
 });
 
+// ── botón ✕ de cierre en la esquina superior de cada hoja ──
+document.querySelectorAll(".sheet .sheet__panel").forEach(p=>{
+  if(p.querySelector(".sheet__x")) return;
+  const b=document.createElement("button");
+  b.className="sheet__x"; b.type="button"; b.setAttribute("aria-label","Cerrar"); b.textContent="✕";
+  p.insertBefore(b, p.firstChild);
+});
+document.addEventListener("click", e=>{
+  const x=e.target.closest(".sheet__x"); if(!x) return;
+  const sheet=x.closest(".sheet"); if(sheet) sheet.hidden=true;
+});
+
 /* ---------- pull-to-refresh (solo PWA instalada; en web ya lo hace el navegador) ---------- */
 const _standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
 if(_standalone){

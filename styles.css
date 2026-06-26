@@ -344,6 +344,7 @@ ol,ul{list-style:none}
 .formerr{color:var(--rose);font-size:13px;font-weight:600;margin:2px}
 .btn-google{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:var(--shadow);transition:transform .08s}
 .btn-google:active{transform:translateY(1px)}
+.btn-google__logo{width:18px;height:18px;display:block;flex:none}
 .gate__toggle{margin-top:18px;font-size:13.5px;color:var(--ink-soft)}
 
 /* ── profile + stubs ──────────────────────────────────────────────── */

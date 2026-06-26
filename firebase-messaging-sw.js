@@ -20,8 +20,8 @@ messaging.onBackgroundMessage(payload => {
   const title = d.title || "El Cagómetro 💩";
   self.registration.showNotification(title, {
     body: d.body || "",
-    icon: "icon.svg",
-    badge: "icon.svg",
+    icon: "icon-192.png",   // logo a color (cuerpo de la notificación)
+    badge: "badge.png",     // silueta monocroma (barra de estado Android)
     tag: d.tag || ("cagometro-" + Date.now()),
     data: { url: "./" },
   });

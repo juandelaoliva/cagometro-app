@@ -532,7 +532,7 @@ async function enablePush(){
 function showLocalNotif(title, body){
   if(!("Notification" in window) || Notification.permission!=="granted") return;
   if(me && me.notifications===false) return;                 // respeta el interruptor de Ajustes
-  const opts={ body, icon:"icon.svg", badge:"icon.svg", tag:"cagometro-"+Date.now() };
+  const opts={ body, icon:"icon-192.png", badge:"badge.png", tag:"cagometro-"+Date.now() };
   try{
     if(navigator.serviceWorker?.ready) navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,opts)).catch(()=>{ try{ new Notification(title,opts); }catch(_){} });
     else new Notification(title,opts);

@@ -870,7 +870,25 @@ async function openGroup(group){
     <div class="stat"><b>${members}</b><span>miembros</span></div>
     <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>mejor mes</span></div>
     <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
-  $("gChartMonth").innerHTML=barsHTML(byMonth, PM);
+  renderGroupStack(board, yc);
+}
+// barra apilada por persona, segmentada por mes (este año)
+const MONTHS_FULL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const MONTH_COLORS=["#4E79A7","#F28E2B","#E15759","#76B7B2","#59A14F","#EDC948","#B07AA1","#FF9DA7","#9C755F","#9D7660","#86BCB6","#D37295"];
+function renderGroupStack(board, yc){
+  const byU={}; board.forEach(u=>{ byU[u.id]={ name:u.displayName||"?", months:new Array(12).fill(0), total:0 }; });
+  for(const c of yc){ const u=byU[c.uid]; if(!u)continue; u.months[tzParts(c.ts,c.tz).month-1]++; u.total++; }
+  const arr=board.map(u=>({ uid:u.id, ...byU[u.id] }));   // orden del ranking (por total desc)
+  const max=Math.max(1,...arr.map(m=>m.total)), H=200;
+  $("gStack").innerHTML = arr.map(m=>{
+    let segs="";
+    for(let i=11;i>=0;i--){ const v=m.months[i]; if(!v)continue; const h=Math.round(v/max*H);
+      segs += `<div class="seg" style="height:${h}px;background:${MONTH_COLORS[i]}">${h>=15?`<span>${v}</span>`:""}</div>`; }
+    return `<div class="stackcol"><div class="stackbar">${segs}</div><div class="stacklbl">${m.name}<small>${m.total}</small></div></div>`;
+  }).join("") || `<p class="notif-empty">Sin cacas este año.</p>`;
+  // leyenda: solo meses con datos en el grupo
+  const used=new Set(); arr.forEach(m=>m.months.forEach((v,i)=>{ if(v)used.add(i); }));
+  $("gStackLegend").innerHTML=[...used].sort((a,b)=>a-b).map(i=>`<span class="lg"><i style="background:${MONTH_COLORS[i]}"></i>${MONTHS_FULL[i]}</span>`).join("");
 }
 
 /* ---------- nav ---------- */

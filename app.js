@@ -962,6 +962,21 @@ function refreshActiveView(force){
 document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") refreshActiveView(); });
 window.addEventListener("focus", refreshActiveView);
 
+/* ---------- botón atrás (Android/web): cierra capas → va a Inicio ---------- */
+const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","menuSheet","mapSheet","friendInviteSheet"];
+function closeOverlays(){ let any=false; for(const id of OVERLAY_IDS){ const e=$(id); if(e && !e.hidden){ e.hidden=true; any=true; } } return any; }
+const curView = () => document.querySelector(".view.is-active")?.dataset.view;
+// "trap": una entrada extra en el historial para capturar el back y no salir de la PWA
+history.replaceState({ cago:1 }, "");
+history.pushState({ cago:1 }, "");
+window.addEventListener("popstate", ()=>{
+  if($("gate") && !$("gate").hidden){ history.pushState({cago:1},""); return; }   // en login, back no navega
+  if(!closeOverlays()){                       // 1º cierra una hoja abierta
+    if(curView() && curView()!=="inicio") setView("inicio");   // 2º vuelve a Inicio
+  }
+  history.pushState({ cago:1 }, "");          // re-arma el trap (back se queda dentro)
+});
+
 /* ---------- pull-to-refresh (solo PWA instalada; en web ya lo hace el navegador) ---------- */
 const _standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
 if(_standalone){

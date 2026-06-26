@@ -170,6 +170,11 @@ ol,ul{list-style:none}
   overflow:hidden;
 }
 .addbtn:active{transform:translateY(3px) scale(.985);box-shadow:0 6px 14px -8px rgba(110,63,28,.7)}
+/* cooldown anti-spam: botón atenuado + barra de progreso que se llena (~1.5s) */
+.addbtn--cooldown{pointer-events:none;filter:saturate(.8) brightness(.96);opacity:.92}
+.addbtn--cooldown::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:100%;
+  background:rgba(255,255,255,.6);transform-origin:left;transform:scaleX(0);animation:cooldownbar 1.5s linear forwards}
+@keyframes cooldownbar{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .addbtn::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at var(--rx,50%) var(--ry,50%), rgba(255,255,255,.35),transparent 45%);opacity:0;transition:opacity .4s}
 .addbtn.flash::after{opacity:1;transition:none}
 .addbtn__plus{font-family:var(--font-d);font-weight:900;font-size:22px}

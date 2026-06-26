@@ -14,6 +14,14 @@ import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } fro
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
+
+// ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
+let hapticsOn = localStorage.getItem("cago_haptics") !== "0";
+const haptic = ms => { if(hapticsOn) navigator.vibrate?.(ms); };
+// tap suave global en controles interactivos (el +1 lleva el suyo, más fuerte)
+document.addEventListener("click", e=>{
+  if(e.target.closest("button:not(#addBtn), .tab, .ychip, .rx, .swatch, .psg, .menu-item, .grouplist .ghead, .feed__item, .iconbtn, .brand, .profile, .addchip")) haptic(8);
+}, true);
 const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // admin único (la barrera real está en las reglas)
 // Hitos: pequeños al principio y, de 100 en adelante, SIEMPRE cada 50 (sin tope).
 const SMALL_MS = [10,25,50,75];
@@ -175,6 +183,7 @@ function openSettings(){
   $("setEmail").textContent=me.email||"—";
   $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
   renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
+  $("setHaptics").checked = hapticsOn;
   $("adminBtn").hidden = uid!==ADMIN_UID;        // botón Admin solo para ti
   $("settingsSheet").hidden=false;
 }
@@ -219,6 +228,11 @@ $("setColors").addEventListener("click", async e=>{
   const c=b.dataset.color; renderSetColors(c); $("setAvatar").style.background=c;
   try{ await updateMe(uid,{color:c}); toast("Color actualizado 🎨"); refreshActiveView(); }
   catch(err){ toast("No se pudo"); console.error(err); }
+});
+$("setHaptics").addEventListener("change", e=>{
+  hapticsOn = e.target.checked;
+  localStorage.setItem("cago_haptics", hapticsOn ? "1" : "0");
+  if(hapticsOn) navigator.vibrate?.(20);   // pequeña confirmación al activar
 });
 $("setNotif").addEventListener("change", async e=>{
   const on=e.target.checked;
@@ -468,7 +482,7 @@ async function showReactors(chip){
   const rect=chip.getBoundingClientRect();
   tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, rect.left)) + "px";
   tip.style.top  = Math.max(8, rect.top - tip.offsetHeight - 8) + "px";
-  _rxTip=tip; navigator.vibrate?.(12);
+  _rxTip=tip; haptic(12);
 }
 $("feed").addEventListener("pointerdown", e=>{
   const chip=e.target.closest("[data-rx]"); if(!chip)return;
@@ -637,11 +651,11 @@ $("psGroups").addEventListener("click", async e=>{
 });
 
 /* ---------- +1 / −1 / corregir ---------- */
-let busy=false;
+let busy=false; const ADD_COOLDOWN=1500;   // bloqueo anti-spam del +1
 $("addBtn").addEventListener("click",async e=>{
   if(busy||!uid)return; busy=true;
-  const btn=$("addBtn"),r=btn.getBoundingClientRect();
-  btn.classList.add("flash");setTimeout(()=>btn.classList.remove("flash"),350);navigator.vibrate?.(18);
+  const btn=$("addBtn"),r=btn.getBoundingClientRect(); const t0=Date.now();
+  btn.classList.add("flash","addbtn--cooldown");setTimeout(()=>btn.classList.remove("flash"),350);haptic(18);
   const num=$("meCount");num.textContent=(parseInt(num.textContent,10)||0)+1;
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
@@ -651,7 +665,7 @@ $("addBtn").addEventListener("click",async e=>{
     checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
-  finally{ setTimeout(()=>busy=false,250); }
+  finally{ const wait=Math.max(0, ADD_COOLDOWN-(Date.now()-t0)); setTimeout(()=>{ busy=false; btn.classList.remove("addbtn--cooldown"); }, wait); }
 });
 async function undoCaca(){
   if(busy||!uid)return; busy=true;
@@ -691,7 +705,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast("Fecha no válida");
   if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts, actMeta()); navigator.vibrate?.(18); toast("Caca añadida ✅"); loadActivity("force"); }
+  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast("Caca añadida ✅"); loadActivity("force"); }
   catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 
@@ -1015,13 +1029,13 @@ function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("
   p.style.animationDelay=(i*70)+"ms";document.body.appendChild(p);setTimeout(()=>p.remove(),1200);} }
 const HYPE=["¡Nuevo hito!","¡Máquina!","¡Imparable!","¡Leyenda del trono! 👑","¡A por más!"];
 function celebrate(num){ $("celebrateNum").textContent=num; $("celebrateText").textContent=num>=200?"¡Leyenda del trono! 👑":HYPE[Math.floor(Math.random()*HYPE.length)];
-  const c=$("celebrate");c.hidden=false;confetti();navigator.vibrate?.([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
+  const c=$("celebrate");c.hidden=false;confetti();haptic([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
 // ── conexión de tuberías: tú + un amigo cagáis con < 5 min de diferencia ──
 const SYNC_WINDOW=5*60*1000;
 let _lastSyncEvt=null;   // id del evento de amigo con el que ya celebramos (evita repetir)
 function syncCelebrate(name){
   $("syncSub").textContent=`Tú y ${name} cagando en sincronía 🚽`;
-  const c=$("syncOverlay"); c.hidden=false; confetti(); navigator.vibrate?.([20,40,20,40,20,40,80]);
+  const c=$("syncOverlay"); c.hidden=false; confetti(); haptic([20,40,20,40,20,40,80]);
   setTimeout(()=>c.hidden=true,2800);
 }
 function checkSyncPoop(){

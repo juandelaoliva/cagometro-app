@@ -1110,10 +1110,13 @@ if("serviceWorker"in navigator){
   }
   window.addEventListener("load", async ()=>{
     try{
-      _swReg=await navigator.serviceWorker.register("sw.js");
+      // updateViaCache:"none" → el chequeo de sw.js IGNORA la caché HTTP (GitHub Pages
+      // la sirve ~10min); así detecta la versión nueva al instante, no con retraso.
+      _swReg=await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
       _activate(_swReg);
       _swReg.addEventListener("updatefound", ()=>_activate(_swReg));
-      setInterval(()=>_swReg.update().catch(()=>{}), 60000);
+      _swReg.update().catch(()=>{});                       // chequea ya al abrir
+      setInterval(()=>_swReg.update().catch(()=>{}), 30000);
     }catch(e){}
   });
   // al volver a primer plano (típico en iOS standalone), buscar versión nueva

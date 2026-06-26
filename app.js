@@ -17,7 +17,21 @@ window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el 
 
 // ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
 let hapticsOn = localStorage.getItem("cago_haptics") !== "0";
-const haptic = ms => { if(hapticsOn) navigator.vibrate?.(ms); };
+// Android: navigator.vibrate. iOS no lo soporta, pero togglear un <input switch>
+// oculto dispara la háptica nativa del sistema (Safari/PWA, iOS 17.4+).
+let _iosSwitch=null;
+function _iosHaptic(){
+  try{
+    if(!_iosSwitch){
+      const l=document.createElement("label"); l.setAttribute("aria-hidden","true");
+      l.style.cssText="position:absolute;left:-9999px;width:0;height:0;opacity:0;pointer-events:none";
+      const i=document.createElement("input"); i.type="checkbox"; i.setAttribute("switch","");
+      l.appendChild(i); document.body.appendChild(l); _iosSwitch=l;
+    }
+    _iosSwitch.click();
+  }catch(e){}
+}
+const haptic = ms => { if(!hapticsOn) return; if(navigator.vibrate) navigator.vibrate(ms); else _iosHaptic(); };
 // tap suave global en controles interactivos (el +1 lleva el suyo, más fuerte)
 document.addEventListener("click", e=>{
   if(e.target.closest("button:not(#addBtn), .tab, .ychip, .rx, .swatch, .psg, .menu-item, .grouplist .ghead, .feed__item, .iconbtn, .brand, .profile, .addchip")) haptic(8);
@@ -232,7 +246,7 @@ $("setColors").addEventListener("click", async e=>{
 $("setHaptics").addEventListener("change", e=>{
   hapticsOn = e.target.checked;
   localStorage.setItem("cago_haptics", hapticsOn ? "1" : "0");
-  if(hapticsOn) navigator.vibrate?.(20);   // pequeña confirmación al activar
+  if(hapticsOn) haptic(20);   // confirmación al activar (Android vibra, iOS háptica nativa)
 });
 $("setNotif").addEventListener("change", async e=>{
   const on=e.target.checked;

@@ -1,2 +1,5 @@
 node_modules/
 .DS_Store
+
+# data exports del bot (datos personales — nunca subir)
+cagometro-*export*.json

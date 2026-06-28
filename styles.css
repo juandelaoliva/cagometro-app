@@ -258,6 +258,12 @@ ol,ul{list-style:none}
 .rank--compact .ct{font-size:16px}
 .rank li[data-uid]{cursor:pointer}
 .rank li[data-uid]:active{transform:translateY(1px)}
+.rank .ct{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
+.rank__yr{font-weight:600;font-size:10.5px;color:var(--ink-faint);letter-spacing:.01em}
+.segctl{display:flex;gap:4px;background:var(--paper-2);border:1px solid var(--line-2);border-radius:999px;padding:3px;margin-bottom:10px}
+.segctl button{flex:1;border:0;background:transparent;border-radius:999px;padding:7px 4px;font-weight:700;font-size:12.5px;color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
+.segctl button.on{background:var(--card);color:var(--brand);box-shadow:var(--shadow)}
+.segctl button:active{transform:translateY(1px)}
 /* barra de orden (amigos) */
 .sortbar{display:flex;gap:8px;margin-bottom:10px}
 .ps-disabled{opacity:.75;color:var(--ink-soft);font-size:13px;cursor:default;text-align:center;width:100%}

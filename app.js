@@ -861,7 +861,22 @@ async function openGroup(group){
   document.querySelectorAll("#groupList li[data-gid]").forEach(x=>x.classList.toggle("is-open", x.dataset.gid===group.id));
   $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
   const [board,yc]=await Promise.all([groupLeaderboard(group), groupYearCacas(group)]);
-  $("groupRank").innerHTML=board.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("");
+  // conteos por periodo (de yc ya cargado → sin lecturas extra). Semana = lunes 00:00 local.
+  const now=new Date(), curMonth=now.getMonth();
+  const ws=new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7)); const weekStart=ws.getTime();
+  const monthByU={}, weekByU={};
+  for(const c of yc){ if(tzParts(c.ts,c.tz).month-1===curMonth) monthByU[c.uid]=(monthByU[c.uid]||0)+1; if(c.ts>=weekStart) weekByU[c.uid]=(weekByU[c.uid]||0)+1; }
+  const metricOf=p => p==='year'?(r=>r.totalCount||0) : p==='month'?(r=>monthByU[r.id]||0) : (r=>weekByU[r.id]||0);
+  function renderRank(period){
+    const m=metricOf(period);
+    const ranked=[...board].sort((a,b)=>m(b)-m(a));
+    const yr=period!=='year';
+    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${r.totalCount||0} año</small>`:""}</span></li>`).join("")
+      || `<p class="notif-empty">Sin cacas en este periodo.</p>`;
+  }
+  const seg=$("rankPeriod");
+  seg.querySelectorAll("button").forEach(b=>{ b.classList.toggle("on",b.dataset.period==="month"); b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); renderRank(b.dataset.period); }; });
+  renderRank("month");
   // estadísticas del grupo (este año)
   const byMonth=new Array(12).fill(0); for(const c of yc){ byMonth[tzParts(c.ts,c.tz).month-1]++; }
   const total=yc.length, members=(group.members||[]).length, bestIdx=byMonth.indexOf(Math.max(...byMonth,0));

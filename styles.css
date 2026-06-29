@@ -529,8 +529,9 @@ body.sheet-open{overflow:hidden}
 .feed__item--sync .feed__line{font-weight:700}
 /* selector de reacciones */
 .rxpick{display:flex;justify-content:space-around;gap:6px;padding:8px 4px 4px}
-.rxpick button{font-size:34px;line-height:1;padding:8px;border-radius:14px;transition:.12s}
+.rxpick button{font-size:34px;line-height:1;padding:8px;border-radius:14px;transition:.12s;background:transparent}
 .rxpick button:active{transform:scale(1.25)}
+.rxpick button.rxpick--on{background:var(--gold-soft);outline:2px solid var(--gold)}
 /* tooltip de quién reaccionó (long-press) */
 .rxtip{position:fixed;z-index:120;max-width:80vw;background:var(--ink);color:#fff;font-size:13px;font-weight:600;
   padding:8px 12px;border-radius:12px;box-shadow:var(--shadow-lg);pointer-events:none;animation:fadeIn .12s both;line-height:1.3}

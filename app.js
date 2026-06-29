@@ -551,7 +551,14 @@ async function applyReaction(entry, emoji){
   }
   catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
 }
-function openReactPicker(entry){ _rxTarget=entry; $("reactSheet").hidden=false; }
+function openReactPicker(entry){
+  _rxTarget=entry;
+  const mine=new Set(asArr((entry.reactions||{})[uid]));
+  $("rxPick").querySelectorAll("[data-rxpick]").forEach(b=>{
+    b.classList.toggle("rxpick--on", mine.has(b.dataset.rxpick));
+  });
+  $("reactSheet").hidden=false;
+}
 $("rxCancel").addEventListener("click", ()=>$("reactSheet").hidden=true);
 $("reactSheet").addEventListener("click", e=>{ if(e.target===$("reactSheet")) $("reactSheet").hidden=true; });
 $("rxPick").addEventListener("click", e=>{

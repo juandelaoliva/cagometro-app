@@ -1381,6 +1381,15 @@ function applyLang(){
   if(cu) cu.innerHTML=`${t('hero.unit')}<br/><span>${t('hero.unit.sub')}</span>`;
   const ey=document.querySelector(".hero__eyebrow");
   if(ey) ey.textContent=t('hero.eyebrow');
+  // settings labels with <small> children (textContent would strip the tag)
+  const snl=$("setNameLabel");
+  if(snl){ const r=t('settings.name.label'), i=r.indexOf('('); snl.innerHTML=i>=0?`${r.slice(0,i)}<small>(${r.slice(i+1)}</small>`:r; }
+  const scl=$("setColorLabel");
+  if(scl) scl.textContent=t('settings.color.label');
+  const sll=$("setLocLabel");
+  if(sll) sll.innerHTML=`${t('settings.location.label')} <small>${t('settings.location.sublabel')}</small>`;
+  const shl=$("setHapticsLabel");
+  if(shl) shl.innerHTML=`${t('settings.haptics.label')} <small>(${t('settings.haptics.sublabel')})</small>`;
   document.documentElement.lang=getLang();
   // re-run dynamic painters if already mounted
   if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); }

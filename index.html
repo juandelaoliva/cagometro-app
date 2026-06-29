@@ -125,29 +125,29 @@
 
       <!-- AMIGOS -->
       <section class="view" id="view-amigos" data-view="amigos">
-        <h1 class="view__title">Amigos</h1>
+        <h1 class="view__title" data-i18n="amigos.title">Amigos</h1>
 
         <div class="block" id="reqBlock" hidden>
-          <div class="block__head"><h2>Solicitudes</h2></div>
+          <div class="block__head"><h2 data-i18n="notif.section.requests">Solicitudes</h2></div>
           <ul class="reqlist" id="reqList"></ul>
         </div>
 
         <div class="block">
           <div class="block__head">
-            <h2>Tus amigos</h2>
+            <h2 data-i18n="amigos.yours">Tus amigos</h2>
             <button class="addchip" id="toggleFriendForm" aria-label="Añadir amigo">＋</button>
           </div>
           <div id="friendForm" hidden>
             <div class="addfriend">
-              <input class="field" id="friendEmail" type="email" placeholder="Email de tu amigo/a" autocomplete="off" />
-              <button class="btn-solid" id="addFriendBtn">Añadir</button>
+              <input class="field" id="friendEmail" type="email" placeholder="Email de tu amigo/a" data-i18n="amigos.email.placeholder" data-i18n-attr="placeholder" autocomplete="off" />
+              <button class="btn-solid" id="addFriendBtn" data-i18n="amigos.add.btn">Añadir</button>
             </div>
-            <button class="btn-ghost" id="inviteFriendBtn">🔗 Invitar por enlace</button>
+            <button class="btn-ghost" id="inviteFriendBtn" data-i18n="amigos.invite.btn">🔗 Invitar por enlace</button>
             <p class="formerr" id="friendMsg" hidden></p>
           </div>
           <div class="sortbar">
-            <button class="ychip on" data-sort="rank">🏆 Ranking</button>
-            <button class="ychip" data-sort="alpha">🔤 A–Z</button>
+            <button class="ychip on" data-sort="rank" data-i18n="amigos.sort.rank">🏆 Ranking</button>
+            <button class="ychip" data-sort="alpha" data-i18n="amigos.sort.alpha">🔤 A–Z</button>
           </div>
           <ol class="rank rank--compact" id="friendsRank"></ol>
         </div>
@@ -155,16 +155,16 @@
 
       <!-- GRUPOS -->
       <section class="view" id="view-grupos" data-view="grupos">
-        <h1 class="view__title">Grupos</h1>
+        <h1 class="view__title" data-i18n="grupos.title">Grupos</h1>
 
         <div class="block">
           <div class="block__head">
-            <h2>Tus grupos</h2>
+            <h2 data-i18n="perfil.groups">Tus grupos</h2>
             <button class="addchip" id="toggleGroupForms" aria-label="Crear o unirse a un grupo">＋</button>
           </div>
           <div id="groupForms" hidden>
-            <div class="addfriend"><input class="field" id="newGroupName" type="text" placeholder="Nombre del grupo nuevo" /><button class="btn-solid" id="createGroupBtn">Crear</button></div>
-            <div class="addfriend"><input class="field" id="joinCode" type="text" placeholder="Código de invitación" /><button class="btn-solid" id="joinGroupBtn">Unirse</button></div>
+            <div class="addfriend"><input class="field" id="newGroupName" type="text" placeholder="Nombre del grupo nuevo" data-i18n="grupos.new.placeholder" data-i18n-attr="placeholder" /><button class="btn-solid" id="createGroupBtn" data-i18n="grupos.new.btn">Crear</button></div>
+            <div class="addfriend"><input class="field" id="joinCode" type="text" placeholder="Código de invitación" data-i18n="grupos.join.placeholder" data-i18n-attr="placeholder" /><button class="btn-solid" id="joinGroupBtn" data-i18n="grupos.join.btn">Unirse</button></div>
             <p class="formerr" id="groupMsg" hidden></p>
           </div>
           <ul class="grouplist" id="groupList"></ul>
@@ -172,7 +172,7 @@
 
         <div id="groupDetail" hidden>
           <div class="block">
-            <div class="block__head"><h2>Clasificación</h2><button class="link" id="shareCode">🔗 Invitar · —</button></div>
+            <div class="block__head"><h2 data-i18n="grupos.ranking.title">Clasificación</h2><button class="link" id="shareCode">🔗 Invitar · —</button></div>
             <div class="segctl" id="rankPeriod">
               <button type="button" data-period="week" data-i18n="grupos.period.week">Semana</button>
               <button type="button" class="on" data-period="month" data-i18n="grupos.period.month">Mes</button>
@@ -181,11 +181,11 @@
             <ol class="rank rank--compact" id="groupRank"></ol>
           </div>
           <div class="block">
-            <div class="block__head"><h2>Estadísticas</h2><span class="block__hint">este año</span></div>
+            <div class="block__head"><h2 data-i18n="grupos.stats.title">Estadísticas</h2><span class="block__hint" data-i18n="grupos.stats.hint">este año</span></div>
             <div class="statgrid" id="gStatGrid"></div>
           </div>
           <div class="block">
-            <div class="block__head"><h2>Por persona y mes</h2><span class="block__hint">este año</span></div>
+            <div class="block__head"><h2 data-i18n="grupos.stack.title">Por persona y mes</h2><span class="block__hint" data-i18n="grupos.stack.hint">este año</span></div>
             <div class="stackchart" id="gStack"></div>
             <div class="stacklegend" id="gStackLegend"></div>
           </div>
@@ -195,7 +195,7 @@
 
       <!-- PERFIL -->
       <section class="view" id="view-perfil" data-view="perfil">
-        <h1 class="view__title">Perfil</h1>
+        <h1 class="view__title" data-i18n="perfil.title">Perfil</h1>
         <div class="pcard">
           <button class="pcard__settings" id="pcardSettingsBtn" aria-label="Ajustes">⚙️</button>
           <span class="avatar avatar--lg" id="pAvatar">··</span>
@@ -209,13 +209,13 @@
 
         <div class="yearsel" id="yearSel"></div>
         <div class="statgrid" id="statGrid"></div>
-        <div class="block"><div class="block__head"><h2 id="chartTitle">Por mes</h2></div><div class="chart" id="chartPrimary"></div></div>
-        <div class="block"><div class="block__head"><h2>Tus horas</h2><span class="block__hint" id="peakHour">—</span></div><div class="chart chart--hours" id="chartHours"></div></div>
-        <div class="block"><div class="block__head"><h2>Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
+        <div class="block"><div class="block__head"><h2 id="chartTitle" data-i18n="perfil.chart.bymonth">Por mes</h2></div><div class="chart" id="chartPrimary"></div></div>
+        <div class="block"><div class="block__head"><h2 data-i18n="perfil.chart.hours">Tus horas</h2><span class="block__hint" id="peakHour">—</span></div><div class="chart chart--hours" id="chartHours"></div></div>
+        <div class="block"><div class="block__head"><h2 data-i18n="perfil.chart.weekday">Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
 
         <div class="block">
-          <div class="block__head"><h2>Ubicación</h2><span class="block__hint">tus cacas en el mapa</span></div>
-          <button class="btn-solid mapbtn" id="openMapBtn">🗺️ Ver mi mapa</button>
+          <div class="block__head"><h2 data-i18n="perfil.location.title">Ubicación</h2><span class="block__hint" data-i18n="perfil.location.hint">tus cacas en el mapa</span></div>
+          <button class="btn-solid mapbtn" id="openMapBtn" data-i18n="perfil.map.btn">🗺️ Ver mi mapa</button>
         </div>
       </section>
     </main>
@@ -311,10 +311,10 @@
       <div class="statgrid" id="psStats"></div>
       <p class="ps-records" id="psRecords" hidden></p>
       <div id="psCompare" class="cmp-block" hidden></div>
-      <div class="block__head"><h2>Por mes</h2><span class="block__hint">este año</span></div>
+      <div class="block__head"><h2 data-i18n="perfil.chart.bymonth">Por mes</h2><span class="block__hint" data-i18n="grupos.stats.hint">este año</span></div>
       <div class="chart" id="psChart"></div>
       <div id="psGroupsWrap" hidden>
-        <div class="block__head"><h2>Grupos en común</h2></div>
+        <div class="block__head"><h2 data-i18n="person.groups.shared">Grupos en común</h2></div>
         <div class="psg-row" id="psGroups"></div>
       </div>
       <div class="ps-actions" id="psActions"></div>
@@ -325,13 +325,13 @@
   <!-- ───────── Admin (solo tu uid) ───────── -->
   <div class="sheet" id="adminSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">
-      <h3 class="sheet__title">🛠️ Administración</h3>
+      <h3 class="sheet__title" data-i18n="admin.title">🛠️ Administración</h3>
       <label class="toggle" style="margin-bottom:14px">
         <input type="checkbox" id="maintToggle" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
-        <span class="toggle__txt">Modo mantenimiento (muestra el aviso y desactiva el +1)</span>
+        <span class="toggle__txt" data-i18n="admin.maint.toggle">Modo mantenimiento (muestra el aviso y desactiva el +1)</span>
       </label>
-      <p class="sheet__sub">Gestión de usuarios. "Vaciar" borra todos sus datos (cacas, actividad, amistades, grupos, perfil). NO borra su cuenta de acceso.</p>
+      <p class="sheet__sub" data-i18n="admin.users.desc">Gestión de usuarios. «Vaciar» borra todos sus datos. NO borra su cuenta de acceso.</p>
       <div id="adminUsers"></div>
       <button class="btn-ghost" id="adminClose" data-i18n="admin.close">Cerrar</button>
     </div>
@@ -340,7 +340,7 @@
   <!-- ───────── Notificaciones (campanita) ───────── -->
   <div class="sheet" id="notifSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">
-      <h3 class="sheet__title">Notificaciones</h3>
+      <h3 class="sheet__title" data-i18n="notif.title">Notificaciones</h3>
       <div id="notifBody"></div>
       <button class="btn-ghost" id="notifClose" data-i18n="notif.close">Cerrar</button>
     </div>
@@ -349,7 +349,7 @@
   <!-- ───────── Ajustes (desde el avatar de la cabecera) ───────── -->
   <div class="sheet" id="settingsSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">
-      <h3 class="sheet__title">Ajustes</h3>
+      <h3 class="sheet__title" data-i18n="settings.title">Ajustes</h3>
 
       <div class="set-id">
         <span class="avatar avatar--lg" id="setAvatar">··</span>
@@ -358,28 +358,28 @@
 
       <label class="set-label" for="setName" id="setNameLabel">Nombre <small>(lo ven tus amigos)</small></label>
       <div class="set-row">
-        <input class="field" id="setName" type="text" maxlength="24" placeholder="Tu nombre" autocomplete="off" />
-        <button class="btn-solid set-save" id="setNameSave">Guardar</button>
+        <input class="field" id="setName" type="text" maxlength="24" placeholder="Tu nombre" data-i18n="settings.name.placeholder" data-i18n-attr="placeholder" autocomplete="off" />
+        <button class="btn-solid set-save" id="setNameSave" data-i18n="settings.name.save">Guardar</button>
       </div>
 
-      <label class="set-label">Color de tu avatar</label>
+      <label class="set-label" id="setColorLabel">Color de tu avatar</label>
       <div class="swatches" id="setColors"></div>
 
-      <label class="set-label">Ubicación <small>al sumar una caca</small></label>
+      <label class="set-label" id="setLocLabel">Ubicación <small>al sumar una caca</small></label>
       <div class="yearsel" id="locSel"></div>
 
-      <label class="set-label">Privacidad</label>
+      <label class="set-label" data-i18n="settings.privacy.label">Privacidad</label>
       <label class="toggle">
         <input type="checkbox" id="setShareMap" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
-        <span class="toggle__txt">Compartir mi mapa de cacas con amigos</span>
+        <span class="toggle__txt" data-i18n="settings.sharemap">Compartir mi mapa de cacas con amigos</span>
       </label>
 
-      <label class="set-label">Notificaciones</label>
+      <label class="set-label" data-i18n="settings.notif.label">Notificaciones</label>
       <label class="toggle">
         <input type="checkbox" id="setNotif" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
-        <span class="toggle__txt">Avisarme de reacciones, amistades e hitos</span>
+        <span class="toggle__txt" data-i18n="settings.notif.toggle">Avisarme de reacciones, amistades e hitos</span>
       </label>
 
       <label class="set-label" data-i18n="settings.lang.label">Idioma</label>
@@ -388,11 +388,11 @@
         <button type="button" data-lang="en">EN</button>
       </div>
 
-      <label class="set-label">Vibración <small>(requiere vibración del sistema activada)</small></label>
+      <label class="set-label" id="setHapticsLabel">Vibración <small>(requiere vibración del sistema activada)</small></label>
       <label class="toggle">
         <input type="checkbox" id="setHaptics" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
-        <span class="toggle__txt">Respuesta háptica al pulsar botones</span>
+        <span class="toggle__txt" data-i18n="settings.haptics.toggle">Respuesta háptica al pulsar botones</span>
       </label>
 
       <div class="set-actions">

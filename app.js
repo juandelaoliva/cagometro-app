@@ -151,13 +151,14 @@ $("eyeBtn").addEventListener("click",()=>{
 // forgot password
 $("forgotBtn").addEventListener("click", async ()=>{
   const email=$("fEmail").value.trim();
-  if(!email) return toast("Escribe tu email primero");
+  const el=$("formErr");
+  if(!email){ el.style.color="var(--rose)"; el.textContent="Escribe tu email primero."; el.hidden=false; return; }
   try{
     await resetPassword(email);
-    toast("📧 Email de recuperación enviado");
+    el.style.color="var(--mint)"; el.textContent="📧 Email de recuperación enviado. Revisa tu bandeja."; el.hidden=false;
   } catch(err){
-    const msg=err.code==="auth/user-not-found"?"No hay ninguna cuenta con ese email.":err.code==="auth/invalid-email"?"Email no válido.":"No se pudo enviar el email.";
-    const el=$("formErr"); el.textContent=msg; el.hidden=false;
+    const msg=err.code==="auth/invalid-email"?"Email no válido.":"No se pudo enviar el email.";
+    el.style.color="var(--rose)"; el.textContent=msg; el.hidden=false;
   }
 });
 const ERR={"auth/email-already-in-use":"Ese email ya está registrado. Inicia sesión.","auth/invalid-credential":"Email o contraseña incorrectos.","auth/invalid-email":"Email no válido.","auth/weak-password":"La contraseña debe tener al menos 6 caracteres.","auth/popup-closed-by-user":"Has cerrado la ventana de Google."};

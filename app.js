@@ -7,7 +7,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas, groupCacasSince,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
@@ -329,30 +329,45 @@ function stopFeed(){ if(_feedUnsub){ try{_feedUnsub()}catch(e){} _feedUnsub=null
 
 // loadActivity ya solo refresca los chips (hoy/semana/racha) y el grafo (audiencia/grupos);
 // el feed en sí es en tiempo real vía startFeed().
-let _feedLoadedAt=0, _feedLoading=false;
+let _feedLoadedAt=0, _feedLoading=false, _graphAt=0;
+let _chips={today:0,week:0,streak:0,days:null};   // chips en memoria (para actualizarlos sin leer)
 async function loadActivity(mode){
-  startFeed();
+  startFeed();   // el FEED en sí es en tiempo real (listener) → aquí NO se relee
   const force = mode==="force";
   if(_feedLoading) return;
-  if(!force && Date.now()-_feedLoadedAt < 12000) return;   // chips/grafo recientes → no re-leer
+  if(!force && Date.now()-_feedLoadedAt < 30000) return;   // recién cargado → no re-leer
   _feedLoading=true;
   try{
-    // lectura puntual del feed (lo pinta YA) + chips + grafo, en paralelo
-    const [mine, friends, groups, acts] = await Promise.all([ myActivity(uid,150), getFriends(uid), myGroups(uid), getActivity(uid,60).catch(()=>null) ]);
+    // chips (hoy/semana/racha): ventana corta de cacas propias
+    const mine = await myActivity(uid,120);
     const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
     for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
     let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
+    _chips={today,week,streak,days};
     $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-    friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
-    _myGroupIds = new Set(groups.map(g=>g.id));
-    _graph = {
-      audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
-      groups: groups.map(g=>({ gid:g.id, name:g.name })),
-    };
-    if(acts){ homeFeedData = acts; if(!feedShown) feedShown=FEED_PAGE; }
+    // grafo de audiencia (amigos+grupos): cambia poco → se relee como mucho cada 5 min
+    if(!_graph.audience.length || Date.now()-_graphAt > 300000){
+      const [friends, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
+      friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
+      _myGroupIds = new Set(groups.map(g=>g.id)); myGroupsCache=groups;
+      _graph = {
+        audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
+        groups: groups.map(g=>({ gid:g.id, name:g.name })),
+      };
+      _graphAt=Date.now();
+    }
     _feedLoadedAt=Date.now();
     renderFeedChips(); renderFeed();
-  } finally { _feedLoading=false; }
+  } catch(e){ console.error("loadActivity:",e); }
+  finally { _feedLoading=false; }
+}
+// actualiza los chips en memoria tras una caca normal, sin releer Firestore
+function bumpChipsLocal(){
+  if(!_chips.days){ loadActivity("force"); return; }
+  const d0=startOfToday(); const first=!_chips.days.has(d0);
+  _chips.today++; _chips.week++; _chips.days.add(d0);
+  if(first){ let s=0,c=startOfToday(); if(!_chips.days.has(c))c-=DAY; while(_chips.days.has(c)){s++;c-=DAY;} _chips.streak=s; }
+  $("statToday").textContent=_chips.today; $("statWeek").textContent=_chips.week; $("statStreak").textContent=_chips.streak;
 }
 // reacciones a MIS eventos (desde el listener del feed) → campanita + banner local
 function detectReactionNotifs(acts){
@@ -606,6 +621,7 @@ function startNotifications(){
   getFriends(uid).then(fr=>{ notifFriends={}; fr.forEach(f=>{ notifFriends[f.id]=f.displayName; }); }).catch(()=>{});
   // solicitudes de amistad entrantes
   notifUnsub.push(watchFriendships(uid, async fships=>{
+    _graphAt=0;   // cambió la red de amistades → refresca la audiencia en la próxima carga
     const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
     const enriched=await Promise.all(pend.map(async f=>{
       const o=await getUser(f.uids.find(u=>u!==uid));
@@ -662,27 +678,30 @@ async function openPersonSheet(entry, opts={}){
   $("psName").textContent=entry.name; $("psTotal").textContent="…";
   $("psStats").innerHTML=""; $("psRecords").hidden=true; $("psChart").innerHTML=""; $("psGroups").innerHTML=""; $("psActions").innerHTML="";
   $("psSheet").hidden=false;
-  const [u,cacas,fships,groups]=await Promise.all([getUser(entry.uid), myActivity(entry.uid,5000), myFriendships(uid), myGroups(uid)]);
-  const st=personStats(cacas);
-  const year = u?.totalCount ?? st.total;
-  const life = u?.lifetimeCount || cacas.length;
+  // solo el doc del usuario (1 lectura). Stats desde contadores denormalizados, sin leer sus cacas.
+  const u = await getUser(entry.uid);
+  const year = u?.totalCount||0, life = u?.lifetimeCount||0;
+  const cy=new Date().getFullYear(), cm=new Date().getMonth(), cbm=u?.countsByMonth||{};
+  const monthly=new Array(12).fill(0); for(let i=0;i<12;i++) monthly[i]=cbm[`${cy}_${i}`]||0;
+  const bestIdx = monthly.indexOf(Math.max(...monthly,0));
   $("psTotal").textContent=`${year} este año · ${life} en total`;
   $("psStats").innerHTML=`
     <div class="stat stat--accent"><b>${year}</b><span>este año</span></div>
-    <div class="stat"><b>${st.streak}</b><span>racha (días)</span></div>
-    <div class="stat"><b>${st.avg}</b><span>media/día activo</span></div>
-    <div class="stat"><b>${st.bestDay}</b><span>mejor día</span></div>`;
-  if(st.activeDays){ $("psRecords").textContent=`${st.activeDays} días con caca este año`; $("psRecords").hidden=false; }
-  $("psChart").innerHTML=barsHTML(st.monthly, PM);
-  const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));   // grupos en común reales
+    <div class="stat"><b>${monthly[cm]}</b><span>este mes</span></div>
+    <div class="stat"><b>${year?PM[bestIdx]:"—"}</b><span>mejor mes</span></div>
+    <div class="stat"><b>${life}</b><span>en total</span></div>`;
+  $("psChart").innerHTML=barsHTML(monthly, PM);
+  // grupos en común: caché del viewer (sin leer)
+  const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
+  const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
   $("psGroupsWrap").hidden = !shared.length;
   $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
-  // gestión de amistad: solo desde la pestaña Amigos (canManage). Si compartís grupo, no se puede quitar.
-  const fr=fships.find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
-  if(opts.canManage && fr){
-    $("psActions").innerHTML = shared.length
+  // gestión de amistad: solo desde Amigos (canManage). Solo entonces leemos las amistades.
+  if(opts.canManage){
+    const fr=(await myFriendships(uid)).find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
+    $("psActions").innerHTML = !fr ? "" : (shared.length
       ? `<button class="btn-ghost ps-disabled" disabled>🤝 Estáis en un grupo juntos · sois amigos</button>`
-      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>`;
+      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>`);
   } else $("psActions").innerHTML="";
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
@@ -711,7 +730,7 @@ $("addBtn").addEventListener("click",async e=>{
   try{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
     await addCaca(uid, loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
-    loadActivity("force");   // el listener del feed la muestra al instante
+    bumpChipsLocal(); _statsLoadedAt=0;   // chips al instante (sin leer); el listener pinta el feed
     checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
   }
   catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
@@ -719,14 +738,14 @@ $("addBtn").addEventListener("click",async e=>{
 });
 async function undoCaca(){
   if(busy||!uid)return; busy=true;
-  try{ const ok=await removeCaca(uid, actMeta()); toast(ok?"Caca eliminada":"No hay cacas que quitar"); loadActivity("force"); }
+  try{ const ok=await removeCaca(uid, actMeta()); toast(ok?"Caca eliminada":"No hay cacas que quitar"); _statsLoadedAt=0; loadActivity("force"); }
   catch(err){ toast("No se pudo deshacer"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 }
 $("fixBtn").addEventListener("click",async()=>{
   if(!confirm("⚠️ Esto BORRARÁ todas tus cacas y pondrá tu contador a 0. No se puede deshacer. ¿Seguro?")) return;
   if(!confirm("De verdad: se borra TODO tu historial de cacas. ¿Confirmas el reinicio?")) return;
-  try{ $("settingsSheet").hidden=true; toast("Reiniciando…"); await resetCacas(uid, actMeta()); loadActivity("force"); toast("Contador reiniciado 🧹"); }
+  try{ $("settingsSheet").hidden=true; toast("Reiniciando…"); await resetCacas(uid, actMeta()); statsCacas=[]; _statsLoadedAt=0; loadActivity("force"); toast("Contador reiniciado 🧹"); }
   catch(err){ toast("No se pudo reiniciar"); console.error(err); }
 });
 
@@ -743,7 +762,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); loadActivity("force"); checkSyncPoop(); }
+  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
   catch(err){ toast("No se pudo guardar"); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -755,7 +774,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast("Fecha no válida");
   if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast("Caca añadida ✅"); loadActivity("force"); }
+  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast("Caca añadida ✅"); _statsLoadedAt=0; loadActivity("force"); }
   catch(err){ toast("No se pudo añadir"); console.error(err); }
 });
 
@@ -867,7 +886,7 @@ async function renderGrupos(){
   _gruposBusy=true;
   try{
     const groups = await myGroups(uid);         // 1) traer datos ANTES de tocar el DOM
-    myGroupsCache = groups;
+    myGroupsCache = groups; _graphAt=0;          // refresca la audiencia (pudo cambiar la pertenencia a grupos)
     parkDetail();                               // 2) aparcar detalle y reescribir lista SIN await en medio
     const n = groups.length;
     $("groupList").innerHTML = n ? groups.map(g=>`
@@ -982,7 +1001,7 @@ function tzParts(ts,tz){ const p=tzFmt(tz).formatToParts(new Date(ts)); const g=
   return { year:+g("year"), month:+g("month"), day:+g("day"), hour:(+g("hour"))%24, weekday:_wd[g("weekday")]??0 }; }
 
 async function renderProfileGroups(){
-  const gs=await myGroups(uid); myGroupsCache=gs;
+  const gs = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
   $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${g.id}">🏆 ${g.name}</button>`).join("");
 }
 $("pGroups").addEventListener("click", e=>{
@@ -990,10 +1009,14 @@ $("pGroups").addEventListener("click", e=>{
   setView("grupos"); openGroupById(b.dataset.pgid);
 });
 
-let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear();
+let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear(), _statsLoadedAt=0;
 async function loadStats(){
   renderProfileGroups();
-  statsCacas = await myActivity(uid, 5000);
+  // caché por sesión: solo releemos si caducó (2 min) o se invalidó tras añadir/quitar caca
+  if(!(statsCacas.length && Date.now()-_statsLoadedAt < 120000)){
+    statsCacas = await myActivity(uid, 2000);
+    _statsLoadedAt = Date.now();
+  }
   statsYears = [...new Set(statsCacas.map(c=>tzParts(c.ts,c.tz).year))].sort((a,b)=>b-a);
   if(!(statsScope==="all" || statsYears.includes(statsScope))) statsScope = statsYears[0] || new Date().getFullYear();
   renderYearSel(); renderStats();
@@ -1038,8 +1061,12 @@ function renderStats(){
 
 /* ---------- refrescar al volver a primer plano ---------- */
 // La PWA se "reanuda" en la misma pestaña sin navegar; recargamos sus datos.
+let _lastResume=0;
 function refreshActiveView(force){
   if(!uid) return Promise.resolve();
+  // anti-rebote: volver a la app (focus+visibility se disparan juntos) no relee si fue hace <60s
+  if(!force && Date.now()-_lastResume < 60000) return Promise.resolve();
+  _lastResume=Date.now();
   const active = document.querySelector(".view.is-active")?.dataset.view;
   if(active==="inicio") return loadActivity(force?"force":undefined);
   if(active==="amigos") return renderAmigos();
@@ -1144,7 +1171,8 @@ async function openMap(){
   }
   setTimeout(()=>_map.invalidateSize(),120);
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[];
-  const cacas=await myActivity(uid,3000);
+  // reutiliza la caché del perfil si está fresca; si no, una sola lectura acotada
+  const cacas=(statsCacas.length && Date.now()-_statsLoadedAt < 120000) ? statsCacas : await myActivity(uid,2000);
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
   const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
   _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));

@@ -373,7 +373,9 @@ ol,ul{list-style:none}
 .gate__toggle{margin-top:18px;font-size:13.5px;color:var(--ink-soft)}
 
 /* ── profile + stubs ──────────────────────────────────────────────── */
-.pcard{text-align:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:28px 20px;box-shadow:var(--shadow-lg);margin:6px 0 16px}
+.pcard{position:relative;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:28px 20px;box-shadow:var(--shadow-lg);margin:6px 0 16px}
+.pcard__settings{position:absolute;top:12px;right:12px;font-size:22px;line-height:1;background:none;border:none;cursor:pointer;opacity:.55;padding:4px}
+.pcard__settings:hover{opacity:1}
 .avatar--lg{width:74px;height:74px;font-size:28px;margin:0 auto 12px}
 .pcard__name{font-family:var(--font-d);font-weight:900;font-size:24px}
 .pcard__email{color:var(--ink-soft);font-size:14px;margin-top:2px}

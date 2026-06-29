@@ -261,6 +261,7 @@ function openSettings(){
   $("settingsSheet").hidden=false;
 }
 $("settingsBtn").addEventListener("click", openSettings);
+$("pcardSettingsBtn").addEventListener("click", openSettings);
 $("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
 
 /* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */

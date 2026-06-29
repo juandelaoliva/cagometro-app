@@ -163,7 +163,7 @@ onUser(async user=>{
 // Failsafe: si la sesión no resuelve en 9s (red/CDN lento en la PWA instalada),
 // no dejamos el splash colgado: mostramos el acceso para que el usuario pueda actuar.
 setTimeout(()=>{ if(!_authResolved){ $("splash").hidden=true; if(!uid) showGate(); } }, 9000);
-function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); closeOverlays(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
+function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); stopFeed(); closeOverlays(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;
@@ -636,7 +636,7 @@ function startNotifications(){
   }));
   // (las reacciones a MIS cacas se detectan en el listener del feed → detectReactionNotifs)
 }
-function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; stopFeed(); rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");

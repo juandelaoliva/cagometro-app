@@ -64,6 +64,7 @@ export async function ensureProfile(user, displayName){
       currentStreak: 0,         // días consecutivos con caca (actualizado en addCaca)
       longestStreak: 0,         // récord histórico de racha
       firstCacaTs: 0,           // ts de la primera caca (para media/día histórica)
+      shareMap: true,           // comparte el mapa de cacas con amigos (activado por defecto)
       privacy: "friends_groups",
       locationMode: "never",    // never | choose | always
       tz: tz(),                 // zona horaria (para recordatorios inteligentes)

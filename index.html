@@ -360,6 +360,13 @@
       <label class="set-label">Ubicación <small>al sumar una caca</small></label>
       <div class="yearsel" id="locSel"></div>
 
+      <label class="set-label">Privacidad</label>
+      <label class="toggle">
+        <input type="checkbox" id="setShareMap" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__txt">Compartir mi mapa de cacas con amigos</span>
+      </label>
+
       <label class="set-label">Notificaciones <small>(próximamente)</small></label>
       <label class="toggle">
         <input type="checkbox" id="setNotif" />
@@ -402,7 +409,8 @@
   <!-- ───────── Mapa ───────── -->
   <div class="mapsheet" id="mapSheet" hidden>
     <div id="map" class="mapfull"></div>
-    <div class="map-empty" id="mapEmpty" hidden>📍 Aún no tienes ubicaciones.<br/>Cambia el modo en <b>Ubicación</b> (Perfil) y suma una caca.</div>
+    <div class="map-empty" id="mapEmpty" hidden>📍 Sin ubicaciones registradas.</div>
+    <div class="map-title" id="mapTitle" hidden></div>
     <button class="map-close" id="mapClose" aria-label="Cerrar">✕</button>
   </div>
 

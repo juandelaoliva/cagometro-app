@@ -256,6 +256,7 @@ function openSettings(){
   $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
   renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
   $("setHaptics").checked = hapticsOn;
+  $("setShareMap").checked = me.shareMap !== false;   // true por defecto
   $("adminBtn").hidden = uid!==ADMIN_UID;        // botón Admin solo para ti
   $("settingsSheet").hidden=false;
 }
@@ -307,6 +308,10 @@ $("setColors").addEventListener("click", async e=>{
   const c=b.dataset.color; renderSetColors(c); $("setAvatar").style.background=c;
   try{ await updateMe(uid,{color:c}); toast("Color actualizado 🎨"); refreshActiveView(); }
   catch(err){ toast("No se pudo"); console.error(err); }
+});
+$("setShareMap").addEventListener("change", async e=>{
+  try{ await updateMe(uid,{shareMap:e.target.checked}); toast(e.target.checked?"Mapa compartido con amigos 🗺️":"Mapa privado 🔒"); }
+  catch(err){ e.target.checked=!e.target.checked; toast("No se pudo guardar"); }
 });
 $("setHaptics").addEventListener("change", e=>{
   hapticsOn = e.target.checked;
@@ -751,17 +756,26 @@ async function openPersonSheet(entry, opts={}){
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
   $("psGroupsWrap").hidden = !shared.length;
   $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
+  // botón de mapa: visible si el amigo tiene shareMap activado (true por defecto)
+  const mapBtn = u?.shareMap !== false
+    ? `<button class="btn-solid" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}">🗺️ Ver mapa</button>`
+    : `<button class="btn-ghost ps-disabled" disabled>🗺️ Mapa privado</button>`;
+  $("psActions").innerHTML = mapBtn;
+
   // gestión de amistad: solo desde Amigos (canManage). Solo entonces leemos las amistades.
   if(opts.canManage){
     const fr=(await myFriendships(uid)).find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
-    $("psActions").innerHTML = !fr ? "" : (shared.length
+    const friendBtn = !fr ? "" : (shared.length
       ? `<button class="btn-ghost ps-disabled" disabled>🤝 Estáis en un grupo juntos · sois amigos</button>`
       : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>`);
-  } else $("psActions").innerHTML="";
+    $("psActions").innerHTML = mapBtn + friendBtn;
+  }
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
 $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
 $("psActions").addEventListener("click", async e=>{
+  const mb=e.target.closest("[data-uid]#psFriendMap, [data-uid]");
+  if(mb && mb.id==="psFriendMap"){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
   const b=e.target.closest("[data-rmfriend]"); if(!b)return;
   if(!confirm("¿Eliminar a esta persona de tus amigos?")) return;
   try{ await removeFriend(b.dataset.rmfriend); toast("Amigo eliminado"); $("psSheet").hidden=true; if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
@@ -1271,10 +1285,14 @@ function getGeo(){
   });
 }
 let _map=null,_markers=[];
-$("openMapBtn").addEventListener("click", openMap);
+$("openMapBtn").addEventListener("click", ()=>openMap());
 $("mapClose").addEventListener("click", ()=>$("mapSheet").hidden=true);
-async function openMap(){
+// friend = { uid, name } para ver el mapa de un amigo; omitir para el propio.
+async function openMap(friend){
   $("mapSheet").hidden=false; $("mapEmpty").hidden=true;
+  const titleEl=$("mapTitle");
+  if(friend){ titleEl.textContent=`🗺️ ${friend.name}`; titleEl.hidden=false; }
+  else { titleEl.hidden=true; }
   if(typeof L==="undefined"){ toast("No se pudo cargar el mapa"); return; }
   if(!_map){
     _map=L.map("map",{zoomControl:true});
@@ -1282,8 +1300,9 @@ async function openMap(){
   }
   setTimeout(()=>_map.invalidateSize(),120);
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[];
-  // reutiliza la caché del perfil si está fresca; si no, una sola lectura acotada
-  const cacas=(statsCacas.length && Date.now()-_statsLoadedAt < 120000) ? statsCacas : await myActivity(uid,2000);
+  const targetUid = friend ? friend.uid : uid;
+  const cacas = (!friend && statsCacas.length && Date.now()-_statsLoadedAt < 120000)
+    ? statsCacas : await myActivity(targetUid, 2000);
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
   const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
   _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));

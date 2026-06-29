@@ -84,7 +84,7 @@
   <div id="app" class="app" hidden>
     <div id="maintBar" class="maintbar" role="status" hidden></div>
     <div id="verifBar" class="verifbar" role="status" hidden>
-      📧 Verifica tu email para confirmar tu cuenta. <button class="link verifbar__resend" id="verifResend">Reenviar</button>
+      <span data-i18n="verif.bar">📧 Verifica tu email para confirmar tu cuenta.</span> <button class="link verifbar__resend" id="verifResend" data-i18n="verif.resend">Reenviar</button>
     </div>
     <header class="topbar">
       <div class="brand" data-view="inicio" role="button" tabindex="0" aria-label="Ir al inicio"><img class="brand__logo" src="icon-192.png" alt="" /><span class="brand__name">El Cagómetro</span></div>
@@ -99,27 +99,27 @@
       <section class="view is-active" id="view-inicio" data-view="inicio">
         <section class="hero">
           <div class="hero__top"><span class="hero__eyebrow">Tu marcador</span><span class="hero__name" id="meName">—</span></div>
-          <div class="counter"><div class="counter__num" id="meCount">0</div><div class="counter__unit">cacas<br/><span>este año</span></div></div>
+          <div class="counter"><div class="counter__num" id="meCount">0</div><div class="counter__unit"><span data-i18n="hero.unit">cacas</span><br/><span data-i18n="hero.unit.sub">este año</span></div></div>
           <div class="progress"><div class="progress__bar"><i id="meProgressFill" style="width:0%"></i></div><div class="progress__label" id="meProgressLabel">—</div></div>
           <div class="addrow">
-            <button class="addbtn" id="addBtn"><span class="addbtn__plus">+1</span><span class="addbtn__poo">💩</span><span class="addbtn__label">Sumar caca</span></button>
+            <button class="addbtn" id="addBtn"><span class="addbtn__plus">+1</span><span class="addbtn__poo">💩</span><span class="addbtn__label" data-i18n="addbtn.label">Sumar caca</span></button>
             <button class="addbtn__more" id="menuBtn" aria-label="Más opciones">⋯</button>
           </div>
           <div class="chips">
-            <div class="chip"><b id="statToday">0</b><span>hoy</span></div>
-            <div class="chip"><b id="statWeek">0</b><span>semana</span></div>
-            <div class="chip"><b id="statStreak">0</b><span>racha</span></div>
+            <div class="chip"><b id="statToday">0</b><span data-i18n="chip.hoy">hoy</span></div>
+            <div class="chip"><b id="statWeek">0</b><span data-i18n="chip.semana">semana</span></div>
+            <div class="chip"><b id="statStreak">0</b><span data-i18n="chip.racha">racha</span></div>
           </div>
         </section>
         <section class="block">
-          <div class="block__head"><h2>Actividad</h2><span class="block__hint">tú, amigos y grupos</span></div>
+          <div class="block__head"><h2 data-i18n="feed.title">Actividad</h2><span class="block__hint" data-i18n="feed.hint">tú, amigos y grupos</span></div>
           <div class="feedbar">
             <div class="feedchips" id="feedChips"></div>
             <button class="feedsearch-btn" id="feedSearchBtn" aria-label="Buscar persona">🔎</button>
           </div>
-          <input class="field feedsearch" id="feedSearch" type="search" placeholder="Buscar persona…" autocomplete="off" hidden />
+          <input class="field feedsearch" id="feedSearch" type="search" placeholder="Buscar persona…" data-i18n="feed.search.placeholder" data-i18n-attr="placeholder" autocomplete="off" hidden />
           <ul class="feed" id="feed"></ul>
-          <button class="loadmore" id="loadMore" hidden>Cargar más</button>
+          <button class="loadmore" id="loadMore" data-i18n="feed.loadmore" hidden>Cargar más</button>
         </section>
       </section>
 
@@ -174,9 +174,9 @@
           <div class="block">
             <div class="block__head"><h2>Clasificación</h2><button class="link" id="shareCode">🔗 Invitar · —</button></div>
             <div class="segctl" id="rankPeriod">
-              <button type="button" data-period="week">Semana</button>
-              <button type="button" class="on" data-period="month">Mes</button>
-              <button type="button" data-period="year">Año</button>
+              <button type="button" data-period="week" data-i18n="grupos.period.week">Semana</button>
+              <button type="button" class="on" data-period="month" data-i18n="grupos.period.month">Mes</button>
+              <button type="button" data-period="year" data-i18n="grupos.period.year">Año</button>
             </div>
             <ol class="rank rank--compact" id="groupRank"></ol>
           </div>
@@ -189,7 +189,7 @@
             <div class="stackchart" id="gStack"></div>
             <div class="stacklegend" id="gStackLegend"></div>
           </div>
-          <button class="btn-ghost btn-ghost--danger" id="leaveGroupBtn">Salir del grupo</button>
+          <button class="btn-ghost btn-ghost--danger" id="leaveGroupBtn" data-i18n="grupos.leave.btn">Salir del grupo</button>
         </div>
       </section>
 
@@ -201,7 +201,7 @@
           <span class="avatar avatar--lg" id="pAvatar">··</span>
           <div class="pcard__name" id="pName">—</div>
           <div class="pcard__email" id="pEmail">—</div>
-          <div class="pcard__total"><b id="pTotal">0</b> cacas este año</div>
+          <div class="pcard__total"><b id="pTotal">0</b> <span data-i18n="perfil.unit">cacas este año</span></div>
           <div class="pcard__sub" id="pLifetime"></div>
         </div>
 
@@ -221,10 +221,10 @@
     </main>
 
     <nav class="tabbar">
-      <button class="tab is-active" data-view="inicio"><span class="tab__ico">🏠</span><span>Inicio</span></button>
-      <button class="tab" data-view="grupos"><span class="tab__ico">🏆</span><span>Grupos</span></button>
-      <button class="tab" data-view="amigos"><span class="tab__ico">👥</span><span>Amigos</span></button>
-      <button class="tab" data-view="perfil"><span class="tab__ico">👤</span><span>Perfil</span></button>
+      <button class="tab is-active" data-view="inicio"><span class="tab__ico">🏠</span><span data-i18n="tab.inicio">Inicio</span></button>
+      <button class="tab" data-view="grupos"><span class="tab__ico">🏆</span><span data-i18n="tab.grupos">Grupos</span></button>
+      <button class="tab" data-view="amigos"><span class="tab__ico">👥</span><span data-i18n="tab.amigos">Amigos</span></button>
+      <button class="tab" data-view="perfil"><span class="tab__ico">👤</span><span data-i18n="tab.perfil">Perfil</span></button>
     </nav>
   </div>
 
@@ -236,18 +236,18 @@
       <p class="gate__sub" id="gateSub">Crea tu cuenta y empieza a contar.</p>
 
       <form id="authForm" class="authform" autocomplete="on">
-        <input class="field" id="fName" type="text" placeholder="Tu nombre" autocomplete="name" />
-        <input class="field" id="fEmail" type="email" placeholder="Email" autocomplete="email" required />
+        <input class="field" id="fName" type="text" placeholder="Tu nombre" data-i18n="gate.name.placeholder" data-i18n-attr="placeholder" autocomplete="name" />
+        <input class="field" id="fEmail" type="email" placeholder="Email" data-i18n="gate.email.placeholder" data-i18n-attr="placeholder" autocomplete="email" required />
         <div class="field-wrap">
-          <input class="field" id="fPass" type="password" placeholder="Contraseña" autocomplete="current-password" required minlength="6" />
+          <input class="field" id="fPass" type="password" placeholder="Contraseña" data-i18n="gate.pass.placeholder" data-i18n-attr="placeholder" autocomplete="current-password" required minlength="6" />
           <button class="field-eye" id="eyeBtn" type="button" aria-label="Mostrar contraseña">👁</button>
         </div>
         <p class="formerr" id="formErr" hidden></p>
         <button class="gate__btn" id="primaryBtn" type="submit">Crear cuenta</button>
-        <button class="link gate__forgot" id="forgotBtn" type="button" hidden>¿Olvidaste tu contraseña?</button>
+        <button class="link gate__forgot" id="forgotBtn" type="button" hidden data-i18n="gate.forgot">¿Olvidaste tu contraseña?</button>
       </form>
 
-      <button class="btn-google" id="googleBtn"><img class="btn-google__logo" src="google-g.webp" alt="" /> Continuar con Google</button>
+      <button class="btn-google" id="googleBtn"><img class="btn-google__logo" src="google-g.webp" alt="" /> <span data-i18n="gate.google">Continuar con Google</span></button>
 
       <p class="gate__toggle">
         <span id="toggleText">¿Ya tienes cuenta?</span>
@@ -259,23 +259,23 @@
   <!-- ───────── Menú de acciones (⋯) ───────── -->
   <div class="sheet" id="menuSheet" hidden>
     <div class="sheet__panel sheet__panel--menu">
-      <button class="menu-item" id="miLate"><span>💩</span> Caca olvidada</button>
-      <button class="menu-item" id="miGeo"><span>📍</span> Sumar con ubicación</button>
-      <button class="menu-item" id="miStats"><span>📊</span> Ver estadísticas</button>
-      <button class="menu-item" id="miUndo"><span>↩︎</span> Deshacer última (−1)</button>
-      <button class="menu-item menu-item--cancel" id="miCancel">Cancelar</button>
+      <button class="menu-item" id="miLate"><span>💩</span> <span data-i18n="menu.late">Caca olvidada</span></button>
+      <button class="menu-item" id="miGeo"><span>📍</span> <span data-i18n="menu.geo">Sumar con ubicación</span></button>
+      <button class="menu-item" id="miStats"><span>📊</span> <span data-i18n="menu.stats">Ver estadísticas</span></button>
+      <button class="menu-item" id="miUndo"><span>↩︎</span> <span data-i18n="menu.undo">Deshacer última (−1)</span></button>
+      <button class="menu-item menu-item--cancel" id="miCancel" data-i18n="menu.cancel">Cancelar</button>
     </div>
   </div>
 
   <!-- ───────── Hoja: caca olvidada ───────── -->
   <div class="sheet" id="lateSheet" hidden>
     <div class="sheet__panel">
-      <h3 class="sheet__title">💩 Caca olvidada</h3>
-      <p class="sheet__sub">¿Cuándo fue? Se sumará a esa fecha y hora.</p>
+      <h3 class="sheet__title" data-i18n="late.title">💩 Caca olvidada</h3>
+      <p class="sheet__sub" data-i18n="late.sub">¿Cuándo fue? Se sumará a esa fecha y hora.</p>
       <input class="field" type="datetime-local" id="lateWhen" />
       <div class="sheet__actions">
-        <button class="btn-ghost" id="lateCancel">Cancelar</button>
-        <button class="btn-solid" id="lateConfirm">Añadir 💩</button>
+        <button class="btn-ghost" id="lateCancel" data-i18n="late.cancel">Cancelar</button>
+        <button class="btn-solid" id="lateConfirm" data-i18n="late.confirm">Añadir 💩</button>
       </div>
     </div>
   </div>
@@ -297,7 +297,7 @@
         <button data-rxpick="❤️">❤️</button>
         <button data-rxpick="🚽">🚽</button>
       </div>
-      <button class="menu-item menu-item--cancel" id="rxCancel">Cancelar</button>
+      <button class="menu-item menu-item--cancel" id="rxCancel" data-i18n="rx.sheet.cancel">Cancelar</button>
     </div>
   </div>
 
@@ -318,7 +318,7 @@
         <div class="psg-row" id="psGroups"></div>
       </div>
       <div class="ps-actions" id="psActions"></div>
-      <button class="btn-ghost" id="psClose">Cerrar</button>
+      <button class="btn-ghost" id="psClose" data-i18n="person.close">Cerrar</button>
     </div>
   </div>
 
@@ -333,7 +333,7 @@
       </label>
       <p class="sheet__sub">Gestión de usuarios. "Vaciar" borra todos sus datos (cacas, actividad, amistades, grupos, perfil). NO borra su cuenta de acceso.</p>
       <div id="adminUsers"></div>
-      <button class="btn-ghost" id="adminClose">Cerrar</button>
+      <button class="btn-ghost" id="adminClose" data-i18n="admin.close">Cerrar</button>
     </div>
   </div>
 
@@ -342,7 +342,7 @@
     <div class="sheet__panel sheet__panel--profile">
       <h3 class="sheet__title">Notificaciones</h3>
       <div id="notifBody"></div>
-      <button class="btn-ghost" id="notifClose">Cerrar</button>
+      <button class="btn-ghost" id="notifClose" data-i18n="notif.close">Cerrar</button>
     </div>
   </div>
 
@@ -356,7 +356,7 @@
         <div class="set-id__txt"><div class="pcard__name" id="setNamePreview">—</div><div class="pcard__email" id="setEmail">—</div></div>
       </div>
 
-      <label class="set-label" for="setName">Nombre <small>(lo ven tus amigos)</small></label>
+      <label class="set-label" for="setName" id="setNameLabel">Nombre <small>(lo ven tus amigos)</small></label>
       <div class="set-row">
         <input class="field" id="setName" type="text" maxlength="24" placeholder="Tu nombre" autocomplete="off" />
         <button class="btn-solid set-save" id="setNameSave">Guardar</button>
@@ -382,6 +382,12 @@
         <span class="toggle__txt">Avisarme de reacciones, amistades e hitos</span>
       </label>
 
+      <label class="set-label" data-i18n="settings.lang.label">Idioma</label>
+      <div class="segctl" id="langSel">
+        <button type="button" data-lang="es">ES</button>
+        <button type="button" data-lang="en">EN</button>
+      </div>
+
       <label class="set-label">Vibración <small>(requiere vibración del sistema activada)</small></label>
       <label class="toggle">
         <input type="checkbox" id="setHaptics" />
@@ -390,12 +396,12 @@
       </label>
 
       <div class="set-actions">
-        <button class="btn-ghost" id="adminBtn" hidden>🛠️ Administración</button>
-        <button class="btn-ghost btn-ghost--danger" id="fixBtn">Reiniciar (borra todas mis cacas)</button>
-        <button class="btn-ghost btn-ghost--danger" id="logoutBtn">Cerrar sesión</button>
+        <button class="btn-ghost" id="adminBtn" hidden data-i18n="settings.admin.btn">🛠️ Administración</button>
+        <button class="btn-ghost btn-ghost--danger" id="fixBtn" data-i18n="settings.reset.btn">Reiniciar (borra todas mis cacas)</button>
+        <button class="btn-ghost btn-ghost--danger" id="logoutBtn" data-i18n="settings.logout.btn">Cerrar sesión</button>
       </div>
       <p class="footnote" id="pMode"></p>
-      <button class="btn-ghost" id="setClose">Cerrar</button>
+      <button class="btn-ghost" id="setClose" data-i18n="settings.close">Cerrar</button>
     </div>
   </div>
 
@@ -404,12 +410,12 @@
     <div class="sheet__panel">
       <div class="ps-head">
         <span class="avatar avatar--lg" id="fiAvatar">··</span>
-        <div><div class="pcard__name" id="fiName">—</div><div class="pcard__email">quiere ser tu amigo/a</div></div>
+        <div><div class="pcard__name" id="fiName">—</div><div class="pcard__email" data-i18n="fi.wantsyou">quiere ser tu amigo/a</div></div>
       </div>
-      <p class="sheet__sub">Si aceptas, os añadiréis mutuamente como amigos y veréis vuestra actividad.</p>
+      <p class="sheet__sub" data-i18n="fi.sub">Si aceptas, os añadiréis mutuamente como amigos y veréis vuestra actividad.</p>
       <div class="sheet__actions">
-        <button class="btn-ghost" id="fiCancel">Ahora no</button>
-        <button class="btn-solid" id="fiAccept">Aceptar 🤝</button>
+        <button class="btn-ghost" id="fiCancel" data-i18n="fi.cancel">Ahora no</button>
+        <button class="btn-solid" id="fiAccept" data-i18n="fi.accept">Aceptar 🤝</button>
       </div>
     </div>
   </div>
@@ -427,7 +433,7 @@
     <div class="celebrate__inner"><div class="celebrate__poo">💩</div><div class="celebrate__num" id="celebrateNum">100</div><div class="celebrate__text" id="celebrateText">¡Nuevo hito!</div></div>
   </div>
   <div class="celebrate" id="syncOverlay" hidden>
-    <div class="celebrate__inner"><div class="celebrate__poo">💩🚽💩</div><div class="celebrate__text">¡Conexión de tuberías!</div><div class="celebrate__sub" id="syncSub">Tú y X cagando en sincronía</div></div>
+    <div class="celebrate__inner"><div class="celebrate__poo">💩🚽💩</div><div class="celebrate__text" data-i18n="sync.title">¡Conexión de tuberías!</div><div class="celebrate__sub" id="syncSub"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

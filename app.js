@@ -11,6 +11,7 @@ import {
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
+import { t, getLang, setLang } from "./i18n.js";
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
@@ -21,7 +22,6 @@ window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el 
 // el banner se muestra siempre. Cuando esté en false, manda el toggle del panel
 // admin (config/app.maintenance), que se lee al arrancar.
 const MAINT_FORCE = false;
-const MAINT_MSG_DEFAULT = "🛠️ <b>El Cagómetro está en mantenimiento.</b> Volverá entre las 9:00 y las 10:00. Cuando vuelva, usa «Caca olvidada» para registrar las cacas de este rato con su hora.";
 let maintOn = false;
 function applyMaintenance(on, msg){
   maintOn = !!on;
@@ -29,7 +29,7 @@ function applyMaintenance(on, msg){
   if(bar){ bar.innerHTML = (msg && String(msg).trim()) ? msg : MAINT_MSG_DEFAULT; bar.hidden = !maintOn; }
   const t = $("maintToggle"); if(t) t.checked = maintOn;
 }
-applyMaintenance(MAINT_FORCE, MAINT_MSG_DEFAULT);   // inmediato: no depende de Firestore
+applyMaintenance(MAINT_FORCE, t('maint.default'));   // inmediato: no depende de Firestore
 if(!MAINT_FORCE){ getAppConfig().then(c=>{ if(c) applyMaintenance(!!c.maintenance, c.message); }).catch(()=>{}); }
 
 // ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
@@ -104,7 +104,7 @@ const inviteUrl = q => `${location.origin}${location.pathname}?${q}`;
 async function shareInvite(url, text){
   try{ if(navigator.share){ await navigator.share({ title:"El Cagómetro", text, url }); return; } }
   catch(e){ if(e.name==="AbortError") return; }
-  try{ await navigator.clipboard.writeText(url); toast("Enlace copiado 📋"); }
+  try{ await navigator.clipboard.writeText(url); toast(t('toast.link.copied')); }
   catch(e){ prompt("Copia el enlace:", url); }
 }
 function parsePendingInvite(){
@@ -120,9 +120,9 @@ async function processInvite(){
   if(!_pendingInvite || !uid) return;
   const inv=_pendingInvite; _pendingInvite=null; clearInviteUrl();
   if(inv.type==="join"){
-    if(!confirm("Al unirte a este grupo, todos sus miembros se añadirán automáticamente como amigos. ¿Continuar?")) return;
-    try{ const g=await joinGroup(uid, inv.code); toast(`Te uniste a ${g.name} 🎉`); setView("grupos"); await renderGrupos(); openGroup(g); }
-    catch(err){ toast(err.message==="no-group" ? "Ese enlace de grupo no es válido" : "No se pudo unir"); console.error(err); }
+    if(!confirm(t('confirm.group.join'))) return;
+    try{ const g=await joinGroup(uid, inv.code); toast(t('toast.group.joined',{name:g.name})); setView("grupos"); await renderGrupos(); openGroup(g); }
+    catch(err){ toast(err.message==="no-group" ? t('toast.group.join.invalid') : t('toast.group.join.fail')); console.error(err); }
   } else if(inv.type==="friend"){
     openFriendInvite(inv.uid);
   }
@@ -132,12 +132,12 @@ async function processInvite(){
 let mode="signin";
 function applyMode(){
   const s=mode==="signup";
-  $("primaryBtn").textContent=s?"Crear cuenta":"Entrar";
-  $("gateSub").textContent=s?"Crea tu cuenta y empieza a contar.":"Bienvenido de nuevo.";
-  $("toggleText").textContent=s?"¿Ya tienes cuenta?":"¿Nueva por aquí?";
-  $("toggleMode").textContent=s?"Inicia sesión":"Crea una cuenta";
+  $("primaryBtn").textContent=s?t('gate.btn.signup'):t('gate.btn.signin');
+  $("gateSub").textContent=s?t('gate.sub.signup'):t('gate.sub.signin');
+  $("toggleText").textContent=s?t('gate.toggle.has'):t('gate.toggle.new');
+  $("toggleMode").textContent=s?t('gate.togglebtn.signin'):t('gate.togglebtn.signup');
   $("fName").style.display=s?"":"none";
-  $("forgotBtn").hidden=s;   // "¿Olvidaste la contraseña?" solo en login
+  $("forgotBtn").hidden=s;
 }
 $("toggleMode").addEventListener("click",()=>{mode=mode==="signup"?"signin":"signup";clearErr();applyMode();});
 
@@ -152,17 +152,17 @@ $("eyeBtn").addEventListener("click",()=>{
 $("forgotBtn").addEventListener("click", async ()=>{
   const email=$("fEmail").value.trim();
   const el=$("formErr");
-  if(!email){ el.style.color="var(--rose)"; el.textContent="Escribe tu email primero."; el.hidden=false; return; }
+  if(!email){ el.style.color="var(--rose)"; el.textContent=t('err.forgot.required'); el.hidden=false; return; }
   try{
     await resetPassword(email);
-    el.style.color="var(--mint)"; el.textContent="📧 Email de recuperación enviado. Revisa tu bandeja."; el.hidden=false;
+    el.style.color="var(--mint)"; el.textContent=t('err.forgot.sent'); el.hidden=false;
   } catch(err){
-    const msg=err.code==="auth/invalid-email"?"Email no válido.":"No se pudo enviar el email.";
+    const msg=err.code==="auth/invalid-email"?t('err.forgot.invalid'):t('err.forgot.fail');
     el.style.color="var(--rose)"; el.textContent=msg; el.hidden=false;
   }
 });
-const ERR={"auth/email-already-in-use":"Ese email ya está registrado. Inicia sesión.","auth/invalid-credential":"Email o contraseña incorrectos.","auth/invalid-email":"Email no válido.","auth/weak-password":"La contraseña debe tener al menos 6 caracteres.","auth/popup-closed-by-user":"Has cerrado la ventana de Google."};
-const showErr=e=>{const el=$("formErr");el.textContent=ERR[e?.code]||e?.message||"Algo salió mal.";el.hidden=false;};
+const ERR_CODES={"auth/email-already-in-use":"err.email_in_use","auth/invalid-credential":"err.invalid_credential","auth/invalid-email":"err.invalid_email","auth/weak-password":"err.weak_password","auth/popup-closed-by-user":"err.popup_closed"};
+const showErr=e=>{const el=$("formErr");el.textContent=ERR_CODES[e?.code]?t(ERR_CODES[e.code]):(e?.message||t('err.generic'));el.hidden=false;};
 const clearErr=()=>$("formErr").hidden=true;
 $("authForm").addEventListener("submit",async e=>{
   e.preventDefault();clearErr();
@@ -177,8 +177,8 @@ $("authForm").addEventListener("submit",async e=>{
 $("googleBtn").addEventListener("click",async()=>{clearErr();try{await googleSignIn();}catch(err){showErr(err);}});
 $("verifResend").addEventListener("click", async ()=>{
   const u=auth.currentUser; if(!u)return;
-  try{ await sendVerifEmail(u); toast("📧 Email de verificación reenviado"); }
-  catch(e){ toast("No se pudo reenviar. Espera un momento e inténtalo de nuevo."); }
+  try{ await sendVerifEmail(u); toast(t('toast.verif.resent')); }
+  catch(e){ toast(t('toast.verif.fail')); }
 });
 $("logoutBtn").addEventListener("click",()=>signOutUser());
 
@@ -208,7 +208,7 @@ function showApp(){
     $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
     $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
     $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
-    $("pTotal").textContent=total; $("pLifetime").textContent=`${m.lifetimeCount||total} en total (todos los años)`;
+    $("pTotal").textContent=total; $("pLifetime").textContent=t('perfil.lifetime',{n:m.lifetimeCount||total});
     paintProgress(total); renderLocSel(m.locationMode);
     if(lastTotal!==null && total>lastTotal){ if(isMilestone(total)){ celebrate(total); notifyFriendsMilestone(total); } checkGroupOvertakes(lastTotal); }
     lastTotal=total;
@@ -223,23 +223,23 @@ function showApp(){
 /* ---------- hoja: aceptar invitación de amigo ---------- */
 let _fiUid=null;
 async function openFriendInvite(otherUid){
-  if(otherUid===uid){ toast("Ese enlace es tuyo 😄"); return; }
+  if(otherUid===uid){ toast(t('toast.self')); return; }
   _fiUid=otherUid;
   const u=await getUser(otherUid);
-  if(!u){ toast("No se encontró a esa persona"); return; }
+  if(!u){ toast(t('toast.notfound')); return; }
   $("fiAvatar").textContent=initial(u.displayName); $("fiAvatar").style.background=u.color||colorForUid(otherUid);
-  $("fiName").textContent=u.displayName||"Alguien";
+  $("fiName").textContent=u.displayName||t('fallback.someone');
   $("friendInviteSheet").hidden=false;
 }
 $("fiCancel").addEventListener("click",()=>$("friendInviteSheet").hidden=true);
 $("friendInviteSheet").addEventListener("click",e=>{ if(e.target===$("friendInviteSheet")) $("friendInviteSheet").hidden=true; });
 $("fiAccept").addEventListener("click", async ()=>{
   if(!_fiUid)return; $("friendInviteSheet").hidden=true;
-  try{ await addFriendDirect(uid,_fiUid); toast("¡Nuevo amigo! 🎉");
+  try{ await addFriendDirect(uid,_fiUid); toast(t('toast.friend.accepted'));
     if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
-  catch(err){ toast("No se pudo"); console.error(err); }
+  catch(err){ toast(t('toast.friend.fail')); console.error(err); }
 });
-$("inviteFriendBtn").addEventListener("click",()=> shareInvite(inviteUrl("friend="+encodeURIComponent(uid)), "¿Te unes a mi red en El Cagómetro? 💩"));
+$("inviteFriendBtn").addEventListener("click",()=> shareInvite(inviteUrl("friend="+encodeURIComponent(uid)), t('amigos.invite.text')));
 
 /* ---------- ajustes (desde el avatar de la cabecera) ---------- */
 const SET_COLORS=["#6E3F1C","#E59A2E","#2E9E68","#9A5A2A","#D8573F","#3F6EA5","#8E5BA6","#C2406E"];
@@ -256,26 +256,36 @@ function openSettings(){
   $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
   renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
   $("setHaptics").checked = hapticsOn;
-  $("setShareMap").checked = me.shareMap !== false;   // true por defecto
-  $("adminBtn").hidden = uid!==ADMIN_UID;        // botón Admin solo para ti
+  $("setShareMap").checked = me.shareMap !== false;
+  $("adminBtn").hidden = uid!==ADMIN_UID;
+  const curLang=getLang();
+  $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===curLang));
   $("settingsSheet").hidden=false;
 }
 $("settingsBtn").addEventListener("click", openSettings);
 $("pcardSettingsBtn").addEventListener("click", openSettings);
 $("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
+$("langSel").addEventListener("click", e=>{
+  const b=e.target.closest("[data-lang]"); if(!b)return;
+  const lang=b.dataset.lang;
+  setLang(lang);
+  $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
+  applyLang(); applyMode();
+  toast(t('toast.lang',{lang:lang.toUpperCase()}));
+});
 
 /* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */
 async function renderAdminUsers(){
-  $("adminUsers").innerHTML=`<p class="notif-empty">Cargando…</p>`;
+  $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loading')}</p>`;
   try{
     const users=(await adminListUsers()).sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
     $("adminUsers").innerHTML = users.map(u=>`
       <div class="adminrow">
         <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
         <div class="adminrow__txt"><b>${u.displayName||"?"}</b><small>${u.email||""} · ${u.totalCount||0} 💩</small></div>
-        ${u.id===uid?`<span class="adminrow__you">tú</span>`:`<button class="btn-decline" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}">Vaciar</button>`}
-      </div>`).join("") || `<p class="notif-empty">Sin usuarios.</p>`;
-  }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">No se pudo cargar (¿reglas admin publicadas?).</p>`; console.error(err); }
+        ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`:`<button class="btn-decline" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}"> ${t('admin.users.wipe')}</button>`}
+      </div>`).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
+  }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loadfail')}</p>`; console.error(err); }
 }
 function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
 $("adminBtn").addEventListener("click", openAdmin);
@@ -285,34 +295,34 @@ $("maintToggle").addEventListener("change", async e=>{
   if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }
   const on=e.target.checked;
   applyMaintenance(on, MAINT_MSG_DEFAULT);                 // efecto inmediato en este dispositivo
-  try{ await setMaintenance(on, MAINT_MSG_DEFAULT); toast(on?"Mantenimiento activado":"Mantenimiento desactivado"); }
-  catch(err){ toast("No se pudo guardar el estado"); console.error(err); }
+  try{ await setMaintenance(on, t('maint.default')); toast(on?t('toast.maint.on'):t('toast.maint.off')); }
+  catch(err){ toast(t('toast.maint.fail')); console.error(err); }
 });
 $("adminUsers").addEventListener("click", async e=>{
   const b=e.target.closest("[data-wipe]"); if(!b)return;
   const tid=b.dataset.wipe, name=b.dataset.name||"ese usuario";
-  if(tid===uid){ toast("No puedes vaciarte a ti mismo aquí"); return; }
-  if(!confirm(`⚠️ Vaciar a "${name}": se borran TODOS sus datos (cacas, actividad, amistades, grupos, perfil). No se puede deshacer. ¿Seguro?`)) return;
-  b.disabled=true; b.textContent="Vaciando…";
-  try{ await adminWipeUser(tid); toast("Usuario vaciado ✅"); renderAdminUsers(); }
-  catch(err){ toast("No se pudo (revisa reglas admin)"); console.error(err); b.disabled=false; b.textContent="Vaciar"; }
+  if(tid===uid){ toast(t('toast.admin.self')); return; }
+  if(!confirm(t('confirm.admin.wipe',{name}))) return;
+  b.disabled=true; b.textContent=t('admin.users.wiping');
+  try{ await adminWipeUser(tid); toast(t('toast.admin.wiped')); renderAdminUsers(); }
+  catch(err){ toast(t('toast.admin.wipe.fail')); console.error(err); b.disabled=false; b.textContent=t('admin.users.wipe'); }
 });
 $("settingsSheet").addEventListener("click", e=>{ if(e.target===$("settingsSheet")) $("settingsSheet").hidden=true; });
 $("setNameSave").addEventListener("click", async ()=>{
-  const n=$("setName").value.trim(); if(!n) return toast("Pon un nombre");
-  if(n===me?.displayName) return toast("Sin cambios");
-  try{ await updateMe(uid,{displayName:n}); $("setNamePreview").textContent=n; $("setAvatar").textContent=initial(n); toast("Nombre actualizado ✅"); refreshActiveView(); }
-  catch(err){ toast("No se pudo"); console.error(err); }
+  const n=$("setName").value.trim(); if(!n) return toast(t('toast.name.empty'));
+  if(n===me?.displayName) return toast(t('toast.name.unchanged'));
+  try{ await updateMe(uid,{displayName:n}); $("setNamePreview").textContent=n; $("setAvatar").textContent=initial(n); toast(t('toast.name.ok')); refreshActiveView(); }
+  catch(err){ toast(t('toast.name.fail')); console.error(err); }
 });
 $("setColors").addEventListener("click", async e=>{
   const b=e.target.closest("[data-color]"); if(!b)return;
   const c=b.dataset.color; renderSetColors(c); $("setAvatar").style.background=c;
-  try{ await updateMe(uid,{color:c}); toast("Color actualizado 🎨"); refreshActiveView(); }
-  catch(err){ toast("No se pudo"); console.error(err); }
+  try{ await updateMe(uid,{color:c}); toast(t('toast.color.ok')); refreshActiveView(); }
+  catch(err){ toast(t('toast.color.fail')); console.error(err); }
 });
 $("setShareMap").addEventListener("change", async e=>{
-  try{ await updateMe(uid,{shareMap:e.target.checked}); toast(e.target.checked?"Mapa compartido con amigos 🗺️":"Mapa privado 🔒"); }
-  catch(err){ e.target.checked=!e.target.checked; toast("No se pudo guardar"); }
+  try{ await updateMe(uid,{shareMap:e.target.checked}); toast(e.target.checked?t('toast.sharemap.on'):t('toast.sharemap.off')); }
+  catch(err){ e.target.checked=!e.target.checked; toast(t('toast.sharemap.fail')); }
 });
 $("setHaptics").addEventListener("change", e=>{
   hapticsOn = e.target.checked;
@@ -325,22 +335,22 @@ $("setNotif").addEventListener("change", async e=>{
     const perm=await requestNotifPermission();
     if(perm!=="granted"){
       e.target.checked=false;
-      toast(perm==="denied" ? "Permiso bloqueado: actívalo en los ajustes del navegador" : "Permiso de notificaciones no concedido");
+      toast(perm==="denied" ? t('toast.notif.blocked') : t('toast.notif.denied'));
       try{ await updateMe(uid,{notifications:false}); }catch(_){}
       return;
     }
   }
   try{
     await updateMe(uid,{notifications:on});
-    toast(on?"Notificaciones activadas 🔔":"Notificaciones desactivadas");
+    toast(on?t('toast.notif.on'):t('toast.notif.off'));
     if(on) enablePush();
-    else if(_fcmToken) removeToken(uid,_fcmToken).catch(()=>{});   // al desactivar, deja de recibir push
+    else if(_fcmToken) removeToken(uid,_fcmToken).catch(()=>{});
   }
-  catch(err){ e.target.checked=!on; toast("No se pudo"); console.error(err); }
+  catch(err){ e.target.checked=!on; toast(t('toast.notif.fail')); console.error(err); }
 });
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
-  $("meProgressLabel").textContent=`Te faltan ${hi-total} para las ${hi} 💩`; }
+  $("meProgressLabel").textContent=t('progress.label',{n:hi-total,milestone:hi}); }
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 let _graph={ audience:[], groups:[] };   // grafo social cacheado para escribir eventos de actividad
@@ -420,8 +430,8 @@ function detectReactionNotifs(acts){
     for(const [k,v] of cur) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; last=v; }
     for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
     if(added){ unseenRx+=added;
-      if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif("Nueva reacción 💩", `${n} reaccionó ${last.emoji} a tu caca`));
-      else showLocalNotif("Nuevas reacciones 💩", `Tienes ${added} reacciones nuevas en tus cacas`);
+      if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif(t('push.reaction.title'), t('push.localrx.one',{name:n,emoji:last.emoji})));
+      else showLocalNotif(t('push.reaction.title'), t('push.localrx.many',{n:added}));
     }
   }
   notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
@@ -439,7 +449,7 @@ function feedGroups(){
   return [...m].map(([gid,name])=>({gid,name}));
 }
 function renderFeedChips(){
-  const base=[["all","Todo"],["me","Yo"],["friends","Amigos"]];
+  const base=[["all",t('feedchip.all')],["me",t('feedchip.me')],["friends",t('feedchip.friends')]];
   const chips=base.map(([k,l])=>`<button class="ychip ${feedScope===k?'on':''}" data-fscope="${k}">${l}</button>`)
     .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${g.gid}">🏆 ${g.name}</button>`));
   $("feedChips").innerHTML=chips.join("");
@@ -484,22 +494,23 @@ function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
   let head, nBadge="", sys=false, reactable=true, syncHi=false;
+  const _n=`<b>${c.name}</b>`, _wn=`<b>${c.withName}</b>`;
   if(c.kind==="undo"){
-    head = mine ? "Te quitaste una caca ↩︎" : `<b>${c.name}</b> se quitó una caca ↩︎`; sys=true; reactable=false;
+    head = mine ? t('feed.undo.mine') : t('feed.undo.other',{name:_n}); sys=true; reactable=false;
   } else if(c.kind==="reset"){
-    head = mine ? "Reiniciaste tu contador 🧹" : `<b>${c.name}</b> reinició su contador 🧹`; sys=true; reactable=false;
+    head = mine ? t('feed.reset.mine') : t('feed.reset.other',{name:_n}); sys=true; reactable=false;
   } else if(c.kind==="sync"){
-    head = mine ? `🔗 Conexión de tuberías con <b>${c.withName}</b>`
-         : c.withUid===uid ? `🔗 <b>${c.name}</b> conectó tuberías contigo`
-         : `🔗 <b>${c.name}</b> y <b>${c.withName}</b> conectaron tuberías`;
+    head = mine ? t('feed.sync.mine',{name:_wn})
+         : c.withUid===uid ? t('feed.sync.withme',{name:_n})
+         : t('feed.sync.other',{name:_n,other:_wn});
     syncHi=true;
   } else if(c.late){
-    head = mine ? "Añadiste una caca olvidada 🕐" : `<b>${c.name}</b> añadió una caca olvidada 🕐`;
+    head = mine ? t('feed.late.mine') : t('feed.late.other',{name:_n});
     nBadge = `<b class="feed__n">${c.n}</b>`;
   } else {
     const hito = isMilestone(c.n);
-    head = hito ? (mine ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
-                : (mine ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
+    head = hito ? (mine ? t('feed.milestone.mine',{n:`<b>${c.n}</b>`}) : t('feed.milestone.other',{name:_n,n:`<b>${c.n}</b>`}))
+                : (mine ? t('feed.add.mine') : t('feed.add.other',{name:_n}));
     nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
   }
   const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&!c.late&&isMilestone(c.n);
@@ -518,7 +529,7 @@ function _feedItem(c,i){
 function renderFeed(){
   const all=filteredFeed();
   const items=all.slice(0,feedShown);
-  const empty = feedQ||feedScope!=="all" ? "Nada por aquí con este filtro." : "Aún no hay actividad. ¡Suma la primera! 👆";
+  const empty = feedQ||feedScope!=="all" ? t('feed.empty.filter') : t('feed.empty.default');
   $("feed").innerHTML = items.length ? items.map(c=>_feedItem(c, homeFeedData.indexOf(c))).join("")
     : `<li class="feed__item"><span class="feed__txt" style="color:var(--ink-faint)">${empty}</span></li>`;
   $("loadMore").hidden = feedShown>=all.length;
@@ -548,9 +559,9 @@ async function applyReaction(entry, emoji){
   renderFeed();
   try{
     await setReaction(entry.id, uid, emoji, !has);
-    if(!has) enqueuePush(uid, entry.uid, "reaction", "Nueva reacción 💩", `${me?.displayName||"Alguien"} reaccionó ${emoji} a tu caca`).catch(()=>{});
+    if(!has) enqueuePush(uid, entry.uid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{});
   }
-  catch(err){ toast("No se pudo reaccionar"); console.error(err); loadActivity(); }
+  catch(err){ toast(t('toast.caca.react.fail')); console.error(err); loadActivity(); }
 }
 function openReactPicker(entry){
   _rxTarget=entry;
@@ -580,13 +591,13 @@ async function showReactors(chip){
   const ruids=Object.keys(r).filter(ru=>asArr(r[ru]).includes(emoji));
   let names=[], anon=0;
   if(entry.uid===uid){                                  // tu propia caca → revela todos
-    names = await Promise.all(ruids.map(ru=> ru===uid ? "Tú" : resolveName(ru)));
+    names = await Promise.all(ruids.map(ru=> ru===uid ? t('rx.me') : resolveName(ru)));
   } else {                                              // de otros → solo amigos en común; el resto, anónimo
-    for(const ru of ruids){ if(ru===uid) names.unshift("Tú"); else if(friendNames[ru]) names.push(friendNames[ru]); else anon++; }
+    for(const ru of ruids){ if(ru===uid) names.unshift(t('rx.me')); else if(friendNames[ru]) names.push(friendNames[ru]); else anon++; }
   }
   let txt=names.join(", ");
-  if(anon>0) txt += (txt?" y ":"") + (anon===1?"1 más":`${anon} más`);
-  if(!txt) txt="Nadie";
+  if(anon>0) txt += (txt?" y ":"") + (anon===1?t('rx.anon.one'):t('rx.anon.many',{n:anon}));
+  if(!txt) txt=t('rx.nobody');
   const tip=document.createElement("div"); tip.className="rxtip";
   tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${txt}`;
   document.body.appendChild(tip);
@@ -628,7 +639,7 @@ async function checkGroupOvertakes(oldTotal){
         if(r.id===uid || sentTo.has(r.id)) continue;
         if((r.totalCount||0)===oldTotal){          // estábamos empatados → ahora le supero
           sentTo.add(r.id);
-          enqueuePush(uid, r.id, "overtake", "¡Te han superado! 🏃", `${name} te ha superado en ${g.name}`).catch(()=>{});
+          enqueuePush(uid, r.id, "overtake", t('push.overtake.title'), t('push.overtake.body',{name,group:g.name})).catch(()=>{});
         }
       }
     }
@@ -638,7 +649,7 @@ async function checkGroupOvertakes(oldTotal){
 async function notifyFriendsMilestone(n){
   try{
     const fr=await getFriends(uid); const name=me?.displayName||"Alguien";
-    fr.forEach(f=> enqueuePush(uid, f.id, "milestone", "¡Hito de un amigo! 🎉", `${name} llegó a ${n} 💩`).catch(()=>{}) );
+    fr.forEach(f=> enqueuePush(uid, f.id, "milestone", t('push.milestone.title'), t('push.milestone.body',{name,n})).catch(()=>{}) );
   }catch(e){ console.error(e); }
 }
 // Registra el dispositivo en FCM para recibir push con la app cerrada (vía la Pi).
@@ -672,11 +683,11 @@ function startNotifications(){
     const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
     const enriched=await Promise.all(pend.map(async f=>{
       const o=await getUser(f.uids.find(u=>u!==uid));
-      return { id:f.id, name:o?.displayName||"Alguien", color:o?.color };
+      return { id:f.id, name:o?.displayName||t('fallback.someone'), color:o?.color };
     }));
     if(reqBaseline===null){ reqBaseline=new Set(enriched.map(r=>r.id)); }   // base: no notifica las ya existentes
     else {
-      for(const r of enriched) if(!reqBaseline.has(r.id)){ reqBaseline.add(r.id); showLocalNotif("Nueva solicitud de amistad 👋", `${r.name} quiere ser tu amigo/a`); }
+      for(const r of enriched) if(!reqBaseline.has(r.id)){ reqBaseline.add(r.id); showLocalNotif(t('push.friendreq.title'), t('push.friendreq.body',{name:r.name})); }
       const ids=new Set(enriched.map(r=>r.id)); for(const id of [...reqBaseline]) if(!ids.has(id)) reqBaseline.delete(id);
     }
     notifReqs=enriched; refreshNotif();
@@ -686,21 +697,21 @@ function startNotifications(){
 function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
-const _notifName=ru=> ru===uid?"Tú":(notifFriends[ru]||"Alguien");
+const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
   if(ru===uid) return "Tú";
   if(notifFriends[ru]) return notifFriends[ru];
-  try{ const u=await getUser(ru); const n=u?.displayName||"Alguien"; notifFriends[ru]=n; return n; }
-  catch{ return "Alguien"; }
+  try{ const u=await getUser(ru); const n=u?.displayName||t('fallback.someone'); notifFriends[ru]=n; return n; }
+  catch{ return t('fallback.someone'); }
 }
 function renderNotifSheet(){
-  const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>quiere ser tu amigo/a</small></span><button class="btn-accept" data-accept="${r.id}">Aceptar</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
-  const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> reaccionó a tu caca</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
+  const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${r.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
+  const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
   let html="";
-  if(reqs) html+=`<div class="notif-sec"><h4 class="notif-h">Solicitudes</h4><ul class="reqlist">${reqs}</ul></div>`;
-  if(rx)   html+=`<div class="notif-sec"><h4 class="notif-h">Reacciones a tus cacas</h4><ul class="notif-list">${rx}</ul></div>`;
-  $("notifBody").innerHTML = html || `<p class="notif-empty">Sin notificaciones todavía.<br/><small>Aquí verás reacciones a tus cacas y solicitudes de amistad.</small></p>`;
+  if(reqs) html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
+  if(rx)   html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.rx')}</h4><ul class="notif-list">${rx}</ul></div>`;
+  $("notifBody").innerHTML = html || `<p class="notif-empty">${t('notif.empty')}<br/><small>${t('notif.empty.sub')}</small></p>`;
 }
 function openNotif(){ unseenRx=0; renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
 $("notifBtn").addEventListener("click", openNotif);
@@ -731,12 +742,12 @@ async function openPersonSheet(entry, opts={}){
   const cy=new Date().getFullYear(), cm=new Date().getMonth(), cbm=u?.countsByMonth||{};
   const monthly=new Array(12).fill(0); for(let i=0;i<12;i++) monthly[i]=cbm[`${cy}_${i}`]||0;
   const bestIdx = monthly.indexOf(Math.max(...monthly,0));
-  $("psTotal").textContent=`${year} este año · ${life} en total`;
+  $("psTotal").textContent=t('person.total',{year,life});
   $("psStats").innerHTML=`
-    <div class="stat stat--accent"><b>${year}</b><span>este año</span></div>
-    <div class="stat"><b>${monthly[cm]}</b><span>este mes</span></div>
-    <div class="stat"><b>${year?PM[bestIdx]:"—"}</b><span>mejor mes</span></div>
-    <div class="stat"><b>${life}</b><span>en total</span></div>`;
+    <div class="stat stat--accent"><b>${year}</b><span>${t('person.stat.year')}</span></div>
+    <div class="stat"><b>${monthly[cm]}</b><span>${t('person.stat.month')}</span></div>
+    <div class="stat"><b>${year?PM[bestIdx]:"—"}</b><span>${t('person.stat.bestmonth')}</span></div>
+    <div class="stat"><b>${life}</b><span>${t('person.stat.total')}</span></div>`;
   // bloque de comparación yo vs este usuario (0 lecturas extra: todo en memoria / ya leído)
   const cmpEl = $("psCompare");
   if(me && cmpEl){
@@ -753,10 +764,10 @@ async function openPersonSheet(entry, opts={}){
     cmpEl.hidden=false;
     cmpEl.innerHTML=`
       <div class="cmp-names"><span>${myName}</span><span>${theirName}</span></div>
-      <div class="cmp-row"><span class="cmp-val ${w(myMon,monthly[cm])}">${myMon}<span class="cmp-meta">este mes</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(monthly[cm],myMon)}">${monthly[cm]}<span class="cmp-meta">este mes</span></span></div>
-      <div class="cmp-row"><span class="cmp-val ${w(myYear,year)}">${myYear}<span class="cmp-meta">este año</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(year,myYear)}">${year}<span class="cmp-meta">este año</span></span></div>
-      <div class="cmp-row"><span class="cmp-val ${w(+myAvg,+theirAvg)}">${myAvg}<span class="cmp-meta">media/día</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(+theirAvg,+myAvg)}">${theirAvg}<span class="cmp-meta">media/día</span></span></div>
-      <div class="cmp-row"><span class="cmp-val ${w(myStreak,theirStreak)}">${myStreak} 🔥<span class="cmp-meta">racha</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(theirStreak,myStreak)}">${theirStreak} 🔥<span class="cmp-meta">racha</span></span></div>`;
+      <div class="cmp-row"><span class="cmp-val ${w(myMon,monthly[cm])}">${myMon}<span class="cmp-meta">${t('person.cmp.month')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(monthly[cm],myMon)}">${monthly[cm]}<span class="cmp-meta">${t('person.cmp.month')}</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(myYear,year)}">${myYear}<span class="cmp-meta">${t('person.cmp.year')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(year,myYear)}">${year}<span class="cmp-meta">${t('person.cmp.year')}</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(+myAvg,+theirAvg)}">${myAvg}<span class="cmp-meta">${t('person.cmp.avg')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(+theirAvg,+myAvg)}">${theirAvg}<span class="cmp-meta">${t('person.cmp.avg')}</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(myStreak,theirStreak)}">${myStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(theirStreak,myStreak)}">${theirStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span></div>`;
   } else if(cmpEl){ cmpEl.hidden=true; }
   $("psChart").innerHTML=barsHTML(monthly, PM);
   // grupos en común: caché del viewer (sin leer)
@@ -766,16 +777,16 @@ async function openPersonSheet(entry, opts={}){
   $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
   // botón de mapa: visible si el amigo tiene shareMap activado (true por defecto)
   const mapBtn = u?.shareMap !== false
-    ? `<button class="btn-solid" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}">🗺️ Ver mapa</button>`
-    : `<button class="btn-ghost ps-disabled" disabled>🗺️ Mapa privado</button>`;
+    ? `<button class="btn-solid" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}"> ${t('person.map.view')}</button>`
+    : `<button class="btn-ghost ps-disabled" disabled>${t('person.map.private')}</button>`;
   $("psActions").innerHTML = mapBtn;
 
   // gestión de amistad: solo desde Amigos (canManage). Solo entonces leemos las amistades.
   if(opts.canManage){
     const fr=(await myFriendships(uid)).find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
     const friendBtn = !fr ? "" : (shared.length
-      ? `<button class="btn-ghost ps-disabled" disabled>🤝 Estáis en un grupo juntos · sois amigos</button>`
-      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">Eliminar amigo</button>`);
+      ? `<button class="btn-ghost ps-disabled" disabled>${t('person.friend.shared')}</button>`
+      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">${t('person.friend.remove')}</button>`);
     $("psActions").innerHTML = mapBtn + friendBtn;
   }
 }
@@ -785,9 +796,9 @@ $("psActions").addEventListener("click", async e=>{
   const mb=e.target.closest("[data-uid]#psFriendMap, [data-uid]");
   if(mb && mb.id==="psFriendMap"){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
   const b=e.target.closest("[data-rmfriend]"); if(!b)return;
-  if(!confirm("¿Eliminar a esta persona de tus amigos?")) return;
-  try{ await removeFriend(b.dataset.rmfriend); toast("Amigo eliminado"); $("psSheet").hidden=true; if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
-  catch(err){ toast("No se pudo"); console.error(err); }
+  if(!confirm(t('confirm.friend.remove'))) return;
+  try{ await removeFriend(b.dataset.rmfriend); toast(t('toast.friend.removed')); $("psSheet").hidden=true; if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
+  catch(err){ toast(t('toast.friend.fail')); console.error(err); }
 });
 $("psGroups").addEventListener("click", async e=>{
   const b=e.target.closest("[data-gid]"); if(!b)return;
@@ -798,7 +809,7 @@ $("psGroups").addEventListener("click", async e=>{
 /* ---------- +1 / −1 / corregir ---------- */
 let busy=false; const ADD_COOLDOWN=1500;   // bloqueo anti-spam del +1
 $("addBtn").addEventListener("click",async e=>{
-  if(maintOn){ haptic(8); toast("🛠️ En mantenimiento. El +1 vuelve entre las 9:00 y las 10:00."); return; }
+  if(maintOn){ haptic(8); toast(t('toast.maint.block')); return; }
   if(busy||!uid)return; busy=true;
   const btn=$("addBtn"),r=btn.getBoundingClientRect(); const t0=Date.now();
   btn.classList.add("flash","addbtn--cooldown");setTimeout(()=>btn.classList.remove("flash"),350);haptic(18);
@@ -806,24 +817,24 @@ $("addBtn").addEventListener("click",async e=>{
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    await addCaca(uid, loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"¡Caca registrada! 💩");
+    await addCaca(uid, loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;   // chips al instante (sin leer); el listener pinta el feed
     checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
   }
-  catch(err){ toast("No se pudo guardar 😬"); console.error(err); }
+  catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ const wait=Math.max(0, ADD_COOLDOWN-(Date.now()-t0)); setTimeout(()=>{ busy=false; btn.classList.remove("addbtn--cooldown"); }, wait); }
 });
 async function undoCaca(){
   if(busy||!uid)return; busy=true;
-  try{ const ok=await removeCaca(uid, actMeta()); toast(ok?"Caca eliminada":"No hay cacas que quitar"); _statsLoadedAt=0; loadActivity("force"); }
-  catch(err){ toast("No se pudo deshacer"); console.error(err); }
+  try{ const ok=await removeCaca(uid, actMeta()); toast(ok?t('toast.caca.undo.ok'):t('toast.caca.undo.empty')); _statsLoadedAt=0; loadActivity("force"); }
+  catch(err){ toast(t('toast.caca.undo.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 }
 $("fixBtn").addEventListener("click",async()=>{
-  if(!confirm("⚠️ Esto BORRARÁ todas tus cacas y pondrá tu contador a 0. No se puede deshacer. ¿Seguro?")) return;
-  if(!confirm("De verdad: se borra TODO tu historial de cacas. ¿Confirmas el reinicio?")) return;
-  try{ $("settingsSheet").hidden=true; toast("Reiniciando…"); await resetCacas(uid, actMeta()); statsCacas=[]; _statsLoadedAt=0; loadActivity("force"); toast("Contador reiniciado 🧹"); }
-  catch(err){ toast("No se pudo reiniciar"); console.error(err); }
+  if(!confirm(t('confirm.reset.1'))) return;
+  if(!confirm(t('confirm.reset.2'))) return;
+  try{ $("settingsSheet").hidden=true; toast(t('toast.reset.loading')); await resetCacas(uid, actMeta()); statsCacas=[]; _statsLoadedAt=0; loadActivity("force"); toast(t('toast.reset.ok')); }
+  catch(err){ toast(t('toast.reset.fail')); console.error(err); }
 });
 
 /* ---------- caca olvidada (late) ---------- */
@@ -838,9 +849,9 @@ $("miStats").addEventListener("click",()=>{ $("menuSheet").hidden=true; setView(
 $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(); });
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
-  if(busy||!uid)return; busy=true; toast("Obteniendo ubicación… 📍");
-  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?"¡Caca + ubicación! 📍":"Caca añadida (sin ubicación)"); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
-  catch(err){ toast("No se pudo guardar"); console.error(err); }
+  if(busy||!uid)return; busy=true; toast(t('toast.geo.loading'));
+  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.nogeo')); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
+  catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
@@ -848,11 +859,11 @@ $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("la
 $("lateConfirm").addEventListener("click",async()=>{
   const v=$("lateWhen").value; if(!v)return;
   const ts=new Date(v).getTime();
-  if(isNaN(ts)) return toast("Fecha no válida");
-  if(ts>Date.now()+60000) return toast("No puedes añadir cacas del futuro 😅");
+  if(isNaN(ts)) return toast(t('toast.caca.late.invalid'));
+  if(ts>Date.now()+60000) return toast(t('toast.caca.late.future'));
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast("Caca añadida ✅"); _statsLoadedAt=0; loadActivity("force"); }
-  catch(err){ toast("No se pudo añadir"); console.error(err); }
+  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force"); }
+  catch(err){ toast(t('toast.caca.late.fail')); console.error(err); }
 });
 
 /* ---------- amigos ---------- */
@@ -865,9 +876,9 @@ $("addFriendBtn").addEventListener("click",async()=>{
   const email=$("friendEmail").value.trim(); const msg=$("friendMsg");
   if(!email)return; msg.hidden=true;
   try{ const o=await sendFriendRequest(uid,email); $("friendEmail").value="";
-    msg.textContent=`Solicitud enviada a ${o.displayName} ✅`; msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
+    msg.textContent=t('amigos.req.sent',{name:o.displayName}); msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
   catch(err){ msg.style.color="var(--rose)";
-    msg.textContent=err.message==="no-user"?"No hay ningún usuario con ese email.":err.message==="self"?"Ese eres tú 😄":"No se pudo enviar."; msg.hidden=false; }
+    msg.textContent=err.message==="no-user"?t('amigos.req.nouser'):err.message==="self"?t('amigos.req.self'):t('amigos.req.fail'); msg.hidden=false; }
 });
 let friendSort="rank", _friends=[];
 document.querySelector(".sortbar").addEventListener("click", e=>{
@@ -880,8 +891,8 @@ function renderFriendsList(){
   const board=[{id:uid,displayName:me?.displayName,color:me?.color,totalCount:me?.totalCount||0}, ..._friends];
   if(friendSort==="alpha") board.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"","es",{sensitivity:"base"}));
   else board.sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
-  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
-    : `<li class="gempty">Aún no tienes amigos. Pulsa ＋ para añadir o invitar.</li>`;
+  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
+    : `<li class="gempty">${t('amigos.empty')}</li>`;
 }
 async function renderAmigos(){
   const [fships, friends] = await Promise.all([ myFriendships(uid), getFriends(uid) ]);
@@ -893,12 +904,12 @@ async function renderAmigos(){
   $("reqBlock").hidden = !pending.length;
   const incHtml=await Promise.all(incoming.map(async f=>{
     const other=await getUser(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>quiere ser tu amigo/a</small></span>
-      <button class="btn-accept" data-accept="${f.id}">Aceptar</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.wantsyou')}</small></span>
+      <button class="btn-accept" data-accept="${f.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
   }));
   const outHtml=await Promise.all(outgoing.map(async f=>{
     const other=await getUser(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>solicitud pendiente…</small></span></li>`;
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.pending')}</small></span></li>`;
   }));
   $("reqList").innerHTML=[...incHtml,...outHtml].join("");
   setFriendForm(false);            // empezamos con el form oculto tras ＋
@@ -912,7 +923,7 @@ $("friendsRank").addEventListener("click", e=>{
 });
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
-  if(a){ await acceptFriend(a.dataset.accept, uid); toast("¡Nuevo amigo! 🎉"); renderAmigos(); }
+  if(a){ await acceptFriend(a.dataset.accept, uid); toast(t('toast.friend.accepted')); renderAmigos(); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
 });
 // acordeón de grupos: la cabecera despliega/colapsa el grupo
@@ -928,21 +939,21 @@ let activeGroup=null, myGroupsCache=[];
 $("createGroupBtn").addEventListener("click", async ()=>{
   const name=$("newGroupName").value.trim(); const msg=$("groupMsg"); msg.hidden=true;
   if(!name)return;
-  try{ const g=await createGroup(uid,name); $("newGroupName").value=""; toast("Grupo creado 🎉"); await renderGrupos(); openGroup(g); }
-  catch(err){ msg.style.color="var(--rose)"; msg.textContent="No se pudo crear el grupo."; msg.hidden=false; console.error(err); }
+  try{ const g=await createGroup(uid,name); $("newGroupName").value=""; toast(t('toast.group.created')); await renderGrupos(); openGroup(g); }
+  catch(err){ msg.style.color="var(--rose)"; msg.textContent=t('grupos.create.fail'); msg.hidden=false; console.error(err); }
 });
 $("joinGroupBtn").addEventListener("click", async ()=>{
   const code=$("joinCode").value.trim(); const msg=$("groupMsg"); msg.hidden=true;
   if(!code)return;
-  if(!confirm("Al unirte a este grupo, todos sus miembros se añadirán automáticamente como amigos. ¿Continuar?")) return;
-  try{ const g=await joinGroup(uid,code); $("joinCode").value=""; toast(`Te uniste a ${g.name} 🎉`); await renderGrupos(); openGroup(g); }
-  catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?"No existe ningún grupo con ese código.":"No se pudo unir."; msg.hidden=false; }
+  if(!confirm(t('confirm.group.join'))) return;
+  try{ const g=await joinGroup(uid,code); $("joinCode").value=""; toast(t('toast.group.joined',{name:g.name})); await renderGrupos(); openGroup(g); }
+  catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?t('grupos.join.invalid'):t('grupos.join.fail'); msg.hidden=false; }
 });
-$("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), `Únete a "${activeGroup.name}" en El Cagómetro 💩`); });
+$("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), t('grupos.invite.text',{name:activeGroup.name})); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
-  if(!activeGroup)return; if(!confirm(`¿Salir de "${activeGroup.name}"?`))return;
-  try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast("Has salido del grupo"); renderGrupos(); }
-  catch(err){ toast("No se pudo salir"); console.error(err); }
+  if(!activeGroup)return; if(!confirm(t('confirm.group.leave',{name:activeGroup.name})))return;
+  try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast(t('toast.group.left')); renderGrupos(); }
+  catch(err){ toast(t('toast.group.leave.fail')); console.error(err); }
 });
 function setGroupForms(show){
   $("groupForms").hidden = !show;
@@ -974,7 +985,7 @@ async function renderGrupos(){
           <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </li>`).join("")
-      : `<li class="gempty">Aún no estás en ningún grupo. Pulsa ＋ para crear uno o unirte con un código.</li>`;
+      : `<li class="gempty">${t('grupos.empty')}</li>`;
     setGroupForms(n===0);
     const still = activeGroup && groups.find(g=>g.id===activeGroup.id);
     activeGroup=null;
@@ -1014,14 +1025,14 @@ async function openGroup(group){
     const m=metricOf(period);
     const ranked=[...board].sort((a,b)=>m(b)-m(a));
     const yr=period!=='year';
-    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?' <small>tú</small>':''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${r.totalCount||0} año</small>`:""}</span></li>`).join("")
-      || `<p class="notif-empty">Sin cacas en este periodo.</p>`;
+    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${r.totalCount||0} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
+      || `<p class="notif-empty">${t('grupos.rank.empty')}</p>`;
   }
   const seg=$("rankPeriod");
   async function selectPeriod(period, btn){
     seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===btn));
     if(period==="week" && !weekByU){
-      $("groupRank").innerHTML=`<p class="notif-empty">Cargando…</p>`;
+      $("groupRank").innerHTML=`<p class="notif-empty">${t('grupos.rank.loading')}</p>`;
       try{ weekByU={}; const cs=await groupCacasSince(group, weekStart); for(const c of cs) weekByU[c.uid]=(weekByU[c.uid]||0)+1; }
       catch(e){ weekByU={}; console.error("week:",e); }
     }
@@ -1035,10 +1046,10 @@ async function openGroup(group){
   for(const id in perU){ perU[id].months.forEach((v,i)=>byMonth[i]+=v); total+=perU[id].total; }
   const members=(group.members||[]).length, bestIdx=byMonth.indexOf(Math.max(...byMonth,0));
   $("gStatGrid").innerHTML=`
-    <div class="stat stat--accent"><b>${total}</b><span>total del grupo</span></div>
-    <div class="stat"><b>${members}</b><span>miembros</span></div>
-    <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>mejor mes</span></div>
-    <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
+    <div class="stat stat--accent"><b>${total}</b><span>${t('grupos.stat.total')}</span></div>
+    <div class="stat"><b>${members}</b><span>${t('grupos.stat.members')}</span></div>
+    <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>${t('grupos.stat.bestmonth')}</span></div>
+    <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>${t('grupos.stat.avg')}</span></div>`;
   renderGroupStack(board.map(r=>({ uid:r.id, ...perU[r.id] })));
 }
 // barra apilada por persona, segmentada por mes (este año)
@@ -1051,7 +1062,7 @@ function renderGroupStack(arr){
     for(let i=11;i>=0;i--){ const v=m.months[i]; if(!v)continue; const h=Math.round(v/max*H);
       segs += `<div class="seg" style="height:${h}px;background:${MONTH_COLORS[i]}">${h>=15?`<span>${v}</span>`:""}</div>`; }
     return `<div class="stackcol"><div class="stackbar">${segs}</div><div class="stacklbl">${m.name}<small>${m.total}</small></div></div>`;
-  }).join("") || `<p class="notif-empty">Sin cacas este año.</p>`;
+  }).join("") || `<p class="notif-empty">${t('grupos.stack.empty')}</p>`;
   // leyenda: solo meses con datos en el grupo
   const used=new Set(); arr.forEach(m=>m.months.forEach((v,i)=>{ if(v)used.add(i); }));
   $("gStackLegend").innerHTML=[...used].sort((a,b)=>a-b).map(i=>`<span class="lg"><i style="background:${MONTH_COLORS[i]}"></i>${MONTHS_FULL[i]}</span>`).join("");
@@ -1100,7 +1111,7 @@ async function loadStats(){
 }
 function renderYearSel(){
   $("yearSel").innerHTML = statsYears.map(y=>`<button class="ychip ${statsScope===y?'on':''}" data-year="${y}">${y}</button>`).join("")
-    + `<button class="ychip ${statsScope==='all'?'on':''}" data-year="all">Todos</button>`;
+    + `<button class="ychip ${statsScope==='all'?'on':''}" data-year="all">${t('perfil.year.all')}</button>`;
 }
 $("yearSel").addEventListener("click", e=>{ const b=e.target.closest("[data-year]"); if(!b)return;
   statsScope = b.dataset.year==="all" ? "all" : +b.dataset.year; renderYearSel(); renderStats(); });
@@ -1121,26 +1132,26 @@ function renderStats(){
   const daysElapsedMonth=_now.getDate();
   const monthAvg=(thisMonthCount/daysElapsedMonth).toFixed(2);
   $("statGrid").innerHTML=`
-    <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?"total histórico":statsScope}</span></div>
-    <div class="stat"><b>${bestDay}</b><span>mejor día</span></div>
-    <div class="stat"><b>${lifeAvg}</b><span>media/día total</span></div>
-    <div class="stat"><b>${monthAvg}</b><span>media/día este mes</span></div>
-    <div class="stat"><b>${curStreak} 🔥</b><span>racha actual</span></div>
-    <div class="stat"><b>${bestStreak}</b><span>récord de racha</span></div>`;
+    <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?t('perfil.stat.total_historical'):statsScope}</span></div>
+    <div class="stat"><b>${bestDay}</b><span>${t('perfil.stat.bestday')}</span></div>
+    <div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>
+    <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
+    <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
+    <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;
   if(statsScope==="all"){
-    $("chartTitle").textContent="Por año";
+    $("chartTitle").textContent=t('perfil.chart.byyear');
     const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }
     const ys=Object.keys(by).sort();
     $("chartPrimary").innerHTML=barsHTML(ys.map(y=>by[y]), ys.map(y=>String(y).slice(2))) || `<div class="bar"><span class="barlbl">—</span></div>`;
   } else {
-    $("chartTitle").textContent="Por mes";
+    $("chartTitle").textContent=t('perfil.chart.bymonth');
     const m=new Array(12).fill(0); for(const c of items) m[tzParts(c.ts,c.tz).month-1]++;
     const M=["E","F","M","A","M","J","J","A","S","O","N","D"];
     $("chartPrimary").innerHTML=barsHTML(m, M);
   }
   const h=new Array(24).fill(0); for(const c of items) h[tzParts(c.ts,c.tz).hour]++;
   const peak=total?h.indexOf(Math.max(...h)):-1;
-  $("peakHour").textContent = peak>=0?`punta: ${String(peak).padStart(2,"0")}:00 · ${h[peak]}`:"—";
+  $("peakHour").textContent = peak>=0?t('perfil.chart.peak',{h:String(peak).padStart(2,"0"),n:h[peak]}):"—";
   $("chartHours").innerHTML=barsHTML(h, h.map((_,i)=>i%6===0?i:""), {showVal:false});
   const w=new Array(7).fill(0); for(const c of items) w[tzParts(c.ts,c.tz).weekday]++;
   const WD=["L","M","X","J","V","S","D"];
@@ -1273,15 +1284,16 @@ if(_standalone){
 }
 
 /* ---------- ubicación + mapa ---------- */
-const LOC_LABELS={never:"Nunca",choose:"Elegir",always:"Siempre"};
+const LOC_KEYS={never:"Nunca",choose:"Elegir",always:"Siempre"};
+function locLabel(k){ return k==="never"?"Nunca":k==="choose"?"Elegir":"Siempre"; }
 function renderLocSel(mode){
   mode=mode||"never";
-  $("locSel").innerHTML=Object.keys(LOC_LABELS).map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${LOC_LABELS[k]}</button>`).join("");
+  $("locSel").innerHTML=Object.keys(LOC_KEYS).map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${locLabel(k)}</button>`).join("");
 }
 $("locSel").addEventListener("click", async e=>{
   const b=e.target.closest("[data-loc]"); if(!b||!uid)return;
   renderLocSel(b.dataset.loc);
-  try{ await setLocationMode(uid,b.dataset.loc); toast("Ubicación: "+LOC_LABELS[b.dataset.loc]); }catch(err){ console.error(err); }
+  try{ await setLocationMode(uid,b.dataset.loc); toast(t('toast.location',{mode:locLabel(b.dataset.loc)})); }catch(err){ console.error(err); }
 });
 function getGeo(){
   return new Promise(res=>{
@@ -1301,7 +1313,7 @@ async function openMap(friend){
   const titleEl=$("mapTitle");
   if(friend){ titleEl.textContent=`🗺️ ${friend.name}`; titleEl.hidden=false; }
   else { titleEl.hidden=true; }
-  if(typeof L==="undefined"){ toast("No se pudo cargar el mapa"); return; }
+  if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   if(!_map){
     _map=L.map("map",{zoomControl:true});
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_map);
@@ -1322,14 +1334,15 @@ async function openMap(friend){
 function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("div");p.className="poo-fly";p.textContent="💩";
   p.style.left=(cx+(Math.random()*60-30))+"px";p.style.top=(cy-6)+"px";p.style.setProperty("--rot",(Math.random()*60-30)+"deg");
   p.style.animationDelay=(i*70)+"ms";document.body.appendChild(p);setTimeout(()=>p.remove(),1200);} }
-const HYPE=["¡Nuevo hito!","¡Máquina!","¡Imparable!","¡Leyenda del trono! 👑","¡A por más!"];
-function celebrate(num){ $("celebrateNum").textContent=num; $("celebrateText").textContent=num>=200?"¡Leyenda del trono! 👑":HYPE[Math.floor(Math.random()*HYPE.length)];
+function celebrate(num){ $("celebrateNum").textContent=num;
+  const hype=[t('celebrate.hype.0'),t('celebrate.hype.1'),t('celebrate.hype.2'),t('celebrate.hype.3'),t('celebrate.hype.4')];
+  $("celebrateText").textContent=num>=200?t('celebrate.hype.3'):hype[Math.floor(Math.random()*hype.length)];
   const c=$("celebrate");c.hidden=false;confetti();haptic([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
 // ── conexión de tuberías: tú + un amigo cagáis con < 5 min de diferencia ──
 const SYNC_WINDOW=5*60*1000;
 let _lastSyncEvt=null;   // id del evento de amigo con el que ya celebramos (evita repetir)
 function syncCelebrate(name){
-  $("syncSub").textContent=`Tú y ${name} cagando en sincronía 🚽`;
+  $("syncSub").textContent=t('sync.sub',{name});
   const c=$("syncOverlay"); c.hidden=false; confetti(); haptic([20,40,20,40,20,40,80]);
   setTimeout(()=>c.hidden=true,2800);
 }
@@ -1350,15 +1363,27 @@ function checkSyncPoop(){
     audience:[...new Set([...(_graph.audience||[uid]), evt.uid])], groups:_graph.groups||[], reactions:{},
   }).catch(e=>console.error("sync:",e));
   // aviso al amigo
-  enqueuePush(uid, evt.uid, "sync", "¡Conexión de tuberías! 🚽", `${me?.displayName||"Alguien"} ha cagado a la vez que tú`).catch(()=>{});
+  enqueuePush(uid, evt.uid, "sync", t('push.sync.title'), t('push.sync.body',{name:me?.displayName||t('fallback.someone')})).catch(()=>{});
 }
 function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];
   for(let i=0;i<90;i++){ const d=document.createElement("div");d.className="confetti";d.style.left=Math.random()*100+"vw";
     d.style.background=cols[i%cols.length];d.style.animationDuration=(1.4+Math.random()*1.4)+"s";d.style.animationDelay=(Math.random()*.3)+"s";
     d.style.transform=`rotate(${Math.random()*360}deg)`;document.body.appendChild(d);setTimeout(()=>d.remove(),3200);} }
-let toastT; function toast(m){ const t=$("toast");t.textContent=m;t.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),1800); }
+let toastT; function toast(m){ const el=$("toast");el.textContent=m;el.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove("show"),1800); }
+
+function applyLang(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key=el.dataset.i18n, attr=el.dataset.i18nAttr, val=t(key);
+    if(attr) el.setAttribute(attr,val); else el.textContent=val;
+  });
+  document.documentElement.lang=getLang();
+  // re-run dynamic painters if already mounted
+  if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); }
+}
 
 applyMode();
+applyLang();
+
 // Service worker + auto-update: cuando se despliega una versión nueva, el SW
 // nuevo toma control y la app se recarga sola (no más caché vieja en el móvil).
 if("serviceWorker"in navigator){

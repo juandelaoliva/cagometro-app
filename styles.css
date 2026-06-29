@@ -360,6 +360,13 @@ ol,ul{list-style:none}
 .field::placeholder{color:var(--ink-faint)}
 .field:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-soft)}
 .formerr{color:var(--rose);font-size:13px;font-weight:600;margin:2px}
+.field-wrap{position:relative;display:flex;align-items:center}
+.field-wrap .field{flex:1;padding-right:46px}
+.field-eye{position:absolute;right:12px;background:none;border:none;font-size:18px;cursor:pointer;opacity:.5;padding:4px;line-height:1}
+.field-eye:hover{opacity:.9}
+.gate__forgot{display:block;text-align:center;font-size:13px;color:var(--ink-faint);margin-top:2px}
+.verifbar{background:#FFF3CD;color:#856404;border-bottom:1px solid #FFE69C;padding:10px 16px;font-size:13.5px;font-weight:600;text-align:center}
+.verifbar__resend{color:#856404;font-weight:700;text-decoration:underline}
 .btn-google{width:100%;padding:14px;border-radius:14px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:var(--shadow);transition:transform .08s}
 .btn-google:active{transform:translateY(1px)}
 .btn-google__logo{width:18px;height:18px;display:block;flex:none}

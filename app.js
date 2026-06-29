@@ -2,7 +2,7 @@
    Cagómetro · UI (Firebase) — Phases A + A+ + B
    ============================================================ */
 import {
-  onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile,
+  onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
@@ -10,7 +10,7 @@ import {
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
   getUser, colorForUid
 } from "./store.js";
-import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
+import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
@@ -137,8 +137,29 @@ function applyMode(){
   $("toggleText").textContent=s?"¿Ya tienes cuenta?":"¿Nueva por aquí?";
   $("toggleMode").textContent=s?"Inicia sesión":"Crea una cuenta";
   $("fName").style.display=s?"":"none";
+  $("forgotBtn").hidden=s;   // "¿Olvidaste la contraseña?" solo en login
 }
 $("toggleMode").addEventListener("click",()=>{mode=mode==="signup"?"signin":"signup";clearErr();applyMode();});
+
+// toggle mostrar/ocultar contraseña
+$("eyeBtn").addEventListener("click",()=>{
+  const p=$("fPass"); const show=p.type==="password";
+  p.type=show?"text":"password";
+  $("eyeBtn").textContent=show?"🙈":"👁";
+});
+
+// forgot password
+$("forgotBtn").addEventListener("click", async ()=>{
+  const email=$("fEmail").value.trim();
+  if(!email) return toast("Escribe tu email primero");
+  try{
+    await resetPassword(email);
+    toast("📧 Email de recuperación enviado");
+  } catch(err){
+    const msg=err.code==="auth/user-not-found"?"No hay ninguna cuenta con ese email.":err.code==="auth/invalid-email"?"Email no válido.":"No se pudo enviar el email.";
+    const el=$("formErr"); el.textContent=msg; el.hidden=false;
+  }
+});
 const ERR={"auth/email-already-in-use":"Ese email ya está registrado. Inicia sesión.","auth/invalid-credential":"Email o contraseña incorrectos.","auth/invalid-email":"Email no válido.","auth/weak-password":"La contraseña debe tener al menos 6 caracteres.","auth/popup-closed-by-user":"Has cerrado la ventana de Google."};
 const showErr=e=>{const el=$("formErr");el.textContent=ERR[e?.code]||e?.message||"Algo salió mal.";el.hidden=false;};
 const clearErr=()=>$("formErr").hidden=true;
@@ -146,10 +167,18 @@ $("authForm").addEventListener("submit",async e=>{
   e.preventDefault();clearErr();
   const name=$("fName").value.trim(),email=$("fEmail").value.trim(),pass=$("fPass").value;
   const b=$("primaryBtn");b.disabled=true;const t=b.textContent;b.textContent="…";
-  try{ mode==="signup"?await signUp(email,pass,name):await signIn(email,pass); }catch(err){showErr(err);}
+  try{
+    const u = mode==="signup" ? await signUp(email,pass,name) : await signIn(email,pass);
+    if(mode==="signup" && u && !u.emailVerified) sendVerifEmail(u).catch(()=>{});
+  }catch(err){showErr(err);}
   finally{b.disabled=false;b.textContent=t;}
 });
 $("googleBtn").addEventListener("click",async()=>{clearErr();try{await googleSignIn();}catch(err){showErr(err);}});
+$("verifResend").addEventListener("click", async ()=>{
+  const u=auth.currentUser; if(!u)return;
+  try{ await sendVerifEmail(u); toast("📧 Email de verificación reenviado"); }
+  catch(e){ toast("No se pudo reenviar. Espera un momento e inténtalo de nuevo."); }
+});
 $("logoutBtn").addEventListener("click",()=>signOutUser());
 
 /* ---------- session ---------- */
@@ -167,6 +196,10 @@ function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); stopFee
 
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;
+  // banner de verificación: solo usuarios email/pass con email sin verificar
+  const fbUser = auth.currentUser;
+  const needsVerif = fbUser && !fbUser.emailVerified && fbUser.providerData?.some(p=>p.providerId==="password");
+  $("verifBar").hidden = !needsVerif;
   if(unsub)unsub();
   unsub=watchMe(uid, m=>{
     if(!m)return; me=m; const total=m.totalCount||0;

@@ -83,6 +83,9 @@
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
     <div id="maintBar" class="maintbar" role="status" hidden></div>
+    <div id="verifBar" class="verifbar" role="status" hidden>
+      📧 Verifica tu email para confirmar tu cuenta. <button class="link verifbar__resend" id="verifResend">Reenviar</button>
+    </div>
     <header class="topbar">
       <div class="brand" data-view="inicio" role="button" tabindex="0" aria-label="Ir al inicio"><img class="brand__logo" src="icon-192.png" alt="" /><span class="brand__name">El Cagómetro</span></div>
       <div class="topbar__actions">
@@ -234,9 +237,13 @@
       <form id="authForm" class="authform" autocomplete="on">
         <input class="field" id="fName" type="text" placeholder="Tu nombre" autocomplete="name" />
         <input class="field" id="fEmail" type="email" placeholder="Email" autocomplete="email" required />
-        <input class="field" id="fPass" type="password" placeholder="Contraseña" autocomplete="current-password" required minlength="6" />
+        <div class="field-wrap">
+          <input class="field" id="fPass" type="password" placeholder="Contraseña" autocomplete="current-password" required minlength="6" />
+          <button class="field-eye" id="eyeBtn" type="button" aria-label="Mostrar contraseña">👁</button>
+        </div>
         <p class="formerr" id="formErr" hidden></p>
         <button class="gate__btn" id="primaryBtn" type="submit">Crear cuenta</button>
+        <button class="link gate__forgot" id="forgotBtn" type="button" hidden>¿Olvidaste tu contraseña?</button>
       </form>
 
       <button class="btn-google" id="googleBtn"><img class="btn-google__logo" src="google-g.webp" alt="" /> Continuar con Google</button>

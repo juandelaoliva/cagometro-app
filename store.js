@@ -8,7 +8,8 @@
 import { auth, db } from "./firebase.js";
 import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
-  GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile
+  GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile,
+  sendEmailVerification, sendPasswordResetEmail,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
@@ -26,6 +27,8 @@ export const colorForUid = uid => `hsl(${[...(uid||"x")].reduce((a,c)=>a+c.charC
 /* ---------- auth ---------- */
 export const onUser = cb => onAuthStateChanged(auth, cb);
 export const signOutUser = () => signOut(auth);
+export const sendVerifEmail = user => sendEmailVerification(user);
+export const resetPassword = email => sendPasswordResetEmail(auth, email);
 
 export async function signUp(email, password, displayName){
   const { user } = await createUserWithEmailAndPassword(auth, email, password);

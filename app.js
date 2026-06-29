@@ -1051,21 +1051,24 @@ function renderStats(){
   const total=items.length;
   const dayCount={}; for(const c of items){ const p=tzParts(c.ts,c.tz); const k=`${p.year}-${p.month}-${p.day}`; dayCount[k]=(dayCount[k]||0)+1; }
   const bestDay=Math.max(0,...Object.values(dayCount),0);
-  const activeDays=Object.keys(dayCount).length;
-  const avg=activeDays?(total/activeDays).toFixed(1):"0";
   const curStreak = me?.currentStreak || 0;
   const bestStreak = me?.longestStreak || 0;
+  // media total: cacas históricas ÷ días de calendario desde la primera caca (días en blanco incluidos)
   const firstTs = me?.firstCacaTs || 0;
   const daysSinceStart = firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 0;
   const lifeAvg = (daysSinceStart && (me?.lifetimeCount||0)) ? ((me.lifetimeCount/daysSinceStart).toFixed(2)) : "—";
+  // media este mes: cacas del mes actual ÷ días transcurridos del mes
+  const _now=new Date(), _cm=_now.getMonth(), _cy=_now.getFullYear();
+  const thisMonthCount=(me?.countsByMonth||{})[`${_cy}_${_cm}`]||0;
+  const daysElapsedMonth=_now.getDate();
+  const monthAvg=(thisMonthCount/daysElapsedMonth).toFixed(2);
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?"total histórico":statsScope}</span></div>
     <div class="stat"><b>${bestDay}</b><span>mejor día</span></div>
-    <div class="stat"><b>${avg}</b><span>media/día activo</span></div>
-    <div class="stat"><b>${activeDays}</b><span>días con caca</span></div>
+    <div class="stat"><b>${lifeAvg}</b><span>media/día total</span></div>
+    <div class="stat"><b>${monthAvg}</b><span>media/día este mes</span></div>
     <div class="stat"><b>${curStreak} 🔥</b><span>racha actual</span></div>
-    <div class="stat"><b>${bestStreak}</b><span>récord de racha</span></div>
-    <div class="stat"><b>${lifeAvg}</b><span>media/día histórica</span></div>`;
+    <div class="stat"><b>${bestStreak}</b><span>récord de racha</span></div>`;
   if(statsScope==="all"){
     $("chartTitle").textContent="Por año";
     const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }

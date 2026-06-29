@@ -99,7 +99,7 @@
       <section class="view is-active" id="view-inicio" data-view="inicio">
         <section class="hero">
           <div class="hero__top"><span class="hero__eyebrow">Tu marcador</span><span class="hero__name" id="meName">—</span></div>
-          <div class="counter"><div class="counter__num" id="meCount">0</div><div class="counter__unit"><span data-i18n="hero.unit">cacas</span><br/><span data-i18n="hero.unit.sub">este año</span></div></div>
+          <div class="counter"><div class="counter__num" id="meCount">0</div><div class="counter__unit" id="counterUnit">cacas<br/><span>este año</span></div></div>
           <div class="progress"><div class="progress__bar"><i id="meProgressFill" style="width:0%"></i></div><div class="progress__label" id="meProgressLabel">—</div></div>
           <div class="addrow">
             <button class="addbtn" id="addBtn"><span class="addbtn__plus">+1</span><span class="addbtn__poo">💩</span><span class="addbtn__label" data-i18n="addbtn.label">Sumar caca</span></button>
@@ -259,10 +259,10 @@
   <!-- ───────── Menú de acciones (⋯) ───────── -->
   <div class="sheet" id="menuSheet" hidden>
     <div class="sheet__panel sheet__panel--menu">
-      <button class="menu-item" id="miLate"><span>💩</span> <span data-i18n="menu.late">Caca olvidada</span></button>
-      <button class="menu-item" id="miGeo"><span>📍</span> <span data-i18n="menu.geo">Sumar con ubicación</span></button>
-      <button class="menu-item" id="miStats"><span>📊</span> <span data-i18n="menu.stats">Ver estadísticas</span></button>
-      <button class="menu-item" id="miUndo"><span>↩︎</span> <span data-i18n="menu.undo">Deshacer última (−1)</span></button>
+      <button class="menu-item" id="miLate"><span>💩</span> <b data-i18n="menu.late">Caca olvidada</b></button>
+      <button class="menu-item" id="miGeo"><span>📍</span> <b data-i18n="menu.geo">Sumar con ubicación</b></button>
+      <button class="menu-item" id="miStats"><span>📊</span> <b data-i18n="menu.stats">Ver estadísticas</b></button>
+      <button class="menu-item" id="miUndo"><span>↩︎</span> <b data-i18n="menu.undo">Deshacer última (−1)</b></button>
       <button class="menu-item menu-item--cancel" id="miCancel" data-i18n="menu.cancel">Cancelar</button>
     </div>
   </div>

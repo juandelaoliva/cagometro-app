@@ -1376,6 +1376,11 @@ function applyLang(){
     const key=el.dataset.i18n, attr=el.dataset.i18nAttr, val=t(key);
     if(attr) el.setAttribute(attr,val); else el.textContent=val;
   });
+  // elementos con estructura HTML interna (no pueden usar textContent)
+  const cu=$("counterUnit");
+  if(cu) cu.innerHTML=`${t('hero.unit')}<br/><span>${t('hero.unit.sub')}</span>`;
+  const ey=document.querySelector(".hero__eyebrow");
+  if(ey) ey.textContent=t('hero.eyebrow');
   document.documentElement.lang=getLang();
   // re-run dynamic painters if already mounted
   if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); }

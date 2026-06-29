@@ -1104,6 +1104,51 @@ document.addEventListener("click", e=>{
   const sheet=x.closest(".sheet"); if(sheet) sheet.hidden=true;
 });
 
+/* ---------- bottom sheets: bloquear scroll del fondo + arrastrar para cerrar ---------- */
+(function initSheetGestures(){
+  const lockEls=[...document.querySelectorAll(".sheet"), document.getElementById("mapSheet")].filter(Boolean);
+  const syncLock=()=>document.body.classList.toggle("sheet-open", lockEls.some(s=>!s.hidden));
+  const mo=new MutationObserver(syncLock);
+  lockEls.forEach(s=>mo.observe(s,{attributes:true,attributeFilter:["hidden"]}));
+  syncLock();
+
+  const CLOSE_DY=90, FLICK_V=0.55;   // px y px/ms para cerrar
+  document.querySelectorAll(".sheet").forEach(sheet=>{
+    const panel=sheet.querySelector(".sheet__panel"); if(!panel) return;
+    let startY=0, prevY=0, prevT=0, dy=0, vy=0, dragging=false, canDrag=false;
+    panel.addEventListener("touchstart", e=>{
+      if(e.touches.length!==1 || e.target.closest("input,textarea,select,.leaflet-container")){ canDrag=false; return; }
+      startY=prevY=e.touches[0].clientY; prevT=Date.now(); dy=0; vy=0; dragging=false;
+      canDrag = panel.scrollTop<=0;   // solo si el contenido ya está arriba del todo
+    }, {passive:true});
+    panel.addEventListener("touchmove", e=>{
+      if(!canDrag || e.touches.length!==1) return;
+      const y=e.touches[0].clientY, t=Date.now();
+      dy=y-startY; if(t>prevT) vy=(y-prevY)/(t-prevT); prevY=y; prevT=t;
+      if(dy>0){
+        if(!dragging && dy>8){ dragging=true; panel.style.transition="none"; }
+        if(dragging){ e.preventDefault(); panel.style.transform=`translateY(${dy}px)`; panel.style.opacity=String(Math.max(.4,1-dy/600)); }
+      } else if(dragging){ panel.style.transform="translateY(0)"; panel.style.opacity="1"; }
+    }, {passive:false});
+    const end=()=>{
+      if(!dragging){ canDrag=false; return; }
+      dragging=false; canDrag=false;
+      const shouldClose = dy>CLOSE_DY || (dy>30 && vy>FLICK_V);
+      panel.style.transition="transform .25s cubic-bezier(.2,.7,.2,1), opacity .25s";
+      if(shouldClose){
+        panel.style.transform="translateY(100%)"; panel.style.opacity="0";
+        const done=()=>{ panel.removeEventListener("transitionend",done); sheet.hidden=true; panel.style.transition=panel.style.transform=panel.style.opacity=""; };
+        panel.addEventListener("transitionend",done); setTimeout(done,320);
+      } else {
+        panel.style.transform=""; panel.style.opacity="";
+        setTimeout(()=>{ panel.style.transition=""; }, 260);
+      }
+    };
+    panel.addEventListener("touchend", end, {passive:true});
+    panel.addEventListener("touchcancel", end, {passive:true});
+  });
+})();
+
 /* ---------- pull-to-refresh (solo PWA instalada; en web ya lo hace el navegador) ---------- */
 const _standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
 if(_standalone){

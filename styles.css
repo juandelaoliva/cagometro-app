@@ -467,11 +467,17 @@ ol,ul{list-style:none}
 .addbtn__more:active{transform:translateY(3px) scale(.97)}
 
 .sheet{position:fixed;inset:0;z-index:95;display:flex;align-items:flex-end;justify-content:center;
-  background:rgba(36,27,18,.42);backdrop-filter:blur(2px);animation:fadeIn .2s both}
+  background:rgba(36,27,18,.42);backdrop-filter:blur(2px);animation:fadeIn .2s both;overscroll-behavior:contain}
 .sheet__panel{position:relative;width:min(var(--maxw),100%);background:var(--card);border-radius:24px 24px 0 0;
-  padding:24px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:var(--shadow-lg);
+  padding:30px 20px calc(24px + env(safe-area-inset-bottom));box-shadow:var(--shadow-lg);
+  max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;
   animation:sheetUp .3s cubic-bezier(.2,.7,.2,1) both}
 @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+/* tirador (afford. de arrastrar para cerrar) */
+.sheet__panel::before{content:"";position:absolute;top:9px;left:50%;transform:translateX(-50%);
+  width:40px;height:4px;border-radius:999px;background:var(--line);pointer-events:none}
+/* bloquea el scroll del fondo mientras hay una hoja abierta */
+body.sheet-open{overflow:hidden}
 /* ✕ de cierre en la esquina superior de cada hoja */
 .sheet__x{position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;
   display:grid;place-items:center;font-size:14px;font-weight:700;color:var(--ink-soft);

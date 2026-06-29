@@ -258,21 +258,26 @@ function openSettings(){
   $("setHaptics").checked = hapticsOn;
   $("setShareMap").checked = me.shareMap !== false;
   $("adminBtn").hidden = uid!==ADMIN_UID;
-  const curLang=getLang();
-  $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===curLang));
+  _syncLangBtns(getLang());
   $("settingsSheet").hidden=false;
 }
 $("settingsBtn").addEventListener("click", openSettings);
 $("pcardSettingsBtn").addEventListener("click", openSettings);
 $("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
-$("langSel").addEventListener("click", e=>{
+function _syncLangBtns(lang){
+  $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
+  $("gateLangSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
+}
+function _onLangClick(e){
   const b=e.target.closest("[data-lang]"); if(!b)return;
   const lang=b.dataset.lang;
   setLang(lang);
-  $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
+  _syncLangBtns(lang);
   applyLang(); applyMode();
   toast(t('toast.lang',{lang:lang.toUpperCase()}));
-});
+}
+$("langSel").addEventListener("click", _onLangClick);
+$("gateLangSel").addEventListener("click", _onLangClick);
 
 /* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */
 async function renderAdminUsers(){
@@ -1391,6 +1396,9 @@ function applyLang(){
   const shl=$("setHapticsLabel");
   if(shl) shl.innerHTML=`${t('settings.haptics.label')} <small>(${t('settings.haptics.sublabel')})</small>`;
   document.documentElement.lang=getLang();
+  // sync flag buttons in both selectors
+  const _l=getLang();
+  document.querySelectorAll("#langSel button,#gateLangSel button").forEach(x=>x.classList.toggle("on",x.dataset.lang===_l));
   // re-run dynamic painters if already mounted
   if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); }
 }

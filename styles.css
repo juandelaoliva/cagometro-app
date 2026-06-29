@@ -324,7 +324,10 @@ ol,ul{list-style:none}
     radial-gradient(120% 90% at -10% 0%, #FBEAD2 0,transparent 50%),
     var(--paper);}
 .gate__card{max-width:360px;text-align:center;background:var(--card);border:1px solid var(--line);
-  border-radius:28px;padding:34px 26px;box-shadow:var(--shadow-lg);animation:viewIn .6s both}
+  border-radius:28px;padding:34px 26px;box-shadow:var(--shadow-lg);animation:viewIn .6s both;position:relative}
+.gate__langsel{position:absolute;top:14px;right:14px;display:flex;gap:3px;background:var(--paper-2);border:1px solid var(--line-2);border-radius:999px;padding:3px}
+.gate__langbtn{border:0;background:transparent;border-radius:999px;padding:5px 8px;font-size:18px;line-height:1;cursor:pointer;opacity:.45;transition:opacity .15s,background .15s}
+.gate__langbtn.on{background:var(--card);opacity:1;box-shadow:var(--shadow)}
 .gate__mark{font-size:54px;filter:drop-shadow(0 6px 8px rgba(110,63,28,.25));animation:bob 3s ease-in-out infinite}
 .gate__logo{width:88px;height:88px;border-radius:22px;display:block;margin:0 auto;box-shadow:0 8px 18px rgba(110,63,28,.25);animation:bob 3s ease-in-out infinite}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}

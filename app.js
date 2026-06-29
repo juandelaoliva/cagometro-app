@@ -129,7 +129,7 @@ async function processInvite(){
 }
 
 /* ---------- auth gate ---------- */
-let mode="signup";
+let mode="signin";
 function applyMode(){
   const s=mode==="signup";
   $("primaryBtn").textContent=s?"Crear cuenta":"Entrar";

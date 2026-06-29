@@ -568,6 +568,18 @@ body.sheet-open{overflow:hidden}
 .toggle__txt{font-size:13.5px;color:var(--ink-soft);font-weight:600}
 .set-actions{margin-top:22px}
 .ps-records{font-size:13px;color:var(--ink-soft);font-weight:600;margin:2px 0 14px}
+/* bloque de comparación yo vs amigo */
+.cmp-block{background:var(--paper-2);border:1px solid var(--line-2);border-radius:18px;padding:14px 16px;margin-bottom:16px}
+.cmp-names{display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
+.cmp-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;padding:5px 0;border-top:1px solid var(--line-2)}
+.cmp-row:first-of-type{border-top:none}
+.cmp-lbl{grid-column:1/-1;font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:2px;display:none}
+.cmp-row{grid-template-columns:1fr 28px 1fr}
+.cmp-val{font-family:var(--font-d);font-weight:900;font-size:22px;color:var(--ink-faint);text-align:right}
+.cmp-val:last-child{text-align:left}
+.cmp-val.cmp-win{color:var(--brand)}
+.cmp-sep{text-align:center;font-size:11px;font-weight:700;color:var(--ink-faint);opacity:.6}
+.cmp-meta{font-size:11px;font-weight:600;color:var(--ink-faint);display:block;margin-top:1px}
 .ps-actions{margin-top:16px}
 .ps-actions .btn-ghost{margin-top:0}
 /* chips de grupos (perfil propio): en fila y con scroll horizontal */

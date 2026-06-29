@@ -342,7 +342,7 @@ async function loadActivity(mode){
     const mine = await myActivity(uid,120);
     const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
     for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
-    let streak=0,cur=startOfToday(); if(!days.has(cur))cur-=DAY; while(days.has(cur)){streak++;cur-=DAY;}
+    const streak = me?.currentStreak ?? 0;   // denormalizado en el user doc; evita computar desde cacas
     _chips={today,week,streak,days};
     $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
     // grafo de audiencia (amigos+grupos): cambia poco → se relee como mucho cada 5 min
@@ -690,6 +690,25 @@ async function openPersonSheet(entry, opts={}){
     <div class="stat"><b>${monthly[cm]}</b><span>este mes</span></div>
     <div class="stat"><b>${year?PM[bestIdx]:"—"}</b><span>mejor mes</span></div>
     <div class="stat"><b>${life}</b><span>en total</span></div>`;
+  // bloque de comparación yo vs este usuario (0 lecturas extra: todo en memoria / ya leído)
+  const cmpEl = $("psCompare");
+  if(me && cmpEl){
+    const myMon = (me.countsByMonth||{})[`${cy}_${cm}`]||0;
+    const myYear = me.totalCount||0;
+    const myStreak = me.currentStreak||0;
+    const theirStreak = u?.currentStreak||0;
+    const dayOfYear = Math.max(1, Math.round((Date.now()-new Date(cy,0,1).getTime())/86400000));
+    const myAvg = (myYear/dayOfYear).toFixed(1), theirAvg = (year/dayOfYear).toFixed(1);
+    const myName = (me.displayName||"Tú").split(" ")[0], theirName = (entry.name||"?").split(" ")[0];
+    const w=(a,b)=>a>b?"cmp-win":"", wt=(a,b)=>a>b?"cmp-win":"";
+    cmpEl.hidden=false;
+    cmpEl.innerHTML=`
+      <div class="cmp-names"><span>${myName}</span><span>${theirName}</span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(myMon,monthly[cm])}">${myMon}<span class="cmp-meta">este mes</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(monthly[cm],myMon)}">${monthly[cm]}<span class="cmp-meta">este mes</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(myYear,year)}">${myYear}<span class="cmp-meta">este año</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(year,myYear)}">${year}<span class="cmp-meta">este año</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(+myAvg,+theirAvg)}">${myAvg}<span class="cmp-meta">media/día</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(+theirAvg,+myAvg)}">${theirAvg}<span class="cmp-meta">media/día</span></span></div>
+      <div class="cmp-row"><span class="cmp-val ${w(myStreak,theirStreak)}">${myStreak} 🔥<span class="cmp-meta">racha</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(theirStreak,myStreak)}">${theirStreak} 🔥<span class="cmp-meta">racha</span></span></div>`;
+  } else if(cmpEl){ cmpEl.hidden=true; }
   $("psChart").innerHTML=barsHTML(monthly, PM);
   // grupos en común: caché del viewer (sin leer)
   const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
@@ -1034,11 +1053,19 @@ function renderStats(){
   const bestDay=Math.max(0,...Object.values(dayCount),0);
   const activeDays=Object.keys(dayCount).length;
   const avg=activeDays?(total/activeDays).toFixed(1):"0";
+  const curStreak = me?.currentStreak || 0;
+  const bestStreak = me?.longestStreak || 0;
+  const firstTs = me?.firstCacaTs || 0;
+  const daysSinceStart = firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 0;
+  const lifeAvg = (daysSinceStart && (me?.lifetimeCount||0)) ? ((me.lifetimeCount/daysSinceStart).toFixed(2)) : "—";
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?"total histórico":statsScope}</span></div>
     <div class="stat"><b>${bestDay}</b><span>mejor día</span></div>
     <div class="stat"><b>${avg}</b><span>media/día activo</span></div>
-    <div class="stat"><b>${activeDays}</b><span>días con caca</span></div>`;
+    <div class="stat"><b>${activeDays}</b><span>días con caca</span></div>
+    <div class="stat"><b>${curStreak} 🔥</b><span>racha actual</span></div>
+    <div class="stat"><b>${bestStreak}</b><span>récord de racha</span></div>
+    <div class="stat"><b>${lifeAvg}</b><span>media/día histórica</span></div>`;
   if(statsScope==="all"){
     $("chartTitle").textContent="Por año";
     const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }

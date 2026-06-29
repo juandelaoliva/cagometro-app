@@ -58,6 +58,9 @@ export async function ensureProfile(user, displayName){
       lifetimeCount: 0,
       countsByYear: {},
       countsByMonth: {},        // denormalizado por mes ("AÑO_MES") para stats de grupo sin leer cacas
+      currentStreak: 0,         // días consecutivos con caca (actualizado en addCaca)
+      longestStreak: 0,         // récord histórico de racha
+      firstCacaTs: 0,           // ts de la primera caca (para media/día histórica)
       privacy: "friends_groups",
       locationMode: "never",    // never | choose | always
       tz: tz(),                 // zona horaria (para recordatorios inteligentes)
@@ -83,11 +86,25 @@ export async function addCaca(uid, loc, act){
   await runTransaction(db, async tx => {
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
-    const n = (us.data()?.totalCount || 0) + 1;
+    const data = us.data() || {};
+    const n = (data.totalCount || 0) + 1;
     const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
     tx.set(doc(collection(db,"users",uid,"cacas")), cdata);
-    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1), lastCacaTs:ts, tz:tz() });
+    // streak: consecutive-day logic
+    const lastTs = data.lastCacaTs || 0;
+    const d0 = new Date(ts); d0.setHours(0,0,0,0); const today0 = d0.getTime();
+    const lastDay = new Date(lastTs); lastDay.setHours(0,0,0,0); const lastDay0 = lastDay.getTime();
+    const cur = data.currentStreak || 0;
+    const newStreak = lastTs === 0 ? 1 : lastDay0 === today0 ? cur : lastDay0 === today0 - 86400000 ? cur + 1 : 1;
+    tx.update(uref, {
+      totalCount: increment(1), lifetimeCount: increment(1),
+      [`countsByYear.${y}`]: increment(1), [`countsByMonth.${monthKey(ts)}`]: increment(1),
+      lastCacaTs: ts, tz: tz(),
+      currentStreak: newStreak,
+      longestStreak: Math.max(data.longestStreak || 0, newStreak),
+      ...(data.firstCacaTs ? {} : { firstCacaTs: ts }),
+    });
     if (act) tx.set(doc(collection(db,"activity")), {
       uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n,
       audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
@@ -140,12 +157,15 @@ export async function addCacaAt(uid, ts, act){
   await runTransaction(db, async tx => {
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
-    const cur = (y === yearNow()) ? (us.data()?.totalCount || 0) : (us.data()?.countsByYear?.[y] || 0);
+    const data = us.data() || {};
+    const cur = (y === yearNow()) ? (data.totalCount || 0) : (data.countsByYear?.[y] || 0);
     const n = cur + 1;
     tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
     const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
-    upd.lastCacaTs = Math.max(us.data()?.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
+    upd.lastCacaTs = Math.max(data.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
+    // firstCacaTs: apunta a la caca más antigua conocida
+    if (!data.firstCacaTs || ts < data.firstCacaTs) upd.firstCacaTs = ts;
     tx.update(uref, upd);
     // El evento del feed se ordena por AHORA (sale arriba), pero recuerda la hora
     // indicada en `forTs` para mostrarla. La caca sí conserva su `ts` pasado.
@@ -190,7 +210,7 @@ export async function resetCacas(uid, act){
     const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
     if (snap.size < 400) break;
   }
-  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, countsByMonth:{}, lastCacaTs:0 });
+  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, countsByMonth:{}, lastCacaTs:0, currentStreak:0, longestStreak:0, firstCacaTs:0 });
   if (act) writeActivity(uid, { kind:"reset", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
 }

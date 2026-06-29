@@ -697,8 +697,10 @@ async function openPersonSheet(entry, opts={}){
     const myYear = me.totalCount||0;
     const myStreak = me.currentStreak||0;
     const theirStreak = u?.currentStreak||0;
-    const dayOfYear = Math.max(1, Math.round((Date.now()-new Date(cy,0,1).getTime())/86400000));
-    const myAvg = (myYear/dayOfYear).toFixed(1), theirAvg = (year/dayOfYear).toFixed(1);
+    // media/día basada en días desde la PRIMERA caca de cada uno (no desde ene-1)
+    const _sinceFirst = firstTs => firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 1;
+    const myAvg = ((me.lifetimeCount||myYear) / _sinceFirst(me.firstCacaTs||0)).toFixed(1);
+    const theirAvg = ((u?.lifetimeCount||year) / _sinceFirst(u?.firstCacaTs||0)).toFixed(1);
     const myName = (me.displayName||"Tú").split(" ")[0], theirName = (entry.name||"?").split(" ")[0];
     const w=(a,b)=>a>b?"cmp-win":"", wt=(a,b)=>a>b?"cmp-win":"";
     cmpEl.hidden=false;

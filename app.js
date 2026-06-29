@@ -1127,19 +1127,27 @@ function renderStats(){
   const bestDay=Math.max(0,...Object.values(dayCount),0);
   const curStreak = me?.currentStreak || 0;
   const bestStreak = me?.longestStreak || 0;
-  // media total: cacas históricas ÷ días de calendario desde la primera caca (días en blanco incluidos)
-  const firstTs = me?.firstCacaTs || 0;
-  const daysSinceStart = firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 0;
-  const lifeAvg = (daysSinceStart && (me?.lifetimeCount||0)) ? ((me.lifetimeCount/daysSinceStart).toFixed(2)) : "—";
-  // media este mes: cacas del mes actual ÷ días transcurridos del mes
   const _now=new Date(), _cm=_now.getMonth(), _cy=_now.getFullYear();
+  // media este año: cacas del año actual ÷ días transcurridos desde el 1 ene (o desde la primera caca si fue este año)
+  const firstTs = me?.firstCacaTs || 0;
+  const jan1 = new Date(_cy, 0, 1).getTime();
+  const yearStart = firstTs ? Math.max(firstTs, jan1) : jan1;
+  const thisYearCount = statsCacas.filter(c=>tzParts(c.ts,c.tz).year===_cy).length;
+  const daysElapsedYear = Math.max(1, Math.round((Date.now()-yearStart)/86400000));
+  const yearAvg = thisYearCount ? (thisYearCount/daysElapsedYear).toFixed(2) : "—";
+  // media histórica: solo si hay datos de años anteriores
+  const hasMultiYear = firstTs && new Date(firstTs).getFullYear() < _cy;
+  const daysSinceStart = firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 0;
+  const lifeAvg = (hasMultiYear && (me?.lifetimeCount||0)) ? ((me.lifetimeCount/daysSinceStart).toFixed(2)) : null;
+  // media este mes: cacas del mes actual ÷ días transcurridos del mes
   const thisMonthCount=(me?.countsByMonth||{})[`${_cy}_${_cm}`]||0;
   const daysElapsedMonth=_now.getDate();
   const monthAvg=(thisMonthCount/daysElapsedMonth).toFixed(2);
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?t('perfil.stat.total_historical'):statsScope}</span></div>
     <div class="stat"><b>${bestDay}</b><span>${t('perfil.stat.bestday')}</span></div>
-    <div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>
+    <div class="stat"><b>${yearAvg}</b><span>${t('perfil.stat.avg_year')}</span></div>
+    ${lifeAvg!==null?`<div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>`:''}
     <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
     <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
     <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;

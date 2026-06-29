@@ -528,8 +528,8 @@ body.sheet-open{overflow:hidden}
 .feed__item--sync{background:linear-gradient(100deg,var(--mint-soft),rgba(205,235,217,0) 75%);border-radius:14px;padding-left:8px;padding-right:8px}
 .feed__item--sync .feed__line{font-weight:700}
 /* selector de reacciones */
-.rxpick{display:flex;justify-content:space-around;gap:6px;padding:8px 4px 4px}
-.rxpick button{font-size:34px;line-height:1;padding:8px;border-radius:14px;transition:.12s;background:transparent}
+.rxpick{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:8px 4px 4px}
+.rxpick button{font-size:34px;line-height:1;padding:10px 6px;border-radius:14px;transition:.12s;background:transparent;text-align:center}
 .rxpick button:active{transform:scale(1.25)}
 .rxpick button.rxpick--on{background:var(--gold-soft);outline:2px solid var(--gold)}
 /* tooltip de quién reaccionó (long-press) */

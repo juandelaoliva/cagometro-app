@@ -20,7 +20,7 @@ window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el 
 // se puede leer Firestore (p.ej. cuota de lecturas agotada). Mientras esté en true,
 // el banner se muestra siempre. Cuando esté en false, manda el toggle del panel
 // admin (config/app.maintenance), que se lee al arrancar.
-const MAINT_FORCE = true;
+const MAINT_FORCE = false;
 const MAINT_MSG_DEFAULT = "🛠️ <b>El Cagómetro está en mantenimiento.</b> Volverá entre las 9:00 y las 10:00. Cuando vuelva, usa «Caca olvidada» para registrar las cacas de este rato con su hora.";
 let maintOn = false;
 function applyMaintenance(on, msg){

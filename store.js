@@ -18,6 +18,9 @@ import {
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
 const yearNow = () => new Date().getFullYear();
+// clave del contador mensual denormalizado: "AÑO_MESINDEX" (mes 0–11), p.ej. "2026_5" = junio 2026.
+// Permite pintar la gráfica/ranking del grupo SIN leer las cacas de cada miembro (ahorro de cuota).
+const monthKey = ts => { const d = new Date(ts); return `${d.getFullYear()}_${d.getMonth()}`; };
 export const colorForUid = uid => `hsl(${[...(uid||"x")].reduce((a,c)=>a+c.charCodeAt(0),0)*47 % 360} 45% 38%)`;
 
 /* ---------- auth ---------- */
@@ -54,6 +57,7 @@ export async function ensureProfile(user, displayName){
       totalCount: 0,            // current year
       lifetimeCount: 0,
       countsByYear: {},
+      countsByMonth: {},        // denormalizado por mes ("AÑO_MES") para stats de grupo sin leer cacas
       privacy: "friends_groups",
       locationMode: "never",    // never | choose | always
       tz: tz(),                 // zona horaria (para recordatorios inteligentes)
@@ -83,7 +87,7 @@ export async function addCaca(uid, loc, act){
     const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
     tx.set(doc(collection(db,"users",uid,"cacas")), cdata);
-    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), lastCacaTs:ts, tz:tz() });
+    tx.update(uref, { totalCount:increment(1), lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1), lastCacaTs:ts, tz:tz() });
     if (act) tx.set(doc(collection(db,"activity")), {
       uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n,
       audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
@@ -133,7 +137,7 @@ export async function addCacaAt(uid, ts, act){
     const cur = (y === yearNow()) ? (us.data()?.totalCount || 0) : (us.data()?.countsByYear?.[y] || 0);
     const n = cur + 1;
     tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
-    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), tz:tz() };
+    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
     upd.lastCacaTs = Math.max(us.data()?.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
     tx.update(uref, upd);
@@ -153,7 +157,7 @@ export async function removeCaca(uid, act){
   const last = snap.docs[0];
   const y = new Date(last.data().ts).getFullYear();
   await deleteDoc(last.ref);
-  const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1) };
+  const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(last.data().ts)}`]:increment(-1) };
   if (y === yearNow()) upd.totalCount = increment(-1);
   await updateDoc(doc(db,"users",uid), upd);
   if (act) writeActivity(uid, { kind:"undo", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
@@ -178,7 +182,7 @@ export async function resetCacas(uid, act){
     const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
     if (snap.size < 400) break;
   }
-  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, lastCacaTs:0 });
+  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, countsByMonth:{}, lastCacaTs:0 });
   if (act) writeActivity(uid, { kind:"reset", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
 }
@@ -329,6 +333,15 @@ export async function groupFeed(group, perMember = 4){
     return snap.docs.map(d => ({ ...d.data(), name:u.displayName, color:u.color || colorForUid(m) }));
   }));
   return chunks.flat().sort((a,b)=>b.ts-a.ts).slice(0,25);
+}
+// cacas recientes de cada miembro desde `sinceTs` (para el ranking "Semana", bajo demanda).
+// Acotado con limit() para no quemar cuota: leemos como mucho las N últimas por miembro.
+export async function groupCacasSince(group, sinceTs, perMember = 60){
+  const chunks = await Promise.all((group.members||[]).map(async m => {
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), orderBy("ts","desc"), limit(perMember)));
+    return snap.docs.map(d => ({ uid:m, ts:d.data().ts })).filter(c => c.ts >= sinceTs);
+  }));
+  return chunks.flat();
 }
 
 /* ---------- combined home feed (you + friends + groups) ---------- */

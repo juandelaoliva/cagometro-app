@@ -7,7 +7,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminWipeUser,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas, groupCacasSince,
   getUser, colorForUid
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
@@ -860,13 +860,24 @@ async function openGroup(group){
   det.hidden=false;
   document.querySelectorAll("#groupList li[data-gid]").forEach(x=>x.classList.toggle("is-open", x.dataset.gid===group.id));
   $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
-  const [board,yc]=await Promise.all([groupLeaderboard(group), groupYearCacas(group)]);
-  // conteos por periodo (de yc ya cargado → sin lecturas extra). Semana = lunes 00:00 local.
-  const now=new Date(), curMonth=now.getMonth();
-  const ws=new Date(now); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7)); const weekStart=ws.getTime();
-  const monthByU={}, weekByU={};
-  for(const c of yc){ if(tzParts(c.ts,c.tz).month-1===curMonth) monthByU[c.uid]=(monthByU[c.uid]||0)+1; if(c.ts>=weekStart) weekByU[c.uid]=(weekByU[c.uid]||0)+1; }
-  const metricOf=p => p==='year'?(r=>r.totalCount||0) : p==='month'?(r=>monthByU[r.id]||0) : (r=>weekByU[r.id]||0);
+  const board=await groupLeaderboard(group);
+  const year=new Date().getFullYear(), curMonth=new Date().getMonth();
+  const ws=new Date(); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7)); const weekStart=ws.getTime();
+
+  // meses por miembro: desde el contador denormalizado `countsByMonth` (sin leer cacas).
+  // Fallback: si algún miembro todavía no está backfilleado, leemos las cacas del año una vez.
+  const perU={}; board.forEach(r=>perU[r.id]={ name:r.displayName||"?", months:new Array(12).fill(0), total:0 });
+  const allBackfilled=board.every(r=>r.countsByMonth);
+  if(allBackfilled){
+    board.forEach(r=>{ for(let i=0;i<12;i++){ const v=r.countsByMonth?.[`${year}_${i}`]||0; perU[r.id].months[i]=v; perU[r.id].total+=v; } });
+  }else{
+    const yc=await groupYearCacas(group);   // solo hasta que el backfill rellene countsByMonth
+    for(const c of yc){ const u=perU[c.uid]; if(!u)continue; u.months[tzParts(c.ts,c.tz).month-1]++; u.total++; }
+  }
+
+  // ranking por periodo. Mes/Año salen de perU/board (cero lecturas extra). Semana se carga bajo demanda.
+  let weekByU=null;
+  const metricOf=p => p==='year'?(r=>r.totalCount||0) : p==='month'?(r=>perU[r.id]?.months[curMonth]||0) : (r=>weekByU?.[r.id]||0);
   function renderRank(period){
     const m=metricOf(period);
     const ranked=[...board].sort((a,b)=>m(b)-m(a));
@@ -875,25 +886,33 @@ async function openGroup(group){
       || `<p class="notif-empty">Sin cacas en este periodo.</p>`;
   }
   const seg=$("rankPeriod");
-  seg.querySelectorAll("button").forEach(b=>{ b.classList.toggle("on",b.dataset.period==="month"); b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===b)); renderRank(b.dataset.period); }; });
-  renderRank("month");
-  // estadísticas del grupo (este año)
-  const byMonth=new Array(12).fill(0); for(const c of yc){ byMonth[tzParts(c.ts,c.tz).month-1]++; }
-  const total=yc.length, members=(group.members||[]).length, bestIdx=byMonth.indexOf(Math.max(...byMonth,0));
+  async function selectPeriod(period, btn){
+    seg.querySelectorAll("button").forEach(x=>x.classList.toggle("on",x===btn));
+    if(period==="week" && !weekByU){
+      $("groupRank").innerHTML=`<p class="notif-empty">Cargando…</p>`;
+      try{ weekByU={}; const cs=await groupCacasSince(group, weekStart); for(const c of cs) weekByU[c.uid]=(weekByU[c.uid]||0)+1; }
+      catch(e){ weekByU={}; console.error("week:",e); }
+    }
+    renderRank(period);
+  }
+  seg.querySelectorAll("button").forEach(b=>{ b.onclick=()=>selectPeriod(b.dataset.period,b); });
+  selectPeriod("month", seg.querySelector('[data-period="month"]'));
+
+  // estadísticas del grupo (este año) — desde perU, sin lecturas extra.
+  const byMonth=new Array(12).fill(0); let total=0;
+  for(const id in perU){ perU[id].months.forEach((v,i)=>byMonth[i]+=v); total+=perU[id].total; }
+  const members=(group.members||[]).length, bestIdx=byMonth.indexOf(Math.max(...byMonth,0));
   $("gStatGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>total del grupo</span></div>
     <div class="stat"><b>${members}</b><span>miembros</span></div>
     <div class="stat"><b>${total?MF[bestIdx]:"—"}</b><span>mejor mes</span></div>
     <div class="stat"><b>${members?(total/members).toFixed(1):0}</b><span>media/persona</span></div>`;
-  renderGroupStack(board, yc);
+  renderGroupStack(board.map(r=>({ uid:r.id, ...perU[r.id] })));
 }
 // barra apilada por persona, segmentada por mes (este año)
 const MONTHS_FULL=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const MONTH_COLORS=["#4E79A7","#F28E2B","#E15759","#76B7B2","#59A14F","#EDC948","#B07AA1","#FF9DA7","#9C755F","#9D7660","#86BCB6","#D37295"];
-function renderGroupStack(board, yc){
-  const byU={}; board.forEach(u=>{ byU[u.id]={ name:u.displayName||"?", months:new Array(12).fill(0), total:0 }; });
-  for(const c of yc){ const u=byU[c.uid]; if(!u)continue; u.months[tzParts(c.ts,c.tz).month-1]++; u.total++; }
-  const arr=board.map(u=>({ uid:u.id, ...byU[u.id] }));   // orden del ranking (por total desc)
+function renderGroupStack(arr){
   const max=Math.max(1,...arr.map(m=>m.total)), H=200;
   $("gStack").innerHTML = arr.map(m=>{
     let segs="";

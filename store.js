@@ -118,6 +118,12 @@ export const watchActivity = (uid, cb, n = 60, onError) =>
 // Ajustes del perfil (nickname, color, notificaciones…)
 export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 
+// ── Config global de la app (banner de mantenimiento) ─────────────────────
+// Doc único `config/app`. Lo lee cualquiera autenticado; solo el admin lo escribe.
+export const getAppConfig = async () => { try{ const s = await getDoc(doc(db,"config","app")); return s.exists() ? s.data() : null; }catch(e){ return null; } };
+export const setMaintenance = (on, message) => setDoc(doc(db,"config","app"),
+  { maintenance: !!on, ...(message != null ? { message } : {}), updatedAt: serverTimestamp() }, { merge:true });
+
 // ── Push (FCM) ──────────────────────────────────────────────────────────
 // Tokens del dispositivo en una subcolección PRIVADA (solo el dueño / el emisor admin).
 export const saveToken   = (uid, token) => setDoc(doc(db,"users",uid,"private","push"), { tokens: arrayUnion(token) }, { merge:true });

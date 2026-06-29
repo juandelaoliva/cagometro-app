@@ -6,7 +6,7 @@ import {
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
-  adminListUsers, adminWipeUser,
+  adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, homeFeed, groupYearCacas, groupCacasSince,
   getUser, colorForUid
 } from "./store.js";
@@ -14,6 +14,23 @@ import { IS_LOCAL, VAPID_KEY, getMessagingIfSupported, getToken, onMessage } fro
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
+
+// ── Modo mantenimiento ─────────────────────────────────────────────────────
+// MAINT_FORCE: aviso forzado desde el CÓDIGO, para cortes en los que ni siquiera
+// se puede leer Firestore (p.ej. cuota de lecturas agotada). Mientras esté en true,
+// el banner se muestra siempre. Cuando esté en false, manda el toggle del panel
+// admin (config/app.maintenance), que se lee al arrancar.
+const MAINT_FORCE = true;
+const MAINT_MSG_DEFAULT = "🛠️ <b>El Cagómetro está en mantenimiento.</b> Volverá entre las 9:00 y las 10:00. Cuando vuelva, usa «Caca olvidada» para registrar las cacas de este rato con su hora.";
+let maintOn = false;
+function applyMaintenance(on, msg){
+  maintOn = !!on;
+  const bar = $("maintBar");
+  if(bar){ bar.innerHTML = (msg && String(msg).trim()) ? msg : MAINT_MSG_DEFAULT; bar.hidden = !maintOn; }
+  const t = $("maintToggle"); if(t) t.checked = maintOn;
+}
+applyMaintenance(MAINT_FORCE, MAINT_MSG_DEFAULT);   // inmediato: no depende de Firestore
+if(!MAINT_FORCE){ getAppConfig().then(c=>{ if(c) applyMaintenance(!!c.maintenance, c.message); }).catch(()=>{}); }
 
 // ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
 let hapticsOn = localStorage.getItem("cago_haptics") !== "0";
@@ -217,10 +234,17 @@ async function renderAdminUsers(){
       </div>`).join("") || `<p class="notif-empty">Sin usuarios.</p>`;
   }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">No se pudo cargar (¿reglas admin publicadas?).</p>`; console.error(err); }
 }
-function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; renderAdminUsers(); }
+function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
 $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
+$("maintToggle").addEventListener("change", async e=>{
+  if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }
+  const on=e.target.checked;
+  applyMaintenance(on, MAINT_MSG_DEFAULT);                 // efecto inmediato en este dispositivo
+  try{ await setMaintenance(on, MAINT_MSG_DEFAULT); toast(on?"Mantenimiento activado":"Mantenimiento desactivado"); }
+  catch(err){ toast("No se pudo guardar el estado"); console.error(err); }
+});
 $("adminUsers").addEventListener("click", async e=>{
   const b=e.target.closest("[data-wipe]"); if(!b)return;
   const tid=b.dataset.wipe, name=b.dataset.name||"ese usuario";
@@ -667,6 +691,7 @@ $("psGroups").addEventListener("click", async e=>{
 /* ---------- +1 / −1 / corregir ---------- */
 let busy=false; const ADD_COOLDOWN=1500;   // bloqueo anti-spam del +1
 $("addBtn").addEventListener("click",async e=>{
+  if(maintOn){ haptic(8); toast("🛠️ En mantenimiento. El +1 vuelve entre las 9:00 y las 10:00."); return; }
   if(busy||!uid)return; busy=true;
   const btn=$("addBtn"),r=btn.getBoundingClientRect(); const t0=Date.now();
   btn.classList.add("flash","addbtn--cooldown");setTimeout(()=>btn.classList.remove("flash"),350);haptic(18);

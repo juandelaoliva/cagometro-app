@@ -82,6 +82,7 @@
 
   <!-- ───────── App (shown when signed in) ───────── -->
   <div id="app" class="app" hidden>
+    <div id="maintBar" class="maintbar" role="status" hidden></div>
     <header class="topbar">
       <div class="brand" data-view="inicio" role="button" tabindex="0" aria-label="Ir al inicio"><img class="brand__logo" src="icon-192.png" alt="" /><span class="brand__name">El Cagómetro</span></div>
       <div class="topbar__actions">
@@ -309,6 +310,11 @@
   <div class="sheet" id="adminSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">
       <h3 class="sheet__title">🛠️ Administración</h3>
+      <label class="toggle" style="margin-bottom:14px">
+        <input type="checkbox" id="maintToggle" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__txt">Modo mantenimiento (muestra el aviso y desactiva el +1)</span>
+      </label>
       <p class="sheet__sub">Gestión de usuarios. "Vaciar" borra todos sus datos (cacas, actividad, amistades, grupos, perfil). NO borra su cuenta de acceso.</p>
       <div id="adminUsers"></div>
       <button class="btn-ghost" id="adminClose">Cerrar</button>

@@ -74,6 +74,13 @@ function fmtWhen(ts){
   const sameDay = d.getFullYear()===n.getFullYear() && d.getMonth()===n.getMonth() && d.getDate()===n.getDate();
   return sameDay ? `${hh}:${mm}` : `${d.getDate()} ${_meses[d.getMonth()]} ${hh}:${mm}`;
 }
+// fecha+hora completa (para la hora INDICADA de una caca olvidada). Año solo si no es el actual.
+function fmtFull(ts){
+  const d=new Date(ts), n=new Date();
+  const hh=String(d.getHours()).padStart(2,"0"), mm=String(d.getMinutes()).padStart(2,"0");
+  const yr = d.getFullYear()===n.getFullYear() ? "" : ` ${d.getFullYear()}`;
+  return `${d.getDate()} ${_meses[d.getMonth()]}${yr}, ${hh}:${mm}`;
+}
 
 // Helper único de gráficos de barras. Maquetación en grid (valor · barra · etiqueta)
 // que reserva el espacio de cada fila → mismas posiciones siempre (sin saltos).
@@ -431,18 +438,22 @@ function _feedItem(c,i){
          : c.withUid===uid ? `🔗 <b>${c.name}</b> conectó tuberías contigo`
          : `🔗 <b>${c.name}</b> y <b>${c.withName}</b> conectaron tuberías`;
     syncHi=true;
+  } else if(c.late){
+    head = mine ? "Añadiste una caca olvidada 🕐" : `<b>${c.name}</b> añadió una caca olvidada 🕐`;
+    nBadge = `<b class="feed__n">${c.n}</b>`;
   } else {
     const hito = isMilestone(c.n);
     head = hito ? (mine ? `🎉 ¡Llegaste a <b>${c.n}</b> 💩!` : `🎉 <b>${c.name}</b> llegó a <b>${c.n}</b> 💩`)
                 : (mine ? "Sumaste una caca" : `<b>${c.name}</b> sumó una caca`);
     nBadge = hito ? "" : `<b class="feed__n">${c.n}</b>`;
   }
-  const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&isMilestone(c.n);
+  const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&!c.late&&isMilestone(c.n);
   const cls = `feed__item${isHito?' feed__item--hito':''}${syncHi?' feed__item--sync':''}${sys?' feed__item--sys':''}`;
   return `<li class="${cls}" data-i="${i}">
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
       <div class="feed__line">${head} ${nBadge}</div>
+      ${c.late?`<div class="feed__sub">📅 ${fmtFull(c.forTs ?? c.ts)}</div>`:""}
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
       ${reactable?reactionsRow(c):""}
     </div>

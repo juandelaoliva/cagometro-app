@@ -147,8 +147,10 @@ export async function addCacaAt(uid, ts, act){
     if (y === yearNow()) upd.totalCount = increment(1);
     upd.lastCacaTs = Math.max(us.data()?.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
     tx.update(uref, upd);
+    // El evento del feed se ordena por AHORA (sale arriba), pero recuerda la hora
+    // indicada en `forTs` para mostrarla. La caca sí conserva su `ts` pasado.
     if (act) tx.set(doc(collection(db,"activity")), {
-      uid, kind:"add", name:act.name||"", color:act.color||"", ts, year:y, n, late:true,
+      uid, kind:"add", name:act.name||"", color:act.color||"", ts: Date.now(), forTs: ts, year:y, n, late:true,
       audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
     });
   });

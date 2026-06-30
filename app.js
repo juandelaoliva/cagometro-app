@@ -760,8 +760,13 @@ async function openPersonSheet(entry, opts={}){
     const myYear = me.totalCount||0;
     const myStreak = me.currentStreak||0;
     const theirStreak = u?.currentStreak||0;
-    // media/día basada en días desde la PRIMERA caca de cada uno (no desde ene-1)
-    const _sinceFirst = firstTs => firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 1;
+    // media/día: días naturales (medianoche a medianoche) desde la primera caca hasta hoy, ambos inclusive
+    const _sinceFirst = firstTs => {
+      if(!firstTs) return 1;
+      const d0=new Date(firstTs); d0.setHours(0,0,0,0);
+      const d1=new Date(); d1.setHours(0,0,0,0);
+      return Math.max(1, Math.round((d1-d0)/86400000)+1);
+    };
     const myAvg = ((me.lifetimeCount||myYear) / _sinceFirst(me.firstCacaTs||0)).toFixed(1);
     const theirAvg = ((u?.lifetimeCount||year) / _sinceFirst(u?.firstCacaTs||0)).toFixed(1);
     const myName = (me.displayName||"Tú").split(" ")[0], theirName = (entry.name||"?").split(" ")[0];
@@ -1130,14 +1135,16 @@ function renderStats(){
   const _now=new Date(), _cm=_now.getMonth(), _cy=_now.getFullYear();
   // media este año: cacas del año actual ÷ días transcurridos desde el 1 ene (o desde la primera caca si fue este año)
   const firstTs = me?.firstCacaTs || 0;
-  const jan1 = new Date(_cy, 0, 1).getTime();
-  const yearStart = firstTs ? Math.max(firstTs, jan1) : jan1;
+  const jan1 = new Date(_cy, 0, 1);
+  const yearStartRaw = firstTs ? new Date(Math.max(firstTs, jan1.getTime())) : jan1;
+  const yearStartDay = new Date(yearStartRaw); yearStartDay.setHours(0,0,0,0);
+  const todayMid = new Date(); todayMid.setHours(0,0,0,0);
   const thisYearCount = statsCacas.filter(c=>tzParts(c.ts,c.tz).year===_cy).length;
-  const daysElapsedYear = Math.max(1, Math.round((Date.now()-yearStart)/86400000));
+  const daysElapsedYear = Math.max(1, Math.round((todayMid-yearStartDay)/86400000)+1);
   const yearAvg = thisYearCount ? (thisYearCount/daysElapsedYear).toFixed(2) : "—";
   // media histórica: solo si hay datos de años anteriores
   const hasMultiYear = firstTs && new Date(firstTs).getFullYear() < _cy;
-  const daysSinceStart = firstTs ? Math.max(1, Math.round((Date.now()-firstTs)/86400000)) : 0;
+  const daysSinceStart = firstTs ? (()=>{ const d0=new Date(firstTs); d0.setHours(0,0,0,0); const d1=new Date(); d1.setHours(0,0,0,0); return Math.max(1,Math.round((d1-d0)/86400000)+1); })() : 0;
   const lifeAvg = (hasMultiYear && (me?.lifetimeCount||0)) ? ((me.lifetimeCount/daysSinceStart).toFixed(2)) : null;
   // media este mes: cacas del mes actual ÷ días transcurridos del mes
   const thisMonthCount=(me?.countsByMonth||{})[`${_cy}_${_cm}`]||0;

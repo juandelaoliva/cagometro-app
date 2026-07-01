@@ -1316,11 +1316,14 @@ if(_standalone){
 }
 
 /* ---------- ubicación + mapa ---------- */
-const LOC_KEYS={never:"Nunca",choose:"Elegir",always:"Siempre"};
-function locLabel(k){ return k==="never"?"Nunca":k==="choose"?"Elegir":"Siempre"; }
+const LOC_KEYS=["choose","always"];
+function locLabel(k){ return k==="always"?t('settings.loc.always'):t('settings.loc.choose'); }
 function renderLocSel(mode){
-  mode=mode||"never";
-  $("locSel").innerHTML=Object.keys(LOC_KEYS).map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${locLabel(k)}</button>`).join("");
+  // migrate legacy "never" → "choose"
+  if(!mode||mode==="never") mode="choose";
+  $("locSel").innerHTML=LOC_KEYS.map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${locLabel(k)}</button>`).join("");
+  // "Sumar con ubicación" en el menú solo tiene sentido cuando el usuario elige cada vez
+  $("miGeo").hidden = mode==="always";
 }
 $("locSel").addEventListener("click", async e=>{
   const b=e.target.closest("[data-loc]"); if(!b||!uid)return;
@@ -1427,7 +1430,7 @@ function applyLang(){
   const _l=getLang();
   document.querySelectorAll("#langSel button,#gateLangSel button").forEach(x=>x.classList.toggle("on",x.dataset.lang===_l));
   // re-run dynamic painters if already mounted
-  if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); }
+  if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); renderLocSel(me?.locationMode); }
 }
 
 applyMode();

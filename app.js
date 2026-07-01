@@ -385,6 +385,7 @@ function stopFeed(){ if(_feedUnsub){ try{_feedUnsub()}catch(e){} _feedUnsub=null
 // loadActivity ya solo refresca los chips (hoy/semana/racha) y el grafo (audiencia/grupos);
 // el feed en sí es en tiempo real vía startFeed().
 let _feedLoadedAt=0, _feedLoading=false, _graphAt=0;
+let _graphPromise=Promise.resolve();   // promesa del rebuild en curso; resolved si el grafo ya está listo
 let _chips={today:0,week:0,streak:0,days:null};   // chips en memoria (para actualizarlos sin leer)
 async function loadActivity(mode){
   startFeed();   // el FEED en sí es en tiempo real (listener) → aquí NO se relee
@@ -408,14 +409,19 @@ async function loadActivity(mode){
     }
     // grafo de audiencia (amigos+grupos): se relee si está invalidado o lleva >5 min
     if(graphStale){
-      const [friends, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
-      friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
-      _myGroupIds = new Set(groups.map(g=>g.id)); myGroupsCache=groups;
-      _graph = {
-        audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
-        groups: groups.map(g=>({ gid:g.id, name:g.name })),
-      };
-      _graphAt=Date.now();
+      // expone la promesa para que addCaca pueda esperarla si llega antes de que termine
+      let resolveGraph;
+      _graphPromise = new Promise(r => { resolveGraph = r; });
+      try{
+        const [friends, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
+        friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
+        _myGroupIds = new Set(groups.map(g=>g.id)); myGroupsCache=groups;
+        _graph = {
+          audience: [...new Set([uid, ...friends.map(f=>f.id), ...groups.flatMap(g=>(g.members||[]).filter(m=>m!==uid))])],
+          groups: groups.map(g=>({ gid:g.id, name:g.name })),
+        };
+        _graphAt=Date.now();
+      } finally { resolveGraph(); }   // siempre resuelve (aunque falle, mejor audience vieja que colgar)
     }
     renderFeedChips(); renderFeed();
   } catch(e){ console.error("loadActivity:",e); }
@@ -831,6 +837,7 @@ $("addBtn").addEventListener("click",async e=>{
   const num=$("meCount");num.textContent=(parseInt(num.textContent,10)||0)+1;
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
+    await _graphPromise;   // si el grafo aún se está cargando, esperamos; si ya está listo es un no-op
     const loc = me?.locationMode==="always" ? await getGeo() : null;
     await addCaca(uid, loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;   // chips al instante (sin leer); el listener pinta el feed
@@ -865,7 +872,7 @@ $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast(t('toast.geo.loading'));
-  try{ const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.nogeo')); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
+  try{ await _graphPromise; const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.nogeo')); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
   catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -877,7 +884,7 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast(t('toast.caca.late.invalid'));
   if(ts>Date.now()+60000) return toast(t('toast.caca.late.future'));
   $("lateSheet").hidden=true;
-  try{ await addCacaAt(uid,ts, actMeta()); haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force"); }
+  try{ await _graphPromise; await addCacaAt(uid,ts, actMeta()); haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force"); }
   catch(err){ toast(t('toast.caca.late.fail')); console.error(err); }
 });
 

@@ -390,18 +390,24 @@ async function loadActivity(mode){
   startFeed();   // el FEED en sí es en tiempo real (listener) → aquí NO se relee
   const force = mode==="force";
   if(_feedLoading) return;
-  if(!force && Date.now()-_feedLoadedAt < 30000) return;   // recién cargado → no re-leer
+  const graphStale = !_graph.audience.length || Date.now()-_graphAt > 300000;
+  // throttle de 30s para los chips; el grafo se reconstruye siempre que esté invalidado
+  // (_graphAt=0 lo marca watchFriendships cuando cambia la red social)
+  if(!force && !graphStale && Date.now()-_feedLoadedAt < 30000) return;
   _feedLoading=true;
   try{
-    // chips (hoy/semana/racha): ventana corta de cacas propias
-    const mine = await myActivity(uid,120);
-    const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
-    for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
-    const streak = me?.currentStreak ?? 0;   // denormalizado en el user doc; evita computar desde cacas
-    _chips={today,week,streak,days};
-    $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
-    // grafo de audiencia (amigos+grupos): cambia poco → se relee como mucho cada 5 min
-    if(!_graph.audience.length || Date.now()-_graphAt > 300000){
+    // chips (hoy/semana/racha): ventana corta de cacas propias — solo si hace falta
+    if(force || Date.now()-_feedLoadedAt >= 30000){
+      const mine = await myActivity(uid,120);
+      const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
+      for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
+      const streak = me?.currentStreak ?? 0;
+      _chips={today,week,streak,days};
+      $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
+      _feedLoadedAt=Date.now();
+    }
+    // grafo de audiencia (amigos+grupos): se relee si está invalidado o lleva >5 min
+    if(graphStale){
       const [friends, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
       friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
       _myGroupIds = new Set(groups.map(g=>g.id)); myGroupsCache=groups;
@@ -411,7 +417,6 @@ async function loadActivity(mode){
       };
       _graphAt=Date.now();
     }
-    _feedLoadedAt=Date.now();
     renderFeedChips(); renderFeed();
   } catch(e){ console.error("loadActivity:",e); }
   finally { _feedLoading=false; }
@@ -933,7 +938,7 @@ $("friendsRank").addEventListener("click", e=>{
 });
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
-  if(a){ await acceptFriend(a.dataset.accept, uid); toast(t('toast.friend.accepted')); renderAmigos(); }
+  if(a){ await acceptFriend(a.dataset.accept, uid); _graphAt=0; toast(t('toast.friend.accepted')); renderAmigos(); loadActivity("force"); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
 });
 // acordeón de grupos: la cabecera despliega/colapsa el grupo

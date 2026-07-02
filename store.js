@@ -10,12 +10,10 @@ import {
   createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut,
   GoogleAuthProvider, signInWithPopup, onAuthStateChanged, updateProfile,
   sendEmailVerification, sendPasswordResetEmail,
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {
   doc, getDoc, setDoc, updateDoc, deleteDoc, collection, addDoc, writeBatch,
   serverTimestamp, query, where, orderBy, limit, onSnapshot, increment, getDocs,
-  arrayUnion, arrayRemove, runTransaction
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  arrayUnion, arrayRemove, runTransaction,
+} from "./firebase-bundle.js";
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
 const yearNow = () => new Date().getFullYear();

@@ -417,3 +417,27 @@ export async function groupYearCacas(group){
   }));
   return chunks.flat();
 }
+
+// ── Offline outbox ────────────────────────────────────────────────────────────
+// Cola local (localStorage) para cacas añadidas sin conexión.
+// Cada entrada: { ts, tz, loc: {lat,lng}|null }
+const OUTBOX_KEY = "cago_outbox";
+export const outboxGet = () => { try { return JSON.parse(localStorage.getItem(OUTBOX_KEY)||"[]"); } catch{ return []; } };
+const outboxSave = q => localStorage.setItem(OUTBOX_KEY, JSON.stringify(q));
+export const outboxAdd  = entry => { const q=outboxGet(); q.push(entry); outboxSave(q); };
+export const outboxClear = () => localStorage.removeItem(OUTBOX_KEY);
+
+export async function outboxFlush(uid, actFn) {
+  const queue = outboxGet();
+  if (!queue.length) return 0;
+  let flushed = 0;
+  for (const entry of queue) {
+    try {
+      await addCacaAt(uid, entry.ts, actFn ? actFn(entry) : null);
+      flushed++;
+    } catch(e) { console.warn("outboxFlush: error en entrada", entry, e); break; }
+  }
+  if (flushed === queue.length) outboxClear();
+  else outboxSave(queue.slice(flushed));
+  return flushed;
+}

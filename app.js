@@ -8,7 +8,7 @@ import {
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
-  getUser, colorForUid
+  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -195,6 +195,23 @@ onUser(async user=>{
 setTimeout(()=>{ if(!_authResolved){ $("splash").hidden=true; if(!uid) showGate(); } }, 9000);
 function showGate(){ if(unsub){unsub();unsub=null;} stopNotifications(); stopFeed(); closeOverlays(); $("app").hidden=true; $("gate").hidden=false; uid=null; me=null; lastTotal=null; }
 
+// ── Offline detection ─────────────────────────────────────────────────────────
+function syncOfflineBar(){
+  const offline = !navigator.onLine;
+  $("offlineBar").hidden = !offline;
+}
+syncOfflineBar();
+window.addEventListener("online",  () => { syncOfflineBar(); if(uid) _flushOutbox(); });
+window.addEventListener("offline", () => syncOfflineBar());
+
+async function _flushOutbox(){
+  if(!outboxGet().length) return;
+  try{
+    const n = await outboxFlush(uid, entry => entry.act || null);
+    if(n>0){ toast(`✅ ${n} caca${n>1?"s":""} sincronizada${n>1?"s":""}`); _statsLoadedAt=0; loadActivity("force"); }
+  } catch(e){ console.warn("flush outbox:", e); }
+}
+
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;
   // banner de verificación: solo usuarios email/pass con email sin verificar
@@ -216,6 +233,7 @@ function showApp(){
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
   processInvite();
+  if(navigator.onLine && outboxGet().length) _flushOutbox();
   startNotifications();
   enablePush();                       // si ya hay permiso, refresca el token FCM
 }
@@ -369,6 +387,7 @@ const actMeta = () => ({
 let _feedUnsub=null, _myGroupIds=new Set();
 function startFeed(){
   if(_feedUnsub) return;
+  _showFeedSkeleton();
   _feedUnsub = watchActivity(uid, acts=>{
     homeFeedData = acts;                       // entradas crudas; los chips de grupo se calculan al pintar
     if(!feedShown) feedShown=FEED_PAGE;
@@ -387,6 +406,12 @@ function stopFeed(){ if(_feedUnsub){ try{_feedUnsub()}catch(e){} _feedUnsub=null
 let _feedLoadedAt=0, _feedLoading=false, _graphAt=0;
 let _graphPromise=Promise.resolve();   // promesa del rebuild en curso; resolved si el grafo ya está listo
 let _chips={today:0,week:0,streak:0,days:null};   // chips en memoria (para actualizarlos sin leer)
+function _showFeedSkeleton(){
+  $("feed").innerHTML = Array.from({length:4}, ()=>
+    `<li class="skeleton--item"><div class="skeleton skeleton--avatar"></div><div style="flex:1"><div class="skeleton skeleton--line w80"></div><div class="skeleton skeleton--line w40"></div></div></li>`
+  ).join("");
+}
+
 async function loadActivity(mode){
   startFeed();   // el FEED en sí es en tiempo real (listener) → aquí NO se relee
   const force = mode==="force";
@@ -843,7 +868,15 @@ $("addBtn").addEventListener("click",async e=>{
     bumpChipsLocal(); _statsLoadedAt=0;   // chips al instante (sin leer); el listener pinta el feed
     checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
   }
-  catch(err){ toast(t('toast.caca.fail')); console.error(err); }
+  catch(err){
+    if(!navigator.onLine){
+      outboxAdd({ ts: Date.now(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+      $("meCount").textContent = (parseInt($("meCount").textContent)||0) + 1;
+      toast("💾 Sin conexión — caca guardada, se sincronizará después");
+    } else {
+      toast(t('toast.caca.fail')); console.error(err);
+    }
+  }
   finally{ const wait=Math.max(0, ADD_COOLDOWN-(Date.now()-t0)); setTimeout(()=>{ busy=false; btn.classList.remove("addbtn--cooldown"); }, wait); }
 });
 async function undoCaca(){

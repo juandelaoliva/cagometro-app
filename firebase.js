@@ -4,12 +4,10 @@
    In production -> uses the real project (fill PROD_CONFIG later
    from Firebase Console → Project settings → Your apps → Web).
    ============================================================ */
-import {
-  initializeApp,
-  getAuth, connectAuthEmulator,
-  getFirestore, connectFirestoreEmulator,
-  getMessaging, getToken, onMessage, isSupported,
-} from "./firebase-bundle.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getMessaging, getToken, onMessage, isSupported } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging.js";
 
 // Use emulators on localhost, EXCEPT when ?prod is in the URL (to test the real
 // project from your Mac before hosting). On a real domain it's always prod.

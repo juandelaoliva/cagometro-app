@@ -10,7 +10,9 @@ import {
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
-  renameGroup, kickFromGroup, deleteGroup
+  renameGroup, kickFromGroup, deleteGroup,
+  getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
+  watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -223,6 +225,7 @@ function showApp(){
   if(unsub)unsub();
   unsub=watchMe(uid, m=>{
     if(!m)return; me=m; const total=m.totalCount||0;
+    _myDisplayName = m.displayName||"";
     $("meCount").textContent=total; $("meName").textContent=m.displayName||"";
     $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
     $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
@@ -238,6 +241,7 @@ function showApp(){
   if(navigator.onLine && outboxGet().length) _flushOutbox();
   startNotifications();
   enablePush();                       // si ya hay permiso, refresca el token FCM
+  startChatListener(uid, "");
 }
 
 /* ---------- hoja: aceptar invitación de amigo ---------- */
@@ -782,6 +786,7 @@ function personStats(cacas){
 }
 async function openPersonSheet(entry, opts={}){
   if(entry.uid===uid){ setView("perfil"); return; }    // tú → tu perfil
+  _psCurrentEntry = entry;
   $("psAvatar").textContent=initial(entry.name); $("psAvatar").style.background=entry.color;
   $("psName").textContent=entry.name; $("psTotal").textContent="…";
   $("psStats").innerHTML=""; $("psRecords").hidden=true; $("psChart").innerHTML=""; $("psGroups").innerHTML=""; $("psActions").innerHTML="";
@@ -847,6 +852,12 @@ async function openPersonSheet(entry, opts={}){
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
 $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
+let _psCurrentEntry = null;
+$("psChatBtn").addEventListener("click", async ()=>{
+  if(!_psCurrentEntry) return;
+  $("psSheet").hidden=true;
+  await openDMChat(_psCurrentEntry.uid, _psCurrentEntry.name);
+});
 $("psActions").addEventListener("click", async e=>{
   const mb=e.target.closest("[data-uid]#psFriendMap, [data-uid]");
   if(mb && mb.id==="psFriendMap"){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
@@ -1018,6 +1029,7 @@ $("joinGroupBtn").addEventListener("click", async ()=>{
 });
 $("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), t('grupos.invite.text',{name:activeGroup.name})); });
 $("inviteToGroupBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupInvitePicker(activeGroup); });
+$("groupChatBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupChat(activeGroup); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
   if(!activeGroup)return; if(!confirm(t('confirm.group.leave',{name:activeGroup.name})))return;
   try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast(t('toast.group.left')); renderGrupos(); }
@@ -1654,3 +1666,250 @@ $("giDecline").addEventListener("click",async()=>{
   $("groupInviteSheet").hidden=true; _activeGroupInvite=null;
 });
 $("groupInviteSheet").addEventListener("click",e=>{ if(e.target===$("groupInviteSheet")){ $("groupInviteSheet").hidden=true; _activeGroupInvite=null; } });
+
+// ═══════════════════════════════════════════════════════════════════
+//  CHAT
+// ═══════════════════════════════════════════════════════════════════
+const CHAT_REACTIONS = ["💩","😂","❤️","🔥","👀","😮"];
+let _chatsUnsub = null;
+let _chatMsgUnsub = null;
+let _activeChatId = null;
+let _activeChatData = null;
+let _oldestMsgClientTs = null;
+
+// ── helpers de tiempo ────────────────────────────────────────────
+function _chatTime(ts){
+  if(!ts) return "";
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  const now = new Date();
+  const diff = (now - d) / 1000;
+  if(diff < 60) return "ahora";
+  if(diff < 3600) return `${Math.floor(diff/60)}m`;
+  if(diff < 86400) return `${d.getHours().toString().padStart(2,"0")}:${d.getMinutes().toString().padStart(2,"0")}`;
+  return `${d.getDate()}/${d.getMonth()+1}`;
+}
+
+// ── unread badge global ──────────────────────────────────────────
+function _updateChatBadge(chats){
+  const total = chats.reduce((acc, c) => {
+    const myLastRead = c.lastReadTs?.[uid]?.toMillis?.() ?? 0;
+    const lastTs = c.lastTs?.toMillis?.() ?? (c.lastTs || 0);
+    return acc + (lastTs > myLastRead && c.lastMessage?.senderUid !== uid ? 1 : 0);
+  }, 0);
+  $("chatBadge").hidden = total === 0;
+  $("chatBadge").textContent = total > 9 ? "9+" : total;
+}
+
+// ── renderizar lista de chats ────────────────────────────────────
+function _renderChatList(chats){
+  const list = $("chatList");
+  if(!chats.length){
+    list.innerHTML = `<li class="chat-empty">${t('chat.empty')}</li>`;
+    return;
+  }
+  list.innerHTML = chats.map(c => {
+    const myLastRead = c.lastReadTs?.[uid]?.toMillis?.() ?? 0;
+    const lastTs = c.lastTs?.toMillis?.() ?? (c.lastTs || 0);
+    const hasUnread = lastTs > myLastRead && c.lastMessage?.senderUid !== uid;
+    const name = c.type === "group" ? (c.name || "Grupo") : (c.otherName || "Chat");
+    const preview = c.lastMessage ? `${c.lastMessage.senderUid===uid?"Tú: ":""}${c.lastMessage.text}` : t('chat.nomessages');
+    return `<li class="chat-item" data-chat="${c.id}">
+      ${av(name, c.color||"#888")}
+      <div class="chat-item__body">
+        <div class="chat-item__name">${name}</div>
+        <div class="chat-item__preview">${preview}</div>
+      </div>
+      <div class="chat-item__meta">
+        <span class="chat-item__time">${_chatTime(c.lastTs)}</span>
+        ${hasUnread ? `<span class="chat-item__unread">•</span>` : ""}
+      </div>
+    </li>`;
+  }).join("");
+}
+
+// ── renderizar mensajes ──────────────────────────────────────────
+function _renderMessages(msgs, prepend=false){
+  const list = $("msgList");
+  const isAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+  const html = msgs.map(m => _msgHtml(m, uid)).join("");
+  if(prepend) list.insertAdjacentHTML("afterbegin", html);
+  else list.innerHTML = html;
+  if(!prepend || isAtBottom) list.scrollTop = list.scrollHeight;
+}
+
+function _msgHtml(m, myUid){
+  const isMe = m.senderUid === myUid;
+  const ts = m.ts?.toDate ? m.ts.toDate() : (m.clientTs ? new Date(m.clientTs) : null);
+  const timeStr = ts ? `${ts.getHours().toString().padStart(2,"0")}:${ts.getMinutes().toString().padStart(2,"0")}` : "";
+  const reactions = Object.entries(m.reactions||{}).filter(([,uids])=>uids.length>0).map(([emoji,uids])=>{
+    const mine = uids.includes(myUid);
+    return `<button class="msg__reaction${mine?" mine":""}" data-msg-react="${m.id}" data-emoji="${emoji}">
+      ${emoji}<span>${uids.length}</span></button>`;
+  }).join("");
+  const addBtn = `<button class="msg__reaction-add" data-msg-react-add="${m.id}" title="Reaccionar">＋</button>`;
+  return `<li class="msg ${isMe?"msg--me":"msg--them"}" data-msg-id="${m.id}">
+    ${!isMe && _activeChatData?.type==="group" ? `<div class="msg__sender">${m.senderName||""}</div>` : ""}
+    <div class="msg__bubble">${m.text.replace(/</g,"&lt;")}</div>
+    <div class="msg__time">${timeStr}</div>
+    ${reactions||addBtn ? `<div class="msg__reactions">${reactions}${addBtn}</div>` : ""}
+  </li>`;
+}
+
+// ── abrir/cerrar vista chat ──────────────────────────────────────
+function openChatView(){
+  $("chatView").hidden = false;
+  document.body.classList.add("chat-mode");
+  $("chatLayer2").classList.remove("is-open");
+  $("chatLayer2").hidden = true;
+}
+function closeChatView(){
+  $("chatView").hidden = true;
+  document.body.classList.remove("chat-mode");
+  _chatMsgUnsub?.(); _chatMsgUnsub = null;
+  _activeChatId = null; _activeChatData = null;
+}
+
+// ── abrir conversación ──────────────────────────────────────────
+async function openConversation(chatId, chatData){
+  _chatMsgUnsub?.();
+  _activeChatId = chatId;
+  _activeChatData = chatData;
+  $("convName").textContent = chatData.type==="group" ? (chatData.name||"Grupo") : (chatData.otherName||"Chat");
+  $("msgList").innerHTML = `<li class="chat-empty" style="margin:auto">${t('chat.loading')}</li>`;
+  $("chatLayer2").hidden = false;
+  requestAnimationFrame(()=>$("chatLayer2").classList.add("is-open"));
+  $("loadOlderBtn").hidden = true;
+  _oldestMsgClientTs = null;
+  markChatRead(chatId, uid).catch(()=>{});
+  _chatMsgUnsub = watchMessages(chatId, msgs => {
+    if(msgs.length) _oldestMsgClientTs = msgs[0].clientTs;
+    $("loadOlderBtn").hidden = msgs.length < 30;
+    _renderMessages(msgs);
+    if(_activeChatId === chatId) markChatRead(chatId, uid).catch(()=>{});
+  });
+  $("chatInput").focus();
+}
+
+// ── botón chat en topbar ─────────────────────────────────────────
+$("chatBtn").addEventListener("click", ()=>{
+  openChatView();
+});
+$("chatClose").addEventListener("click", ()=> closeChatView());
+$("convBack").addEventListener("click", ()=>{
+  $("chatLayer2").classList.remove("is-open");
+  setTimeout(()=>{ $("chatLayer2").hidden=true; }, 260);
+  _chatMsgUnsub?.(); _chatMsgUnsub=null;
+  _activeChatId=null; _activeChatData=null;
+});
+
+// ── tap en item de lista ─────────────────────────────────────────
+$("chatList").addEventListener("click", async e=>{
+  const item = e.target.closest("[data-chat]"); if(!item) return;
+  const chatId = item.dataset.chat;
+  const chats = _lastChats || [];
+  const chatData = chats.find(c=>c.id===chatId);
+  if(chatData) openConversation(chatId, chatData);
+});
+
+// ── enviar mensaje ───────────────────────────────────────────────
+let _lastChats = [];
+async function _doSend(){
+  if(!_activeChatId) return;
+  const text = $("chatInput").value.trim();
+  if(!text) return;
+  $("chatInput").value = "";
+  $("chatInput").style.height = "";
+  $("chatSend").disabled = true;
+  try{
+    await sendMessage(_activeChatId, uid, _myDisplayName, text);
+    const members = _activeChatData?.members || [];
+    notifyNewMessage(_activeChatId, uid, _myDisplayName, text, members).catch(()=>{});
+  } catch(e){ toast("Error: "+(e?.message||e)); $("chatInput").value=text; }
+  finally{ $("chatSend").disabled=false; }
+}
+let _myDisplayName = "";
+$("chatSend").addEventListener("click", _doSend);
+$("chatInput").addEventListener("keydown", e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); _doSend(); } });
+$("chatInput").addEventListener("input", ()=>{
+  $("chatInput").style.height="auto";
+  $("chatInput").style.height = Math.min($("chatInput").scrollHeight, 120)+"px";
+});
+
+// ── cargar mensajes anteriores ───────────────────────────────────
+$("loadOlderBtn").addEventListener("click", async ()=>{
+  if(!_activeChatId||!_oldestMsgClientTs) return;
+  $("loadOlderBtn").disabled=true;
+  try{
+    const older = await loadOlderMessages(_activeChatId, _oldestMsgClientTs);
+    if(older.length){
+      _oldestMsgClientTs = older[0].clientTs;
+      _renderMessages(older, true);
+    }
+    $("loadOlderBtn").hidden = older.length < 30;
+  } catch(e){ toast("Error cargando mensajes"); }
+  finally{ $("loadOlderBtn").disabled=false; }
+});
+
+// ── reaccionar a mensajes ────────────────────────────────────────
+const _reactionPicker = (() => {
+  const el = document.createElement("div");
+  el.className="reaction-picker"; el.style.cssText="position:fixed;z-index:200;background:var(--card);border-radius:16px;box-shadow:var(--shadow-lg);padding:8px 12px;display:flex;gap:8px;font-size:22px;display:none";
+  document.body.appendChild(el);
+  let _targetMsgId=null;
+  el.addEventListener("click", async e=>{
+    const emoji=e.target.textContent.trim(); if(!emoji||!_targetMsgId||!_activeChatId) return;
+    el.style.display="none";
+    try{ await reactToMessage(_activeChatId,_targetMsgId,uid,emoji); }
+    catch(err){ console.error(err); }
+  });
+  document.addEventListener("click", e=>{ if(!el.contains(e.target)) el.style.display="none"; });
+  return { show(msgId, x, y){ _targetMsgId=msgId; el.innerHTML=CHAT_REACTIONS.map(r=>`<span style="cursor:pointer">${r}</span>`).join(""); el.style.display="flex"; el.style.left=Math.min(x,window.innerWidth-el.offsetWidth-16)+"px"; el.style.top=(y-60)+"px"; } };
+})();
+
+$("msgList").addEventListener("click", async e=>{
+  const reactBtn = e.target.closest("[data-msg-react]");
+  const addBtn = e.target.closest("[data-msg-react-add]");
+  if(reactBtn){
+    const msgId=reactBtn.dataset.msgReact, emoji=reactBtn.dataset.emoji;
+    try{ await reactToMessage(_activeChatId,msgId,uid,emoji); } catch(err){ console.error(err); }
+  } else if(addBtn){
+    const rect=addBtn.getBoundingClientRect();
+    _reactionPicker.show(addBtn.dataset.msgReactAdd, rect.left, rect.top);
+  }
+});
+
+// ── abrir chat desde perfil de amigo ────────────────────────────
+async function openDMChat(friendUid, friendName){
+  openChatView();
+  const chatId = await getOrCreateDM(uid, friendUid);
+  const chatData = { id:chatId, type:"dm", members:[uid,friendUid], otherName:friendName };
+  openConversation(chatId, chatData);
+}
+
+// ── abrir chat desde grupo ───────────────────────────────────────
+async function openGroupChat(group){
+  openChatView();
+  const chatId = await ensureGroupChat(group.id, group.members);
+  const chatData = { id:chatId, type:"group", name:group.name, members:group.members, color:group.color };
+  openConversation(chatId, chatData);
+}
+
+// ── iniciar listener de chats (llamado al hacer login) ──────────
+function startChatListener(myUid, myDisplayName){
+  _myDisplayName = myDisplayName;
+  _chatsUnsub?.();
+  _chatsUnsub = watchChats(myUid, async chats => {
+    // Enriquecer DMs con nombre del otro usuario
+    const enriched = await Promise.all(chats.map(async c => {
+      if(c.type==="dm"){
+        const otherUid = c.members.find(m=>m!==myUid);
+        const other = await getUser(otherUid);
+        return { ...c, otherName: other?.displayName||"—", color: other?.color };
+      }
+      return c;
+    }));
+    _lastChats = enriched;
+    _renderChatList(enriched);
+    _updateChatBadge(enriched);
+  });
+}

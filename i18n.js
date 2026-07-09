@@ -376,6 +376,14 @@ const _es = {
   'fallback.afriend': 'un amigo',
   'label.you': 'tú',
   'label.nodata': '—',
+  // ── Chat ──
+  'chat.title': 'Mensajes',
+  'chat.empty': 'No tienes conversaciones aún.',
+  'chat.nomessages': 'Sin mensajes',
+  'chat.loading': 'Cargando mensajes…',
+  'chat.loadolder': '↑ Cargar anteriores',
+  'chat.open.dm': '💬 Enviar mensaje',
+  'chat.open.group': '💬 Chat del grupo',
 };
 
 const _en = {

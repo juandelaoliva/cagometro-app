@@ -499,3 +499,87 @@ export async function acceptGroupInvite(invite, uid){
 
 export const declineGroupInvite = (inviteId) =>
   updateDoc(doc(db,"groupInvites",inviteId), { status: "declined" });
+
+// ── Chat ─────────────────────────────────────────────────────────────────────
+
+// Garantiza que el doc /chats/{chatId} existe. Idempotente (merge:true).
+async function ensureChatDoc(chatId, type, members){
+  await setDoc(doc(db,"chats",chatId), { type, members, lastTs: null }, { merge: true });
+}
+
+// DM: chatId = pairId. Crea el doc si no existe.
+export async function getOrCreateDM(uid1, uid2){
+  const chatId = pairId(uid1, uid2);
+  await ensureChatDoc(chatId, "dm", [uid1, uid2].sort());
+  return chatId;
+}
+
+// Grupo: chatId = gid. Crea el doc si no existe.
+export async function ensureGroupChat(gid, members){
+  await ensureChatDoc(gid, "group", members);
+  return gid;
+}
+
+// Envía un mensaje. Actualiza lastMessage y lastTs en el chat doc.
+export async function sendMessage(chatId, senderUid, senderName, text){
+  const clientTs = Date.now();
+  await addDoc(collection(db,"chats",chatId,"messages"), {
+    senderUid, senderName,
+    text: text.trim(),
+    ts: serverTimestamp(),
+    clientTs,
+    reactions: {},
+  });
+  await updateDoc(doc(db,"chats",chatId), {
+    lastMessage: { text: text.trim(), senderName, ts: clientTs },
+    lastTs: serverTimestamp(),
+  });
+}
+
+// Marca el chat como leído actualizando lastReadTs del usuario.
+export const markChatRead = (chatId, uid) =>
+  updateDoc(doc(db,"chats",chatId), { [`lastReadTs.${uid}`]: serverTimestamp() });
+
+// Listener de todos los chats del usuario, ordenados por lastTs desc.
+export const watchChats = (uid, cb) =>
+  onSnapshot(
+    query(collection(db,"chats"), where("members","array-contains",uid), orderBy("lastTs","desc")),
+    snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+
+// Listener de mensajes (últimos N), más recientes primero → se invierten al renderizar.
+export const watchMessages = (chatId, cb, n=30) =>
+  onSnapshot(
+    query(collection(db,"chats",chatId,"messages"), orderBy("ts","desc"), limit(n)),
+    snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse())
+  );
+
+// Carga mensajes anteriores al más antiguo cargado.
+export const loadOlderMessages = async (chatId, beforeClientTs, n=30) => {
+  const snap = await getDocs(
+    query(collection(db,"chats",chatId,"messages"), orderBy("clientTs","desc"), where("clientTs","<",beforeClientTs), limit(n))
+  );
+  return snap.docs.map(d => ({ id: d.id, ...d.data() })).reverse();
+};
+
+// Reaccionar a un mensaje (toggle).
+export async function reactToMessage(chatId, msgId, uid, emoji){
+  const ref = doc(db,"chats",chatId,"messages",msgId);
+  const snap = await getDoc(ref);
+  if(!snap.exists()) return;
+  const reactions = snap.data().reactions || {};
+  const uids = reactions[emoji] || [];
+  const next = uids.includes(uid) ? uids.filter(u=>u!==uid) : [...uids, uid];
+  await updateDoc(ref, { [`reactions.${emoji}`]: next });
+}
+
+// Push de nuevo mensaje a todos los miembros excepto el sender.
+export async function notifyNewMessage(chatId, senderUid, senderName, text, members){
+  const targets = members.filter(m => m !== senderUid);
+  await Promise.all(targets.map(toUid =>
+    enqueuePush(senderUid, toUid, "chat_message",
+      senderName,
+      text.length > 80 ? text.slice(0,77)+"…" : text
+    ).catch(()=>{})
+  ));
+}

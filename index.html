@@ -90,6 +90,7 @@
     <header class="topbar">
       <div class="brand" data-view="inicio" role="button" tabindex="0" aria-label="Ir al inicio"><img class="brand__logo" src="icon-192.png" alt="" /><span class="brand__name">El Cagómetro</span></div>
       <div class="topbar__actions">
+        <button class="iconbtn" id="chatBtn" aria-label="Mensajes">💬<span class="badge" id="chatBadge" hidden>0</span></button>
         <button class="iconbtn" id="notifBtn" aria-label="Notificaciones">🔔<span class="badge" id="notifBadge" hidden>0</span></button>
         <button class="profile" id="settingsBtn" aria-label="Ajustes"><span class="avatar" id="hdrAvatar">··</span></button>
       </div>
@@ -190,6 +191,7 @@
             <div class="stackchart" id="gStack"></div>
             <div class="stacklegend" id="gStackLegend"></div>
           </div>
+          <button class="btn-solid" id="groupChatBtn" data-i18n="chat.open.group" style="width:100%;margin-bottom:8px">💬 Chat del grupo</button>
           <button class="btn-ghost btn-ghost--danger" id="leaveGroupBtn" data-i18n="grupos.leave.btn">Salir del grupo</button>
         </div>
       </section>
@@ -220,6 +222,38 @@
         </div>
       </section>
     </main>
+
+    <!-- ═══════════════ CHAT VIEW (full-screen overlay) ═══════════════ -->
+    <div id="chatView" class="chat-view" hidden>
+
+      <!-- Layer 1: lista de conversaciones -->
+      <div id="chatLayer1" class="chat-layer">
+        <div class="chat-header">
+          <button class="chat-back" id="chatClose" aria-label="Cerrar">←</button>
+          <h2 data-i18n="chat.title">Mensajes</h2>
+        </div>
+        <ul class="chat-list" id="chatList">
+          <li class="chat-empty" data-i18n="chat.empty">No tienes conversaciones aún.</li>
+        </ul>
+      </div>
+
+      <!-- Layer 2: conversación individual -->
+      <div id="chatLayer2" class="chat-layer chat-layer--conv" hidden>
+        <div class="chat-header">
+          <button class="chat-back" id="convBack" aria-label="Volver">←</button>
+          <div class="chat-header__info">
+            <span class="chat-header__name" id="convName">—</span>
+          </div>
+        </div>
+        <button class="load-older" id="loadOlderBtn" hidden data-i18n="chat.loadolder">↑ Cargar anteriores</button>
+        <ul class="msg-list" id="msgList"></ul>
+        <div class="chat-input-area">
+          <textarea class="chat-input" id="chatInput" rows="1" placeholder="Mensaje…" maxlength="1000"></textarea>
+          <button class="chat-send" id="chatSend" aria-label="Enviar">➤</button>
+        </div>
+      </div>
+
+    </div>
 
     <nav class="tabbar">
       <button class="tab is-active" data-view="inicio"><span class="tab__ico">🏠</span><span data-i18n="tab.inicio">Inicio</span></button>
@@ -323,6 +357,7 @@
         <div class="psg-row" id="psGroups"></div>
       </div>
       <div class="ps-actions" id="psActions"></div>
+      <button class="btn-solid" id="psChatBtn" data-i18n="chat.open.dm" style="width:100%;margin-bottom:8px">💬 Enviar mensaje</button>
       <button class="btn-ghost" id="psClose" data-i18n="person.close">Cerrar</button>
     </div>
   </div>

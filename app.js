@@ -1763,7 +1763,10 @@ function _onVVResize(){
   cv.style.top    = vv.offsetTop + "px";
   if(_activeChatId){ const ml=$("msgList"); ml.scrollTop=ml.scrollHeight; }
 }
+let _scrollYBeforeChat = 0;
 function openChatView(){
+  _scrollYBeforeChat = window.scrollY;
+  document.body.style.top = `-${_scrollYBeforeChat}px`;
   $("chatView").hidden = false;
   document.body.classList.add("chat-mode");
   $("chatLayer2").classList.remove("is-open");
@@ -1775,7 +1778,9 @@ function openChatView(){
 function closeChatView(){
   $("chatView").hidden = true;
   document.body.classList.remove("chat-mode");
+  document.body.style.top = "";
   $("chatView").style.height = $("chatView").style.top = "";
+  window.scrollTo(0, _scrollYBeforeChat);
   window.visualViewport?.removeEventListener("resize", _onVVResize);
   window.visualViewport?.removeEventListener("scroll", _onVVResize);
   _chatMsgUnsub?.(); _chatMsgUnsub = null;

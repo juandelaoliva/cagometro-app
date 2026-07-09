@@ -1764,18 +1764,9 @@ function _onVVResize(){
   if(_activeChatId){ const ml=$("msgList"); ml.scrollTop=ml.scrollHeight; }
 }
 let _scrollYBeforeChat = 0;
-function openChatView(){
-  _scrollYBeforeChat = window.scrollY;
-  document.body.style.top = `-${_scrollYBeforeChat}px`;
-  $("chatView").hidden = false;
-  document.body.classList.add("chat-mode");
-  $("chatLayer2").classList.remove("is-open");
-  $("chatLayer2").hidden = true;
-  window.visualViewport?.addEventListener("resize", _onVVResize);
-  window.visualViewport?.addEventListener("scroll", _onVVResize);
-  _onVVResize();
-}
-function closeChatView(){
+let _chatNavDepth = 0; // 0=closed 1=list 2=conv
+
+function _doCloseChatUI(){
   $("chatView").hidden = true;
   document.body.classList.remove("chat-mode");
   document.body.style.top = "";
@@ -1785,11 +1776,41 @@ function closeChatView(){
   window.visualViewport?.removeEventListener("scroll", _onVVResize);
   _chatMsgUnsub?.(); _chatMsgUnsub = null;
   _activeChatId = null; _activeChatData = null;
+  _chatNavDepth = 0;
+}
+function _doCloseConvUI(){
+  _hideReactionPicker();
+  $("chatLayer2").classList.remove("is-open");
+  setTimeout(()=>{ $("chatLayer2").hidden=true; },260);
+  _chatMsgUnsub?.(); _chatMsgUnsub=null;
+  _activeChatId=null; _activeChatData=null;
+  _chatNavDepth=1;
+}
+
+function openChatView(){
+  if(!$("chatView").hidden) return; // ya abierto
+  _scrollYBeforeChat = window.scrollY;
+  document.body.style.top = `-${_scrollYBeforeChat}px`;
+  $("chatView").hidden = false;
+  document.body.classList.add("chat-mode");
+  $("chatLayer2").classList.remove("is-open");
+  $("chatLayer2").hidden = true;
+  window.visualViewport?.addEventListener("resize", _onVVResize);
+  window.visualViewport?.addEventListener("scroll", _onVVResize);
+  _onVVResize();
+  history.pushState({_chatDepth:1},"");
+  _chatNavDepth=1;
+}
+function closeChatView(){
+  if(_chatNavDepth===2) history.go(-2); // pop conv + list
+  else if(_chatNavDepth===1) history.back();
+  else _doCloseChatUI();
 }
 
 // ── abrir conversación ──────────────────────────────────────────
 async function openConversation(chatId, chatData){
   _chatMsgUnsub?.();
+  _hideReactionPicker();
   _activeChatId = chatId;
   _activeChatData = chatData;
   $("convName").textContent = chatData.type==="group" ? (chatData.name||"Grupo") : (chatData.otherName||"Chat");
@@ -1797,6 +1818,8 @@ async function openConversation(chatId, chatData){
   $("chatLayer2").hidden = false;
   requestAnimationFrame(()=>$("chatLayer2").classList.add("is-open"));
   $("loadOlderBtn").hidden = true;
+  if(_chatNavDepth===1){ history.pushState({_chatDepth:2},""); _chatNavDepth=2; }
+  else history.replaceState({_chatDepth:2},""); // cambio de conv sin apilar
   _oldestMsgClientTs = null;
   markChatRead(chatId, uid).catch(()=>{});
   _chatMsgUnsub = watchMessages(chatId, msgs => {
@@ -1808,10 +1831,22 @@ async function openConversation(chatId, chatData){
   $("chatInput").focus();
 }
 
-// ── botón chat en topbar ─────────────────────────────────────────
-$("chatBtn").addEventListener("click", ()=>{
-  openChatView();
+// ── back navigation (iOS swipe / Android back) ───────────────────
+window.addEventListener("popstate", e=>{
+  const depth = e.state?._chatDepth ?? 0;
+  if($("chatView").hidden) return; // no estamos en chat, dejar que el browser navegue
+  if(depth===1 && _chatNavDepth===2){
+    // venimos de conversación → lista
+    _doCloseConvUI();
+  } else if(depth===0){
+    // venimos de lista → fuera del chat
+    if(_chatNavDepth===2) _doCloseConvUI();
+    _doCloseChatUI();
+  }
 });
+
+// ── botón chat en topbar ─────────────────────────────────────────
+$("chatBtn").addEventListener("click", ()=>{ openChatView(); });
 $("chatClose").addEventListener("click", ()=> closeChatView());
 
 // ── nueva conversación ───────────────────────────────────────────
@@ -1848,7 +1883,7 @@ $("chatNewBtn").addEventListener("click", async ()=>{
 });
 $("chatNewSearch").addEventListener("input", e=>_renderNewList(e.target.value));
 $("chatNewSheet").addEventListener("click", e=>{
-  if(e.target===$("chatNewSheet")||e.target.closest(".chat-header")) { $("chatNewSheet").hidden=true; return; }
+  if(e.target===$("chatNewSheet")){ $("chatNewSheet").hidden=true; return; }
   const item=e.target.closest("[data-new-chat-name]"); if(!item) return;
   $("chatNewSheet").hidden=true;
   const name=item.dataset.newChatName;
@@ -1861,10 +1896,8 @@ $("chatNewSheet").addEventListener("click", e=>{
 });
 
 $("convBack").addEventListener("click", ()=>{
-  $("chatLayer2").classList.remove("is-open");
-  setTimeout(()=>{ $("chatLayer2").hidden=true; }, 260);
-  _chatMsgUnsub?.(); _chatMsgUnsub=null;
-  _activeChatId=null; _activeChatData=null;
+  if(_chatNavDepth===2) history.back();
+  else _doCloseConvUI();
 });
 
 // ── tap en item de lista ─────────────────────────────────────────
@@ -1916,30 +1949,60 @@ $("loadOlderBtn").addEventListener("click", async ()=>{
 });
 
 // ── reaccionar a mensajes ────────────────────────────────────────
-const _reactionPicker = (() => {
-  const el = document.createElement("div");
-  el.className="reaction-picker"; el.style.cssText="position:fixed;z-index:200;background:var(--card);border-radius:16px;box-shadow:var(--shadow-lg);padding:8px 12px;display:flex;gap:8px;font-size:22px;display:none";
-  document.body.appendChild(el);
-  let _targetMsgId=null;
-  el.addEventListener("click", async e=>{
-    const emoji=e.target.textContent.trim(); if(!emoji||!_targetMsgId||!_activeChatId) return;
-    el.style.display="none";
-    try{ await reactToMessage(_activeChatId,_targetMsgId,uid,emoji); }
-    catch(err){ console.error(err); }
+// ── reaction picker ──────────────────────────────────────────────
+let _rpMsgId = null;
+const _rp = $("msgReactionPicker");
+
+function _showReactionPicker(msgId, anchorEl){
+  _rpMsgId = msgId;
+  _rp.hidden = false;
+  // posicionamos después de que el browser haya pintado el picker
+  requestAnimationFrame(()=>{
+    const cv = $("chatView").getBoundingClientRect();
+    const ar = anchorEl.getBoundingClientRect();
+    const pw = _rp.offsetWidth, ph = _rp.offsetHeight;
+    let left = ar.left - cv.left + ar.width/2 - pw/2;
+    left = Math.max(8, Math.min(left, cv.width - pw - 8));
+    const top = ar.top - cv.top - ph - 8;
+    _rp.style.left = left + "px";
+    _rp.style.top  = Math.max(8, top) + "px";
   });
-  document.addEventListener("click", e=>{ if(!el.contains(e.target)) el.style.display="none"; });
-  return { show(msgId, x, y){ _targetMsgId=msgId; el.innerHTML=CHAT_REACTIONS.map(r=>`<span style="cursor:pointer">${r}</span>`).join(""); el.style.display="flex"; el.style.left=Math.min(x,window.innerWidth-el.offsetWidth-16)+"px"; el.style.top=(y-60)+"px"; } };
-})();
+}
+function _hideReactionPicker(){ _rp.hidden = true; _rpMsgId = null; }
+
+_rp.addEventListener("click", async e=>{
+  const emoji = e.target.closest("[data-react]")?.dataset.react; if(!emoji) return;
+  _hideReactionPicker();
+  if(!_rpMsgId||!_activeChatId) return;
+  try{ await reactToMessage(_activeChatId, _rpMsgId, uid, emoji); }
+  catch(err){ console.error(err); }
+});
+
+// cerrar picker al tocar fuera
+$("chatView").addEventListener("click", e=>{
+  if(!_rp.hidden && !_rp.contains(e.target)) _hideReactionPicker();
+}, true);
+
+// long press en burbuja → picker; tap en reacción existente → toggle; tap en ➕ → picker
+let _chatLpTimer = null;
+$("msgList").addEventListener("touchstart", e=>{
+  const bubble = e.target.closest(".msg__bubble");
+  if(!bubble) return;
+  const li = bubble.closest("[data-msg-id]");
+  if(!li) return;
+  _chatLpTimer = setTimeout(()=>{ navigator.vibrate?.(30); _showReactionPicker(li.dataset.msgId, bubble); }, 500);
+}, {passive:true});
+$("msgList").addEventListener("touchend",  ()=>clearTimeout(_chatLpTimer), {passive:true});
+$("msgList").addEventListener("touchmove", ()=>clearTimeout(_chatLpTimer), {passive:true});
 
 $("msgList").addEventListener("click", async e=>{
   const reactBtn = e.target.closest("[data-msg-react]");
-  const addBtn = e.target.closest("[data-msg-react-add]");
+  const addBtn   = e.target.closest("[data-msg-react-add]");
   if(reactBtn){
     const msgId=reactBtn.dataset.msgReact, emoji=reactBtn.dataset.emoji;
-    try{ await reactToMessage(_activeChatId,msgId,uid,emoji); } catch(err){ console.error(err); }
+    try{ await reactToMessage(_activeChatId, msgId, uid, emoji); } catch(err){ console.error(err); }
   } else if(addBtn){
-    const rect=addBtn.getBoundingClientRect();
-    _reactionPicker.show(addBtn.dataset.msgReactAdd, rect.left, rect.top);
+    _showReactionPicker(addBtn.dataset.msgReactAdd, addBtn);
   }
 });
 

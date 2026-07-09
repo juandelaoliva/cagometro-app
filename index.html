@@ -254,15 +254,11 @@
         </div>
       </div>
 
-      <!-- Sheet: nueva conversación -->
-      <div id="chatNewSheet" class="chat-new-sheet" hidden>
-        <div class="chat-new-panel">
-          <div class="chat-header" style="border-radius:16px 16px 0 0">
-            <h2 style="flex:1" data-i18n="chat.new.title">Nueva conversación</h2>
-          </div>
-          <input type="search" id="chatNewSearch" class="sheet__search" style="margin:10px 16px;width:calc(100% - 32px);box-sizing:border-box" placeholder="Buscar…">
-          <ul class="chat-list" id="chatNewList" style="flex:1;overflow-y:auto"></ul>
-        </div>
+      <!-- picker de reacciones (dentro de chatView para z-index correcto) -->
+      <div id="msgReactionPicker" class="msg-rpicker" hidden>
+        <button data-react="💩">💩</button><button data-react="😂">😂</button>
+        <button data-react="❤️">❤️</button><button data-react="🔥">🔥</button>
+        <button data-react="👀">👀</button><button data-react="😮">😮</button>
       </div>
 
     </div>
@@ -469,6 +465,15 @@
         <button class="btn-ghost" id="fiCancel" data-i18n="fi.cancel">Ahora no</button>
         <button class="btn-solid" id="fiAccept" data-i18n="fi.accept">Aceptar 🤝</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ───────── Nueva conversación ───────── -->
+  <div class="sheet" id="chatNewSheet" hidden>
+    <div class="sheet__panel sheet__panel--tall">
+      <div class="sheet__top"><h3>Nueva conversación</h3></div>
+      <input type="search" id="chatNewSearch" placeholder="Buscar amigo o grupo…" class="sheet__search">
+      <ul class="chat-list sheet__scrolllist" id="chatNewList"></ul>
     </div>
   </div>
 

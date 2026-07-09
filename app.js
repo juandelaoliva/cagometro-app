@@ -1016,7 +1016,7 @@ $("joinGroupBtn").addEventListener("click", async ()=>{
   catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?t('grupos.join.invalid'):t('grupos.join.fail'); msg.hidden=false; }
 });
 $("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), t('grupos.invite.text',{name:activeGroup.name})); });
-$("inviteFriendBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupInvitePicker(activeGroup); });
+$("inviteToGroupBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupInvitePicker(activeGroup); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
   if(!activeGroup)return; if(!confirm(t('confirm.group.leave',{name:activeGroup.name})))return;
   try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast(t('toast.group.left')); renderGrupos(); }

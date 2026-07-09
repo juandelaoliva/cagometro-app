@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no, interactive-widget=resizes-content" />
   <title>El Cagómetro</title>
   <meta name="description" content="Tu cagómetro personal. Suma tus cacas, sigue a tus amigos y compite en grupos." />
 
@@ -230,7 +230,8 @@
       <div id="chatLayer1" class="chat-layer">
         <div class="chat-header">
           <button class="chat-back" id="chatClose" aria-label="Cerrar">←</button>
-          <h2 data-i18n="chat.title">Mensajes</h2>
+          <h2 data-i18n="chat.title" style="flex:1">Mensajes</h2>
+          <button class="chat-new" id="chatNewBtn" aria-label="Nueva conversación">＋</button>
         </div>
         <ul class="chat-list" id="chatList">
           <li class="chat-empty" data-i18n="chat.empty">No tienes conversaciones aún.</li>
@@ -250,6 +251,17 @@
         <div class="chat-input-area">
           <textarea class="chat-input" id="chatInput" rows="1" placeholder="Mensaje…" maxlength="1000"></textarea>
           <button class="chat-send" id="chatSend" aria-label="Enviar">➤</button>
+        </div>
+      </div>
+
+      <!-- Sheet: nueva conversación -->
+      <div id="chatNewSheet" class="chat-new-sheet" hidden>
+        <div class="chat-new-panel">
+          <div class="chat-header" style="border-radius:16px 16px 0 0">
+            <h2 style="flex:1" data-i18n="chat.new.title">Nueva conversación</h2>
+          </div>
+          <input type="search" id="chatNewSearch" class="sheet__search" style="margin:10px 16px;width:calc(100% - 32px);box-sizing:border-box" placeholder="Buscar…">
+          <ul class="chat-list" id="chatNewList" style="flex:1;overflow-y:auto"></ul>
         </div>
       </div>
 

@@ -1756,15 +1756,28 @@ function _msgHtml(m, myUid){
 }
 
 // ── abrir/cerrar vista chat ──────────────────────────────────────
+function _onVVResize(){
+  const vv = window.visualViewport; if(!vv) return;
+  const cv = $("chatView");
+  cv.style.height = vv.height + "px";
+  cv.style.top    = vv.offsetTop + "px";
+  if(_activeChatId){ const ml=$("msgList"); ml.scrollTop=ml.scrollHeight; }
+}
 function openChatView(){
   $("chatView").hidden = false;
   document.body.classList.add("chat-mode");
   $("chatLayer2").classList.remove("is-open");
   $("chatLayer2").hidden = true;
+  window.visualViewport?.addEventListener("resize", _onVVResize);
+  window.visualViewport?.addEventListener("scroll", _onVVResize);
+  _onVVResize();
 }
 function closeChatView(){
   $("chatView").hidden = true;
   document.body.classList.remove("chat-mode");
+  $("chatView").style.height = $("chatView").style.top = "";
+  window.visualViewport?.removeEventListener("resize", _onVVResize);
+  window.visualViewport?.removeEventListener("scroll", _onVVResize);
   _chatMsgUnsub?.(); _chatMsgUnsub = null;
   _activeChatId = null; _activeChatData = null;
 }
@@ -1795,6 +1808,53 @@ $("chatBtn").addEventListener("click", ()=>{
   openChatView();
 });
 $("chatClose").addEventListener("click", ()=> closeChatView());
+
+// ── nueva conversación ───────────────────────────────────────────
+let _newConvItems = [];
+function _renderNewList(filter=""){
+  const q = filter.toLowerCase().trim();
+  const shown = q ? _newConvItems.filter(x=>(x.name||"").toLowerCase().includes(q)) : _newConvItems;
+  const list = $("chatNewList");
+  if(!shown.length){ list.innerHTML=`<li class="chat-empty">Sin resultados</li>`; return; }
+  let html="", lastType="";
+  for(const x of shown){
+    if(x.type!==lastType){
+      html+=`<li class="chat-section-label">${x.type==="group"?"Grupos":"Amigos"}</li>`;
+      lastType=x.type;
+    }
+    html+=`<li class="chat-item" data-new-chat-uid="${x.uid||""}" data-new-chat-gid="${x.gid||""}" data-new-chat-name="${x.name}">
+      ${av(x.name,x.color||"#888")}
+      <div class="chat-item__body"><div class="chat-item__name">${x.name}</div></div>
+    </li>`;
+  }
+  list.innerHTML=html;
+}
+$("chatNewBtn").addEventListener("click", async ()=>{
+  $("chatNewSearch").value="";
+  $("chatNewList").innerHTML=`<li class="chat-empty">Cargando…</li>`;
+  $("chatNewSheet").hidden=false;
+  const [friends, groups] = await Promise.all([getFriends(uid), myGroups(uid)]);
+  _newConvItems=[
+    ...groups.map(g=>({type:"group",gid:g.id,name:g.name,color:"#888",group:g})),
+    ...friends.map(f=>({type:"dm",uid:f.id,name:f.displayName,color:f.color})),
+  ];
+  _renderNewList();
+  $("chatNewSearch").focus();
+});
+$("chatNewSearch").addEventListener("input", e=>_renderNewList(e.target.value));
+$("chatNewSheet").addEventListener("click", e=>{
+  if(e.target===$("chatNewSheet")||e.target.closest(".chat-header")) { $("chatNewSheet").hidden=true; return; }
+  const item=e.target.closest("[data-new-chat-name]"); if(!item) return;
+  $("chatNewSheet").hidden=true;
+  const name=item.dataset.newChatName;
+  if(item.dataset.newChatGid){
+    const g=_newConvItems.find(x=>x.gid===item.dataset.newChatGid)?.group;
+    if(g) openGroupChat(g);
+  } else if(item.dataset.newChatUid){
+    openDMChat(item.dataset.newChatUid, name);
+  }
+});
+
 $("convBack").addEventListener("click", ()=>{
   $("chatLayer2").classList.remove("is-open");
   setTimeout(()=>{ $("chatLayer2").hidden=true; }, 260);

@@ -1730,11 +1730,19 @@ function _renderChatList(chats){
 // ── renderizar mensajes ──────────────────────────────────────────
 function _renderMessages(msgs, prepend=false){
   const list = $("msgList");
-  const isAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+  const prevScrollTop = list.scrollTop;
+  const prevScrollHeight = list.scrollHeight;
+  const isAtBottom = prevScrollHeight - prevScrollTop - list.clientHeight < 60;
   const html = msgs.map(m => _msgHtml(m, uid)).join("");
-  if(prepend) list.insertAdjacentHTML("afterbegin", html);
-  else list.innerHTML = html;
-  if(!prepend || isAtBottom) list.scrollTop = list.scrollHeight;
+  if(prepend){
+    list.insertAdjacentHTML("afterbegin", html);
+    list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
+  } else {
+    list.innerHTML = html;
+    if(isAtBottom) list.scrollTop = list.scrollHeight;
+    // si no estaba al fondo, mantener posición relativa
+    else list.scrollTop = prevScrollTop;
+  }
 }
 
 function _msgHtml(m, myUid){
@@ -1972,10 +1980,11 @@ function _hideReactionPicker(){ _rp.hidden = true; _rpMsgId = null; }
 
 _rp.addEventListener("click", async e=>{
   const emoji = e.target.closest("[data-react]")?.dataset.react; if(!emoji) return;
+  const msgId = _rpMsgId, chatId = _activeChatId; // guardar antes de hide
   _hideReactionPicker();
-  if(!_rpMsgId||!_activeChatId) return;
-  try{ await reactToMessage(_activeChatId, _rpMsgId, uid, emoji); }
-  catch(err){ console.error(err); }
+  if(!msgId||!chatId) return;
+  try{ await reactToMessage(chatId, msgId, uid, emoji); }
+  catch(err){ toast("Error: "+(err?.message||err)); console.error(err); }
 });
 
 // cerrar picker al tocar fuera

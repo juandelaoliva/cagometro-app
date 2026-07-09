@@ -1763,7 +1763,11 @@ function _msgHtml(m, myUid){
   </li>`;
 }
 
-// ── abrir/cerrar vista chat ──────────────────────────────────────
+// ── chat navigation ──────────────────────────────────────────────
+// History states: {_c:1} = lista de chats abierta, {_c:2} = conversación abierta
+// Invariante: _chatNavDepth siempre refleja el estado real de la UI
+//   0 = chat cerrado, 1 = en lista, 2 = en conversación
+
 function _onVVResize(){
   const vv = window.visualViewport; if(!vv) return;
   const cv = $("chatView");
@@ -1771,10 +1775,14 @@ function _onVVResize(){
   cv.style.top    = vv.offsetTop + "px";
   if(_activeChatId){ const ml=$("msgList"); ml.scrollTop=ml.scrollHeight; }
 }
-let _scrollYBeforeChat = 0;
-let _chatNavDepth = 0; // 0=closed 1=list 2=conv
 
+let _scrollYBeforeChat = 0;
+let _chatNavDepth = 0;
+
+// Solo cierra la UI — nunca toca el history
 function _doCloseChatUI(){
+  if($("chatView").hidden) return;
+  _hideReactionPicker();
   $("chatView").hidden = true;
   document.body.classList.remove("chat-mode");
   document.body.style.top = "";
@@ -1786,17 +1794,20 @@ function _doCloseChatUI(){
   _activeChatId = null; _activeChatData = null;
   _chatNavDepth = 0;
 }
+
+// Solo cierra la conversación y vuelve a lista — nunca toca el history
 function _doCloseConvUI(){
   _hideReactionPicker();
   $("chatLayer2").classList.remove("is-open");
-  setTimeout(()=>{ $("chatLayer2").hidden=true; },260);
-  _chatMsgUnsub?.(); _chatMsgUnsub=null;
-  _activeChatId=null; _activeChatData=null;
-  _chatNavDepth=1;
+  setTimeout(()=>{ $("chatLayer2").hidden = true; }, 260);
+  _chatMsgUnsub?.(); _chatMsgUnsub = null;
+  _activeChatId = null; _activeChatData = null;
+  _chatNavDepth = 1;
 }
 
+// Abre la vista de chat (lista). Pushea UN estado.
 function openChatView(){
-  if(!$("chatView").hidden) return; // ya abierto
+  if(!$("chatView").hidden) return; // ya abierto, no pushear de nuevo
   _scrollYBeforeChat = window.scrollY;
   document.body.style.top = `-${_scrollYBeforeChat}px`;
   $("chatView").hidden = false;
@@ -1806,14 +1817,23 @@ function openChatView(){
   window.visualViewport?.addEventListener("resize", _onVVResize);
   window.visualViewport?.addEventListener("scroll", _onVVResize);
   _onVVResize();
-  history.pushState({_chatDepth:1},"");
-  _chatNavDepth=1;
+  history.pushState({_c:1}, "");
+  _chatNavDepth = 1;
 }
-function closeChatView(){
-  if(_chatNavDepth===2) history.go(-2); // pop conv + list
-  else if(_chatNavDepth===1) history.back();
-  else _doCloseChatUI();
-}
+
+// popstate: única fuente de verdad para la navegación hacia atrás
+window.addEventListener("popstate", e => {
+  if($("chatView").hidden) return; // no estamos en chat
+  const depth = e.state?._c ?? 0;
+  if(depth >= 2) return; // forward navigation, ignorar
+  if(depth === 1){
+    // volvemos a lista desde conversación
+    if(_chatNavDepth === 2) _doCloseConvUI();
+  } else {
+    // depth === 0: volvemos a la app desde lista (o desde conv si se hizo go(-2))
+    _doCloseChatUI();
+  }
+});
 
 // ── abrir conversación ──────────────────────────────────────────
 async function openConversation(chatId, chatData){
@@ -1826,8 +1846,9 @@ async function openConversation(chatId, chatData){
   $("chatLayer2").hidden = false;
   requestAnimationFrame(()=>$("chatLayer2").classList.add("is-open"));
   $("loadOlderBtn").hidden = true;
-  if(_chatNavDepth===1){ history.pushState({_chatDepth:2},""); _chatNavDepth=2; }
-  else history.replaceState({_chatDepth:2},""); // cambio de conv sin apilar
+  // Push solo si venimos de lista; replace si ya estamos en otra conv
+  if(_chatNavDepth === 1){ history.pushState({_c:2}, ""); _chatNavDepth = 2; }
+  else if(_chatNavDepth === 2){ history.replaceState({_c:2}, ""); }
   _oldestMsgClientTs = null;
   markChatRead(chatId, uid).catch(()=>{});
   _chatMsgUnsub = watchMessages(chatId, msgs => {
@@ -1839,23 +1860,9 @@ async function openConversation(chatId, chatData){
   $("chatInput").focus();
 }
 
-// ── back navigation (iOS swipe / Android back) ───────────────────
-window.addEventListener("popstate", e=>{
-  const depth = e.state?._chatDepth ?? 0;
-  if($("chatView").hidden) return; // no estamos en chat, dejar que el browser navegue
-  if(depth===1 && _chatNavDepth===2){
-    // venimos de conversación → lista
-    _doCloseConvUI();
-  } else if(depth===0){
-    // venimos de lista → fuera del chat
-    if(_chatNavDepth===2) _doCloseConvUI();
-    _doCloseChatUI();
-  }
-});
-
 // ── botón chat en topbar ─────────────────────────────────────────
 $("chatBtn").addEventListener("click", ()=>{ openChatView(); });
-$("chatClose").addEventListener("click", ()=> closeChatView());
+$("chatClose").addEventListener("click", ()=> history.back()); // lista → app
 
 // ── nueva conversación ───────────────────────────────────────────
 let _newConvItems = [];
@@ -1903,10 +1910,7 @@ $("chatNewSheet").addEventListener("click", e=>{
   }
 });
 
-$("convBack").addEventListener("click", ()=>{
-  if(_chatNavDepth===2) history.back();
-  else _doCloseConvUI();
-});
+$("convBack").addEventListener("click", ()=> history.back()); // conv → lista
 
 // ── tap en item de lista ─────────────────────────────────────────
 $("chatList").addEventListener("click", async e=>{

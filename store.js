@@ -439,3 +439,59 @@ export async function outboxFlush(uid, actFn) {
   else outboxSave(queue.slice(flushed));
   return flushed;
 }
+
+// ── Invitaciones a grupos ─────────────────────────────────────────────────────
+// ID determinista para evitar duplicados: un usuario solo puede tener una invitación
+// pendiente por grupo al mismo tiempo.
+const groupInviteId = (gid, toUid) => `${gid}_${toUid}`;
+
+export async function sendGroupInvite(fromUid, toUid, group){
+  const me = await getUser(fromUid);
+  const invitee = await getUser(toUid);
+  const inviteRef = doc(db, "groupInvites", groupInviteId(group.id, toUid));
+  const existing = await getDoc(inviteRef);
+  if (existing.exists() && existing.data().status === "pending") return; // ya hay una pendiente
+  await setDoc(inviteRef, {
+    gid: group.id,
+    groupName: group.name,
+    fromUid,
+    fromName: me?.displayName || "Alguien",
+    toUid,
+    status: "pending",
+    members: group.members || [],
+    memberNames: await Promise.all((group.members||[]).filter(m=>m!==toUid).map(async m => {
+      const u = await getUser(m); return u?.displayName || "?";
+    })),
+    createdAt: serverTimestamp(),
+  });
+  enqueuePush(fromUid, toUid, "group_invite",
+    "Invitación a grupo 💩",
+    `${me?.displayName||"Alguien"} te ha invitado al grupo "${group.name}"`
+  ).catch(()=>{});
+}
+
+export const watchGroupInvites = (uid, cb) =>
+  onSnapshot(query(collection(db,"groupInvites"), where("toUid","==",uid), where("status","==","pending")), s =>
+    cb(s.docs.map(d => ({ id: d.id, ...d.data() })))
+  );
+
+export async function acceptGroupInvite(invite, uid){
+  // Reutilizamos la lógica de joinGroup: añade al grupo y auto-amiga a todos los miembros actuales
+  const groupRef = doc(db, "groups", invite.gid);
+  const gsnap = await getDoc(groupRef);
+  if (!gsnap.exists()) throw new Error("group-gone");
+  const currentMembers = gsnap.data().members || [];
+  const others = currentMembers.filter(m => m !== uid);
+  if (!currentMembers.includes(uid)) await updateDoc(groupRef, { members: arrayUnion(uid) });
+  if (others.length){
+    const batch = writeBatch(db);
+    for (const m of others)
+      batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", createdAt:serverTimestamp() }, { merge:true });
+    await batch.commit();
+  }
+  await updateDoc(doc(db,"groupInvites",invite.id), { status: "accepted" });
+  return { id: gsnap.id, ...gsnap.data(), members: [...new Set([...currentMembers, uid])] };
+}
+
+export const declineGroupInvite = (inviteId) =>
+  updateDoc(doc(db,"groupInvites",inviteId), { status: "declined" });

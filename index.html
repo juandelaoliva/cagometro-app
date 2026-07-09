@@ -173,7 +173,7 @@
 
         <div id="groupDetail" hidden>
           <div class="block">
-            <div class="block__head"><h2 data-i18n="grupos.ranking.title">Clasificación</h2><button class="link" id="shareCode">🔗 Invitar · —</button></div>
+            <div class="block__head"><h2 data-i18n="grupos.ranking.title">Clasificación</h2><div style="display:flex;gap:8px;align-items:center"><button class="link" id="inviteFriendBtn" data-i18n="grupos.invite.friend.btn">Invitar amigo</button><button class="link" id="shareCode">🔗 Código</button></div></div>
             <div class="segctl" id="rankPeriod">
               <button type="button" data-period="week" data-i18n="grupos.period.week">Semana</button>
               <button type="button" class="on" data-period="month" data-i18n="grupos.period.month">Mes</button>
@@ -421,6 +421,30 @@
       <div class="sheet__actions">
         <button class="btn-ghost" id="fiCancel" data-i18n="fi.cancel">Ahora no</button>
         <button class="btn-solid" id="fiAccept" data-i18n="fi.accept">Aceptar 🤝</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────── Invitar amigo a grupo ───────── -->
+  <div class="sheet" id="groupInvitePickerSheet" hidden>
+    <div class="sheet__panel">
+      <div class="sheet__top"><h3 id="groupInvitePickerTitle" data-i18n="grupos.invite.friend.btn">Invitar amigo</h3><button class="sheet__close" id="groupInvitePickerClose">✕</button></div>
+      <ul class="reqlist" id="groupInvitePickerList"></ul>
+    </div>
+  </div>
+
+  <!-- ───────── Recibir invitación a grupo ───────── -->
+  <div class="sheet" id="groupInviteSheet" hidden>
+    <div class="sheet__panel">
+      <div class="ps-head">
+        <span style="font-size:2rem">💬</span>
+        <div><div class="pcard__name" id="giGroupName">—</div><div class="pcard__email" id="giFromName">—</div></div>
+      </div>
+      <p class="sheet__sub" id="giMembers"></p>
+      <p class="sheet__sub" style="font-size:12px;opacity:.7" data-i18n="notif.groupinvite.warning">Si aceptas, te harás amigo/a automáticamente de todos los miembros.</p>
+      <div class="sheet__actions">
+        <button class="btn-ghost" id="giDecline" data-i18n="notif.groupinvite.decline">Rechazar</button>
+        <button class="btn-solid" id="giAccept" data-i18n="notif.groupinvite.accept">Unirme</button>
       </div>
     </div>
   </div>

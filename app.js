@@ -8,7 +8,8 @@ import {
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
-  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush
+  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
+  sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -659,7 +660,7 @@ document.addEventListener("pointerdown", e=>{ if(_rxTip && !e.target.closest(".r
 window.addEventListener("scroll", hideReactors, true);
 
 /* ---------- centro de notificaciones (in-app, tiempo real) ---------- */
-let notifReqs=[], notifRx=[], rxBaseline=null, reqBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
+let notifReqs=[], notifRx=[], notifGroupInvites=[], rxBaseline=null, reqBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
 // permiso del navegador para notificaciones locales del sistema (no necesita VAPID/servidor)
 async function requestNotifPermission(){
   if(!("Notification" in window)) return "denied";
@@ -733,11 +734,16 @@ function startNotifications(){
     }
     notifReqs=enriched; refreshNotif();
   }));
+  // invitaciones a grupos entrantes
+  notifUnsub.push(watchGroupInvites(uid, invites => {
+    notifGroupInvites = invites;
+    refreshNotif();
+  }));
   // (las reacciones a MIS cacas se detectan en el listener del feed → detectReactionNotifs)
 }
-function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
-function renderNotifBadge(){ const n=notifReqs.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
+function renderNotifBadge(){ const n=notifReqs.length+notifGroupInvites.length+unseenRx; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
@@ -748,10 +754,12 @@ async function resolveName(ru){
 }
 function renderNotifSheet(){
   const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${r.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
+  const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${inv.groupName}</b><small>${t('notif.groupinvite.from',{name:inv.fromName})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
   const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
   let html="";
-  if(reqs) html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
-  if(rx)   html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.rx')}</h4><ul class="notif-list">${rx}</ul></div>`;
+  if(reqs)    html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
+  if(ginvites)html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.groupinvites')}</h4><ul class="reqlist">${ginvites}</ul></div>`;
+  if(rx)      html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.rx')}</h4><ul class="notif-list">${rx}</ul></div>`;
   $("notifBody").innerHTML = html || `<p class="notif-empty">${t('notif.empty')}<br/><small>${t('notif.empty.sub')}</small></p>`;
 }
 function openNotif(){ unseenRx=0; renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
@@ -978,8 +986,11 @@ $("friendsRank").addEventListener("click", e=>{
 });
 document.addEventListener("click",async e=>{
   const a=e.target.closest("[data-accept]"); const d=e.target.closest("[data-decline]");
+  const gi=e.target.closest("[data-ginvite]"); const gd=e.target.closest("[data-gdecline]");
   if(a){ await acceptFriend(a.dataset.accept, uid); _graphAt=0; toast(t('toast.friend.accepted')); renderAmigos(); loadActivity("force"); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
+  if(gi){ openGroupInviteSheet(notifGroupInvites.find(x=>x.id===gi.dataset.ginvite)); }
+  if(gd){ try{ await declineGroupInvite(gd.dataset.gdecline); toast(t('notif.groupinvite.declined')); }catch(e){ console.error(e); } }
 });
 // acordeón de grupos: la cabecera despliega/colapsa el grupo
 $("groupList").addEventListener("click", e=>{
@@ -1005,6 +1016,7 @@ $("joinGroupBtn").addEventListener("click", async ()=>{
   catch(err){ msg.style.color="var(--rose)"; msg.textContent=err.message==="no-group"?t('grupos.join.invalid'):t('grupos.join.fail'); msg.hidden=false; }
 });
 $("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), t('grupos.invite.text',{name:activeGroup.name})); });
+$("inviteFriendBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupInvitePicker(activeGroup); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
   if(!activeGroup)return; if(!confirm(t('confirm.group.leave',{name:activeGroup.name})))return;
   try{ await leaveGroup(activeGroup.id, uid); activeGroup=null; $("groupDetail").hidden=true; toast(t('toast.group.left')); renderGrupos(); }
@@ -1498,3 +1510,69 @@ if("serviceWorker"in navigator){
   // al volver a primer plano (típico en iOS standalone), buscar versión nueva
   document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible" && _swReg) _swReg.update().catch(()=>{}); });
 }
+
+// ── Picker: invitar amigo a grupo ────────────────────────────────────────────
+async function openGroupInvitePicker(group){
+  const sheet=$("groupInvitePickerSheet");
+  const list=$("groupInvitePickerList");
+  list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.rank.loading')}</li>`;
+  sheet.hidden=false;
+  try{
+    const friends=await getFriends(uid);
+    const memberSet=new Set(group.members||[]);
+    const eligible=friends.filter(f=>!memberSet.has(f.id));
+    if(!eligible.length){
+      list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.invite.friend.empty')}</li>`;
+      return;
+    }
+    list.innerHTML=eligible.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${f.displayName}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${(f.displayName||"").replace(/"/g,"")}">${t('notif.groupinvite.accept').replace('Unirme','Invitar').replace('Join','Invite')}</button></li>`).join("");
+  }catch(e){ list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.invite.friend.fail')}</li>`; console.error(e); }
+}
+$("groupInvitePickerClose").addEventListener("click",()=>$("groupInvitePickerSheet").hidden=true);
+$("groupInvitePickerSheet").addEventListener("click",async e=>{
+  if(e.target===$("groupInvitePickerSheet")){ $("groupInvitePickerSheet").hidden=true; return; }
+  const btn=e.target.closest("[data-invite-friend]"); if(!btn||!activeGroup)return;
+  const toUid=btn.dataset.inviteFriend, name=btn.dataset.inviteName;
+  btn.disabled=true; btn.textContent="…";
+  try{
+    await sendGroupInvite(uid, toUid, activeGroup);
+    toast(t('grupos.invite.friend.sent',{name}));
+    btn.textContent="✓"; setTimeout(()=>$("groupInvitePickerSheet").hidden=true, 800);
+  }catch(e){
+    toast(t('grupos.invite.friend.fail')); btn.disabled=false; btn.textContent="Invitar"; console.error(e);
+  }
+});
+
+// ── Sheet: recibir invitación a grupo ────────────────────────────────────────
+let _activeGroupInvite=null;
+function openGroupInviteSheet(invite){
+  if(!invite)return;
+  _activeGroupInvite=invite;
+  $("giGroupName").textContent=invite.groupName;
+  $("giFromName").textContent=t('notif.groupinvite.from',{name:invite.fromName});
+  const names=(invite.memberNames||[]).join(", ")||"—";
+  $("giMembers").textContent=t('notif.groupinvite.members',{names});
+  $("groupInviteSheet").hidden=false;
+}
+$("giAccept").addEventListener("click",async()=>{
+  if(!_activeGroupInvite)return;
+  $("giAccept").disabled=true; $("giAccept").textContent="…";
+  try{
+    const g=await acceptGroupInvite(_activeGroupInvite, uid);
+    _graphAt=0;
+    toast(t('notif.groupinvite.accepted',{name:_activeGroupInvite.groupName}));
+    $("groupInviteSheet").hidden=true;
+    await renderGrupos(); openGroup(g); setView("grupos");
+    loadActivity("force");
+  }catch(e){
+    const msg=e.message==="group-gone"?t('notif.groupinvite.gone'):t('notif.groupinvite.fail');
+    toast(msg); console.error(e);
+  }finally{ $("giAccept").disabled=false; $("giAccept").textContent=t('notif.groupinvite.accept'); }
+});
+$("giDecline").addEventListener("click",async()=>{
+  if(!_activeGroupInvite)return;
+  try{ await declineGroupInvite(_activeGroupInvite.id); toast(t('notif.groupinvite.declined')); }
+  catch(e){ console.error(e); }
+  $("groupInviteSheet").hidden=true; _activeGroupInvite=null;
+});
+$("groupInviteSheet").addEventListener("click",e=>{ if(e.target===$("groupInviteSheet")){ $("groupInviteSheet").hidden=true; _activeGroupInvite=null; } });

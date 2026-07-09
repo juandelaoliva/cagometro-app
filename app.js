@@ -188,6 +188,10 @@ $("logoutBtn").addEventListener("click",()=>signOutUser());
 
 /* ---------- session ---------- */
 let _authResolved=false;
+// Asegura que siempre haya un estado base en el history para que history.back()
+// dentro del chat nunca abandone la PWA
+if(!history.state?._app) history.replaceState({_app:true}, "");
+
 onUser(async user=>{
   _authResolved=true;
   $("splash").hidden = true;                 // auth resolved → hide the loading screen
@@ -1275,12 +1279,14 @@ const curView = () => document.querySelector(".view.is-active")?.dataset.view;
 // "trap": una entrada extra en el historial para capturar el back y no salir de la PWA
 history.replaceState({ cago:1 }, "");
 history.pushState({ cago:1 }, "");
-window.addEventListener("popstate", ()=>{
-  if($("gate") && !$("gate").hidden){ history.pushState({cago:1},""); return; }   // en login, back no navega
-  if(!closeOverlays()){                       // 1º cierra una hoja abierta
-    if(curView() && curView()!=="inicio") setView("inicio");   // 2º vuelve a Inicio
+window.addEventListener("popstate", e=>{
+  // Si estamos en chat, delegar al handler del chat (definido más abajo)
+  if(_chatNavDepth > 0){ _handleChatPopstate(e); return; }
+  if($("gate") && !$("gate").hidden){ history.pushState({cago:1},""); return; }
+  if(!closeOverlays()){
+    if(curView() && curView()!=="inicio") setView("inicio");
   }
-  history.pushState({ cago:1 }, "");          // re-arma el trap (back se queda dentro)
+  history.pushState({ cago:1 }, "");
 });
 
 // ── botón ✕ de cierre en la esquina superior de cada hoja ──
@@ -1821,19 +1827,20 @@ function openChatView(){
   _chatNavDepth = 1;
 }
 
-// popstate: única fuente de verdad para la navegación hacia atrás
-window.addEventListener("popstate", e => {
-  if($("chatView").hidden) return; // no estamos en chat
+// Manejador de navegación hacia atrás del chat — llamado desde el popstate global
+function _handleChatPopstate(e){
   const depth = e.state?._c ?? 0;
   if(depth >= 2) return; // forward navigation, ignorar
   if(depth === 1){
-    // volvemos a lista desde conversación
     if(_chatNavDepth === 2) _doCloseConvUI();
+    // Si _chatNavDepth ya es 1, no hacemos nada (ya estamos en lista)
   } else {
-    // depth === 0: volvemos a la app desde lista (o desde conv si se hizo go(-2))
+    // depth === 0: volvemos a la app desde lista
     _doCloseChatUI();
+    // Re-armar el trap de la app
+    history.pushState({ cago:1 }, "");
   }
-});
+}
 
 // ── abrir conversación ──────────────────────────────────────────
 async function openConversation(chatId, chatData){

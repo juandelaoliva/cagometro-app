@@ -12,7 +12,8 @@ import {
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
-  watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage
+  watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
+  getGroup
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -2053,6 +2054,10 @@ function startChatListener(myUid, myDisplayName){
         const otherUid = c.members.find(m=>m!==myUid);
         const other = await getUser(otherUid);
         return { ...c, otherName: other?.displayName||"—", color: other?.color };
+      }
+      if(c.type==="group"){
+        const g = await getGroup(c.id).catch(()=>null);
+        return { ...c, name: g?.name||"Grupo", color: g?.color };
       }
       return c;
     }));

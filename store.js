@@ -79,6 +79,7 @@ export async function ensureProfile(user, displayName){
 export const watchMe = (uid, cb) =>
   onSnapshot(doc(db, "users", uid), s => cb(s.exists() ? { id:s.id, ...s.data() } : null));
 export const getUser = async uid => { const s = await getDoc(doc(db,"users",uid)); return s.exists()?{id:s.id,...s.data()}:null; };
+export const getGroup = async gid => { const s = await getDoc(doc(db,"groups",gid)); return s.exists()?{id:s.id,...s.data()}:null; };
 
 /* ---------- counters (per-year) ---------- */
 // Suma una caca. En una transacción: lee el total real, escribe la caca, sube los

@@ -1542,7 +1542,6 @@ async function openGroupInvitePicker(group){
   }catch(e){ list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.invite.friend.fail')}</li>`; console.error(e); }
 }
 $("groupInviteSearch").addEventListener("input", e=>_renderPickerList(e.target.value));
-$("groupInvitePickerClose").addEventListener("click",()=>$("groupInvitePickerSheet").hidden=true);
 $("groupInvitePickerSheet").addEventListener("click",async e=>{
   if(e.target===$("groupInvitePickerSheet")){ $("groupInvitePickerSheet").hidden=true; return; }
   const btn=e.target.closest("[data-invite-friend]"); if(!btn||!activeGroup)return;
@@ -1559,7 +1558,6 @@ $("groupInvitePickerSheet").addEventListener("click",async e=>{
 
 // ── Sheet: administrar grupo (solo admin/creador) ─────────────────────────────
 $("groupAdminBtn").addEventListener("click", ()=> openGroupAdminSheet());
-$("groupAdminClose").addEventListener("click", ()=>{ $("groupAdminSheet").hidden=true; });
 $("groupAdminSheet").addEventListener("click", e=>{ if(e.target===$("groupAdminSheet")){ $("groupAdminSheet").hidden=true; } });
 
 async function openGroupAdminSheet(){

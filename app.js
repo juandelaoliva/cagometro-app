@@ -1550,7 +1550,7 @@ $("groupInvitePickerSheet").addEventListener("click",async e=>{
     toast(t('grupos.invite.friend.sent',{name}));
     btn.textContent="✓"; setTimeout(()=>$("groupInvitePickerSheet").hidden=true, 800);
   }catch(e){
-    toast(t('grupos.invite.friend.fail')); btn.disabled=false; btn.textContent="Invitar"; console.error(e);
+    toast("Error: " + (e?.message||e)); btn.disabled=false; btn.textContent="Invitar"; console.error(e);
   }
 });
 

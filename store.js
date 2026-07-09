@@ -451,6 +451,7 @@ export async function sendGroupInvite(fromUid, toUid, group){
   const inviteRef = doc(db, "groupInvites", groupInviteId(group.id, toUid));
   const existing = await getDoc(inviteRef);
   if (existing.exists() && existing.data().status === "pending") return; // ya hay una pendiente
+  if (existing.exists()) await deleteDoc(inviteRef); // recrea si era declined/accepted
   await setDoc(inviteRef, {
     gid: group.id,
     groupName: group.name,

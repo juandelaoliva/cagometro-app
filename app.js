@@ -1512,22 +1512,33 @@ if("serviceWorker"in navigator){
 }
 
 // ── Picker: invitar amigo a grupo ────────────────────────────────────────────
+let _pickerEligible=[];
+function _renderPickerList(filter=""){
+  const list=$("groupInvitePickerList");
+  const q=filter.toLowerCase().trim();
+  const shown=q ? _pickerEligible.filter(f=>(f.displayName||"").toLowerCase().includes(q)||(f.email||"").toLowerCase().includes(q)) : _pickerEligible;
+  if(!shown.length){
+    list.innerHTML=`<li class="notif-empty" style="padding:16px">${q ? "Sin resultados" : t('grupos.invite.friend.empty')}</li>`;
+    return;
+  }
+  list.innerHTML=shown.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${f.displayName}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${(f.displayName||"").replace(/"/g,"")}">${"Invitar"}</button></li>`).join("");
+}
 async function openGroupInvitePicker(group){
   const sheet=$("groupInvitePickerSheet");
   const list=$("groupInvitePickerList");
+  const search=$("groupInviteSearch");
+  search.value="";
   list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.rank.loading')}</li>`;
   sheet.hidden=false;
+  search.focus();
   try{
     const friends=await getFriends(uid);
     const memberSet=new Set(group.members||[]);
-    const eligible=friends.filter(f=>!memberSet.has(f.id));
-    if(!eligible.length){
-      list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.invite.friend.empty')}</li>`;
-      return;
-    }
-    list.innerHTML=eligible.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${f.displayName}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${(f.displayName||"").replace(/"/g,"")}">${t('notif.groupinvite.accept').replace('Unirme','Invitar').replace('Join','Invite')}</button></li>`).join("");
+    _pickerEligible=friends.filter(f=>!memberSet.has(f.id));
+    _renderPickerList();
   }catch(e){ list.innerHTML=`<li class="notif-empty" style="padding:16px">${t('grupos.invite.friend.fail')}</li>`; console.error(e); }
 }
+$("groupInviteSearch").addEventListener("input", e=>_renderPickerList(e.target.value));
 $("groupInvitePickerClose").addEventListener("click",()=>$("groupInvitePickerSheet").hidden=true);
 $("groupInvitePickerSheet").addEventListener("click",async e=>{
   if(e.target===$("groupInvitePickerSheet")){ $("groupInvitePickerSheet").hidden=true; return; }

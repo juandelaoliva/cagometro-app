@@ -173,7 +173,7 @@
 
         <div id="groupDetail" hidden>
           <div class="block">
-            <div class="block__head"><h2 data-i18n="grupos.ranking.title">Clasificación</h2><div style="display:flex;gap:8px;align-items:center"><button class="link" id="inviteToGroupBtn" data-i18n="grupos.invite.friend.btn">Invitar amigo</button><button class="link" id="shareCode">🔗 Código</button></div></div>
+            <div class="block__head"><h2 id="groupDetailName" data-i18n="grupos.ranking.title">Clasificación</h2><div style="display:flex;gap:8px;align-items:center"><button class="link" id="inviteToGroupBtn" data-i18n="grupos.invite.friend.btn">Invitar amigo</button><button class="link" id="shareCode">🔗 Código</button><button class="link" id="groupAdminBtn" hidden style="font-size:18px;line-height:1;padding:2px 4px" title="Administrar grupo">⚙️</button></div></div>
             <div class="segctl" id="rankPeriod">
               <button type="button" data-period="week" data-i18n="grupos.period.week">Semana</button>
               <button type="button" class="on" data-period="month" data-i18n="grupos.period.month">Mes</button>
@@ -427,10 +427,31 @@
 
   <!-- ───────── Invitar amigo a grupo ───────── -->
   <div class="sheet" id="groupInvitePickerSheet" hidden>
-    <div class="sheet__panel">
+    <div class="sheet__panel sheet__panel--tall">
       <div class="sheet__top"><h3 id="groupInvitePickerTitle" data-i18n="grupos.invite.friend.btn">Invitar amigo</h3><button class="sheet__close" id="groupInvitePickerClose">✕</button></div>
-      <input type="search" id="groupInviteSearch" placeholder="Buscar por nombre o email…" style="width:100%;box-sizing:border-box;padding:10px 14px;border:1px solid var(--border,#e0e0e0);border-radius:10px;font-size:15px;margin-bottom:8px;outline:none">
-      <ul class="reqlist" id="groupInvitePickerList"></ul>
+      <input type="search" id="groupInviteSearch" placeholder="Buscar por nombre o email…" class="sheet__search">
+      <ul class="reqlist sheet__scrolllist" id="groupInvitePickerList"></ul>
+    </div>
+  </div>
+
+  <!-- ───────── Admin del grupo ───────── -->
+  <div class="sheet" id="groupAdminSheet" hidden>
+    <div class="sheet__panel sheet__panel--tall">
+      <div class="sheet__top"><h3 data-i18n="grupos.admin.title">Administrar grupo</h3><button class="sheet__close" id="groupAdminClose">✕</button></div>
+      <div class="sheet__section">
+        <label class="sheet__label" data-i18n="grupos.admin.name">Nombre del grupo</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="groupAdminNameInput" class="sheet__input" maxlength="40">
+          <button class="btn-solid" id="groupAdminSaveName" style="flex-shrink:0" data-i18n="grupos.admin.save">Guardar</button>
+        </div>
+      </div>
+      <div class="sheet__section">
+        <label class="sheet__label" data-i18n="grupos.admin.members">Miembros</label>
+        <ul class="reqlist" id="groupAdminMemberList"></ul>
+      </div>
+      <div class="sheet__section" style="margin-top:auto;padding-top:16px">
+        <button class="btn-ghost btn-ghost--danger" id="groupAdminDelete" style="width:100%" data-i18n="grupos.admin.delete">Eliminar grupo</button>
+      </div>
     </div>
   </div>
 

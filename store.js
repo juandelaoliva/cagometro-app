@@ -344,6 +344,9 @@ export async function joinGroup(uid, code){
   return { id: g.id, ...(await getDoc(g.ref)).data() };
 }
 export const leaveGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });
+export const renameGroup = (gid, name) => updateDoc(doc(db,"groups",gid), { name: name.trim() });
+export const kickFromGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });
+export const deleteGroup = (gid) => deleteDoc(doc(db,"groups",gid));
 
 export async function myGroups(uid){
   const snap = await getDocs(query(collection(db,"groups"), where("members","array-contains",uid)));

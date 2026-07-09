@@ -9,7 +9,8 @@ import {
   adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
-  sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite
+  sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
+  renameGroup, kickFromGroup, deleteGroup
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -1070,6 +1071,8 @@ async function openGroup(group){
   det.hidden=false;
   document.querySelectorAll("#groupList li[data-gid]").forEach(x=>x.classList.toggle("is-open", x.dataset.gid===group.id));
   $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
+  $("groupDetailName").textContent=group.name;
+  $("groupAdminBtn").hidden = (group.createdBy !== uid);
   const board=await groupLeaderboard(group);
   const year=new Date().getFullYear(), curMonth=new Date().getMonth();
   const ws=new Date(); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7)); const weekStart=ws.getTime();
@@ -1552,6 +1555,72 @@ $("groupInvitePickerSheet").addEventListener("click",async e=>{
   }catch(e){
     toast("Error: " + (e?.message||e)); btn.disabled=false; btn.textContent="Invitar"; console.error(e);
   }
+});
+
+// ── Sheet: administrar grupo (solo admin/creador) ─────────────────────────────
+$("groupAdminBtn").addEventListener("click", ()=> openGroupAdminSheet());
+$("groupAdminClose").addEventListener("click", ()=>{ $("groupAdminSheet").hidden=true; });
+$("groupAdminSheet").addEventListener("click", e=>{ if(e.target===$("groupAdminSheet")){ $("groupAdminSheet").hidden=true; } });
+
+async function openGroupAdminSheet(){
+  if(!activeGroup) return;
+  $("groupAdminNameInput").value = activeGroup.name;
+  const memberList = $("groupAdminMemberList");
+  memberList.innerHTML = `<li class="notif-empty" style="padding:12px">Cargando…</li>`;
+  $("groupAdminSheet").hidden = false;
+  try{
+    const members = await Promise.all((activeGroup.members||[]).map(getUser));
+    memberList.innerHTML = members.filter(Boolean).map(m => `
+      <li style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
+        ${av(m.displayName, m.color)}
+        <span class="nm" style="flex:1">${m.displayName||"—"}</span>
+        ${m.id === uid ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Tú${m.id===activeGroup.createdBy?" · Admin":""}</span>`
+          : m.id === activeGroup.createdBy ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Admin</span>`
+          : `<button class="btn-ghost btn-ghost--danger" style="font-size:13px;padding:5px 12px" data-kick="${m.id}" data-kick-name="${(m.displayName||"").replace(/"/g,"")}">Expulsar</button>`}
+      </li>`).join("");
+  } catch(e){ memberList.innerHTML=`<li class="notif-empty" style="padding:12px">Error cargando miembros</li>`; }
+}
+
+$("groupAdminSaveName").addEventListener("click", async ()=>{
+  const name = $("groupAdminNameInput").value.trim();
+  if(!name || !activeGroup) return;
+  $("groupAdminSaveName").disabled=true;
+  try{
+    await renameGroup(activeGroup.id, name);
+    activeGroup.name = name;
+    $("groupDetailName").textContent = name;
+    document.querySelector(`#groupList li[data-gid="${activeGroup.id}"] .gname`).textContent = name;
+    toast("Nombre actualizado");
+    $("groupAdminSheet").hidden=true;
+  } catch(e){ toast("Error: "+(e?.message||e)); }
+  finally{ $("groupAdminSaveName").disabled=false; }
+});
+
+$("groupAdminMemberList").addEventListener("click", async e=>{
+  const btn = e.target.closest("[data-kick]"); if(!btn||!activeGroup) return;
+  const kickUid = btn.dataset.kick, kickName = btn.dataset.kickName;
+  if(!confirm(`¿Expulsar a ${kickName} del grupo?`)) return;
+  btn.disabled=true; btn.textContent="…";
+  try{
+    await kickFromGroup(activeGroup.id, kickUid);
+    activeGroup.members = activeGroup.members.filter(m=>m!==kickUid);
+    toast(`${kickName} ha salido del grupo`);
+    openGroupAdminSheet();
+  } catch(e){ toast("Error: "+(e?.message||e)); btn.disabled=false; btn.textContent="Expulsar"; }
+});
+
+$("groupAdminDelete").addEventListener("click", async ()=>{
+  if(!activeGroup) return;
+  if(!confirm(`¿Eliminar el grupo "${activeGroup.name}"? Esta acción no se puede deshacer.`)) return;
+  $("groupAdminDelete").disabled=true;
+  try{
+    await deleteGroup(activeGroup.id);
+    $("groupAdminSheet").hidden=true;
+    activeGroup=null;
+    $("groupDetail").hidden=true;
+    toast("Grupo eliminado");
+    renderGrupos();
+  } catch(e){ toast("Error: "+(e?.message||e)); $("groupAdminDelete").disabled=false; }
 });
 
 // ── Sheet: recibir invitación a grupo ────────────────────────────────────────

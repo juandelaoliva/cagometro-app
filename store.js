@@ -543,8 +543,12 @@ export const markChatRead = (chatId, uid) =>
 // Listener de todos los chats del usuario, ordenados por lastTs desc.
 export const watchChats = (uid, cb) =>
   onSnapshot(
-    query(collection(db,"chats"), where("members","array-contains",uid), orderBy("lastTs","desc")),
-    snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    query(collection(db,"chats"), where("members","array-contains",uid)),
+    snap => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a,b) => (b.lastTs?.toMillis?.()??0) - (a.lastTs?.toMillis?.()??0));
+      cb(docs);
+    }
   );
 
 // Listener de mensajes (últimos N), más recientes primero → se invierten al renderizar.

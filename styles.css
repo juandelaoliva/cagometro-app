@@ -277,6 +277,9 @@ ol,ul{list-style:none}
 .stat--accent{background:linear-gradient(160deg,var(--brand-2),var(--brand));color:#fff;border:none}
 .stat--accent b{color:#fff}
 .stat--accent span{color:rgba(255,255,255,.85)}
+/* racha actual + récord combinados en una tarjeta a todo el ancho */
+.stat--streak{grid-column:1/-1;display:flex;justify-content:space-around;align-items:center;gap:14px}
+.stat--streak .half{text-align:center}
 
 .chart{display:flex;align-items:stretch;gap:8px;height:152px;padding:12px 14px;background:var(--card);border:1px solid var(--line-2);border-radius:16px;box-shadow:var(--shadow)}
 /* cada barra es un grid de 3 filas: valor · barra(flex) · etiqueta — reserva el

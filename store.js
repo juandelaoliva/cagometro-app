@@ -20,6 +20,13 @@ const yearNow = () => new Date().getFullYear();
 // clave del contador mensual denormalizado: "AÑO_MESINDEX" (mes 0–11), p.ej. "2026_5" = junio 2026.
 // Permite pintar la gráfica/ranking del grupo SIN leer las cacas de cada miembro (ahorro de cuota).
 const monthKey = ts => { const d = new Date(ts); return `${d.getFullYear()}_${d.getMonth()}`; };
+// rollups denormalizados por hora (0–23) y día de la semana (lunes=0 … domingo=6,
+// igual que la UI). Guardados como mapas en el doc de usuario y mantenidos con
+// increment() al sumar/deshacer → permiten pintar horas/día-semana de un amigo
+// SIN leer sus cacas (paridad con tu perfil, coste 0 lecturas extra).
+export const STATS_V = 2;
+const hourOf = ts => new Date(ts).getHours();
+const weekdayOf = ts => (new Date(ts).getDay()+6)%7;
 export const colorForUid = uid => `hsl(${[...(uid||"x")].reduce((a,c)=>a+c.charCodeAt(0),0)*47 % 360} 45% 38%)`;
 
 /* ---------- auth ---------- */
@@ -59,6 +66,9 @@ export async function ensureProfile(user, displayName){
       lifetimeCount: 0,
       countsByYear: {},
       countsByMonth: {},        // denormalizado por mes ("AÑO_MES") para stats de grupo sin leer cacas
+      byHour: {},               // rollup por hora (0–23) — paridad de stats del amigo sin leer sus cacas
+      byWeekday: {},            // rollup por día de la semana (lunes=0 … domingo=6)
+      statsV: STATS_V,          // versión del esquema de stats (usuarios nuevos ya nacen al día)
       currentStreak: 0,         // días consecutivos con caca (actualizado en addCaca)
       longestStreak: 0,         // récord histórico de racha
       firstCacaTs: 0,           // ts de la primera caca (para media/día histórica)
@@ -103,6 +113,7 @@ export async function addCaca(uid, loc, act){
     tx.update(uref, {
       totalCount: increment(1), lifetimeCount: increment(1),
       [`countsByYear.${y}`]: increment(1), [`countsByMonth.${monthKey(ts)}`]: increment(1),
+      [`byHour.${hourOf(ts)}`]: increment(1), [`byWeekday.${weekdayOf(ts)}`]: increment(1),
       lastCacaTs: ts, tz: tz(),
       currentStreak: newStreak,
       longestStreak: Math.max(data.longestStreak || 0, newStreak),
@@ -164,7 +175,8 @@ export async function addCacaAt(uid, ts, act){
     const cur = (y === yearNow()) ? (data.totalCount || 0) : (data.countsByYear?.[y] || 0);
     const n = cur + 1;
     tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
-    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1), tz:tz() };
+    const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1),
+      [`byHour.${hourOf(ts)}`]:increment(1), [`byWeekday.${weekdayOf(ts)}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
     upd.lastCacaTs = Math.max(data.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
     // firstCacaTs: apunta a la caca más antigua conocida
@@ -186,10 +198,13 @@ export async function removeCaca(uid, act){
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(1)));
   if (snap.empty) return false;
   const last = snap.docs[0];
-  const y = new Date(last.data().ts).getFullYear();
+  const lastTs = last.data().ts;
+  const y = new Date(lastTs).getFullYear();
   await deleteDoc(last.ref);
-  const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(last.data().ts)}`]:increment(-1) };
+  const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(lastTs)}`]:increment(-1) };
   if (y === yearNow()) upd.totalCount = increment(-1);
+  // solo bajamos los rollups si el usuario ya está backfilleado (si no, tendrían huecos → negativos)
+  if (me.statsV === STATS_V){ upd[`byHour.${hourOf(lastTs)}`]=increment(-1); upd[`byWeekday.${weekdayOf(lastTs)}`]=increment(-1); }
   await updateDoc(doc(db,"users",uid), upd);
   if (act) writeActivity(uid, { kind:"undo", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
@@ -213,7 +228,7 @@ export async function resetCacas(uid, act){
     const b = writeBatch(db); snap.docs.forEach(d => b.delete(d.ref)); await b.commit();
     if (snap.size < 400) break;
   }
-  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, countsByMonth:{}, lastCacaTs:0, currentStreak:0, longestStreak:0, firstCacaTs:0 });
+  await updateDoc(doc(db,"users",uid), { totalCount:0, lifetimeCount:0, countsByYear:{}, countsByMonth:{}, byHour:{}, byWeekday:{}, statsV:STATS_V, lastCacaTs:0, currentStreak:0, longestStreak:0, firstCacaTs:0 });
   if (act) writeActivity(uid, { kind:"reset", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
 }

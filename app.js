@@ -13,7 +13,7 @@ import {
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
-  getGroup
+  getGroup, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -844,6 +844,20 @@ async function openPersonSheet(entry, opts={}){
       <div class="cmp-row"><span class="cmp-val ${w(myStreak,theirStreak)}">${myStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(theirStreak,myStreak)}">${theirStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span></div>`;
   } else if(cmpEl){ cmpEl.hidden=true; }
   $("psChart").innerHTML=barsHTML(monthly, PM);
+  // horas y día de la semana: desde los rollups del amigo (byHour/byWeekday), SIN leer
+  // sus cacas. Solo si ya los tiene (usuario nuevo o que ha abierto su perfil tras el backfill).
+  const bh=u?.byHour||{}, bw=u?.byWeekday||{};
+  if(Object.keys(bh).length){
+    const h=Array.from({length:24},(_,i)=>bh[i]||0), peak=h.indexOf(Math.max(...h));
+    $("psPeakHour").textContent=t('perfil.chart.peak',{h:String(peak).padStart(2,"0"),n:h[peak]});
+    $("psChartHours").innerHTML=barsHTML(h, h.map((_,i)=>i%6===0?i:""), {showVal:false});
+    $("psHoursWrap").hidden=false;
+  } else $("psHoursWrap").hidden=true;
+  if(Object.keys(bw).length){
+    const wk=Array.from({length:7},(_,i)=>bw[i]||0), WD=["L","M","X","J","V","S","D"];
+    $("psChartWeek").innerHTML=barsHTML(wk, WD);
+    $("psWeekWrap").hidden=false;
+  } else $("psWeekWrap").hidden=true;
   // grupos en común: caché del viewer (sin leer)
   const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
@@ -1194,6 +1208,19 @@ $("pGroups").addEventListener("click", e=>{
 });
 
 let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear(), _statsLoadedAt=0;
+// Backfill perezoso de los rollups por hora/día-semana: la 1ª vez (usuario aún en
+// statsV<2), los calcula desde las cacas YA cargadas y los guarda. Idempotente: al
+// escribir, watchMe actualiza me.statsV y no vuelve a entrar. Un flag de sesión evita
+// dobles escrituras mientras llega ese update.
+let _backfilling=false;
+function backfillRollups(){
+  if(_backfilling || !me || me.statsV===STATS_V || !statsCacas.length) return;
+  _backfilling=true;
+  const byHour={}, byWeekday={};
+  for(const c of statsCacas){ const p=tzParts(c.ts,c.tz); byHour[p.hour]=(byHour[p.hour]||0)+1; byWeekday[p.weekday]=(byWeekday[p.weekday]||0)+1; }
+  updateMe(uid, { byHour, byWeekday, statsV:STATS_V })
+    .catch(e=>{ console.warn("backfill rollups:", e); _backfilling=false; });
+}
 async function loadStats(){
   renderProfileGroups();
   // caché por sesión: solo releemos si caducó (2 min) o se invalidó tras añadir/quitar caca
@@ -1203,6 +1230,7 @@ async function loadStats(){
   }
   statsYears = [...new Set(statsCacas.map(c=>tzParts(c.ts,c.tz).year))].sort((a,b)=>b-a);
   if(!(statsScope==="all" || statsYears.includes(statsScope))) statsScope = statsYears[0] || new Date().getFullYear();
+  backfillRollups();
   renderYearSel(); renderStats();
 }
 function renderYearSel(){
@@ -1254,8 +1282,10 @@ function renderStats(){
       <div class="stat"><b>${yearAvg}</b><span>${t('perfil.stat.avg_year')}</span></div>
       ${lifeAvg!==null?`<div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>`:''}
       <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
-      <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
-      <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;
+      <div class="stat stat--streak">
+        <div class="half"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
+        <div class="half"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>
+      </div>`;
   }
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?t('perfil.stat.total_historical'):statsScope}</span></div>

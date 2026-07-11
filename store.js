@@ -435,6 +435,23 @@ export async function groupYearCacas(group){
   return chunks.flat();
 }
 
+// Cacas CON UBICACIÓN de los miembros del grupo (año actual), para el mapa del grupo.
+// Respeta la privacidad: omite a quien tenga shareMap desactivado. Cada punto lleva
+// el uid/nombre/color de su dueño para pintar el marcador y la leyenda.
+export async function groupLocatedCacas(group){
+  const year = new Date().getFullYear();
+  const chunks = await Promise.all((group.members||[]).map(async m => {
+    const u = await getUser(m);
+    if (!u || u.shareMap === false) return [];              // respeta "compartir mapa"
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), where("year","==",year), limit(3000)));
+    return snap.docs
+      .map(d => d.data())
+      .filter(c => isFinite(c.lat) && isFinite(c.lng))
+      .map(c => ({ uid:m, name:u.displayName||"?", color:u.color||colorForUid(m), lat:c.lat, lng:c.lng, ts:c.ts }));
+  }));
+  return chunks.flat();
+}
+
 // ── Offline outbox ────────────────────────────────────────────────────────────
 // Cola local (localStorage) para cacas añadidas sin conexión.
 // Cada entrada: { ts, tz, loc: {lat,lng}|null }

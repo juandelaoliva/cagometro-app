@@ -13,7 +13,7 @@ import {
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
-  getGroup
+  getGroup, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang } from "./i18n.js";
@@ -1194,6 +1194,19 @@ $("pGroups").addEventListener("click", e=>{
 });
 
 let statsCacas=[], statsYears=[], statsScope=new Date().getFullYear(), _statsLoadedAt=0;
+// Backfill perezoso de los rollups por hora/día-semana: la 1ª vez (usuario aún en
+// statsV<2), los calcula desde las cacas YA cargadas y los guarda. Idempotente: al
+// escribir, watchMe actualiza me.statsV y no vuelve a entrar. Un flag de sesión evita
+// dobles escrituras mientras llega ese update.
+let _backfilling=false;
+function backfillRollups(){
+  if(_backfilling || !me || me.statsV===STATS_V || !statsCacas.length) return;
+  _backfilling=true;
+  const byHour={}, byWeekday={};
+  for(const c of statsCacas){ const p=tzParts(c.ts,c.tz); byHour[p.hour]=(byHour[p.hour]||0)+1; byWeekday[p.weekday]=(byWeekday[p.weekday]||0)+1; }
+  updateMe(uid, { byHour, byWeekday, statsV:STATS_V })
+    .catch(e=>{ console.warn("backfill rollups:", e); _backfilling=false; });
+}
 async function loadStats(){
   renderProfileGroups();
   // caché por sesión: solo releemos si caducó (2 min) o se invalidó tras añadir/quitar caca
@@ -1203,6 +1216,7 @@ async function loadStats(){
   }
   statsYears = [...new Set(statsCacas.map(c=>tzParts(c.ts,c.tz).year))].sort((a,b)=>b-a);
   if(!(statsScope==="all" || statsYears.includes(statsScope))) statsScope = statsYears[0] || new Date().getFullYear();
+  backfillRollups();
   renderYearSel(); renderStats();
 }
 function renderYearSel(){

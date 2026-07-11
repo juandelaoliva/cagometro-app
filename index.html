@@ -191,8 +191,10 @@
             <div class="stackchart" id="gStack"></div>
             <div class="stacklegend" id="gStackLegend"></div>
           </div>
-          <button class="btn-solid" id="groupMapBtn" data-i18n="grupos.map.btn" style="width:100%;margin-bottom:8px">🗺️ Mapa del grupo</button>
-          <button class="btn-solid" id="groupChatBtn" data-i18n="chat.open.group" style="width:100%;margin-bottom:8px">💬 Chat del grupo</button>
+          <div class="group-actions">
+            <button class="gact" id="groupMapBtn"><span class="gact__ico">🗺️</span><span data-i18n="grupos.map.short">Mapa</span></button>
+            <button class="gact" id="groupChatBtn"><span class="gact__ico">💬</span><span data-i18n="chat.open.short">Chat</span></button>
+          </div>
           <button class="btn-ghost btn-ghost--danger" id="leaveGroupBtn" data-i18n="grupos.leave.btn">Salir del grupo</button>
         </div>
       </section>

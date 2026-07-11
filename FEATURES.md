@@ -66,6 +66,7 @@ Goal: make sure the web app eventually covers everything the Telegram bot does
 2. **Wrapped = DEFERRED** to a future phase (not needed now).
 3. **Location = 3-mode user setting**: `never` · `choose` (opt-in per caca) · `always` (auto-capture device GPS each caca). Cacas carry `lat/lng`; built in the Maps phase.
 4. **Backups** — Firestore is durable; still add a scheduled JSON export (replicates the bot's twice-daily backup).
+5. **Group map = ALL YEARS** (2026-07) — the group map shows every member's located cacas across **all years** (to match each person's personal map), even though it's more expensive. ⚠️ **Cost/tech-debt:** today `groupLocatedCacas()` reads up to 3000 cacas per member and filters `lat/lng` client-side (reads the whole history). **Future optimization:** store locations separately and write them when a located caca is added — e.g. a `users/{uid}/locations` subcollection `{lat,lng,ts}` or a denormalized array on the user doc — so the map reads only the points, not every caca. (Same spirit as the `byHour`/`byWeekday` rollups.)
 
 ## Refined phase plan
 - **A (done)** auth + per-year counter + add caca

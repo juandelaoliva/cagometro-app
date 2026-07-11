@@ -863,32 +863,34 @@ async function openPersonSheet(entry, opts={}){
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
   $("psGroupsWrap").hidden = !shared.length;
   $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
-  // botón de mapa: visible si el amigo tiene shareMap activado (true por defecto)
-  const mapBtn = u?.shareMap !== false
-    ? `<button class="btn-solid" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}"> ${t('person.map.view')}</button>`
-    : `<button class="btn-ghost ps-disabled" disabled>${t('person.map.private')}</button>`;
-  $("psActions").innerHTML = mapBtn;
+  // Mapa + Chat: dos tarjetas lado a lado (como en grupos). El mapa se atenúa si el
+  // amigo no comparte su mapa (shareMap off).
+  const mapCard = u?.shareMap !== false
+    ? `<button class="gact" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
+    : `<button class="gact gact--off" disabled><span class="gact__ico">🔒</span><span>${t('person.map.privshort')}</span></button>`;
+  const chatCard = `<button class="gact" data-pschat="1"><span class="gact__ico">💬</span><span>${t('chat.open.short')}</span></button>`;
+  $("psActions").innerHTML = mapCard + chatCard;
 
-  // gestión de amistad: solo desde Amigos (canManage). Solo entonces leemos las amistades.
+  // gestión de amistad, ABAJO del todo: solo desde Amigos (canManage). Si compartís
+  // grupo no se puede eliminar → nota sutil en vez de botón.
+  let mgmt = "";
   if(opts.canManage){
     const fr=(await myFriendships(uid)).find(f=>f.status==="accepted" && f.uids.includes(entry.uid));
-    const friendBtn = !fr ? "" : (shared.length
-      ? `<button class="btn-ghost ps-disabled" disabled>${t('person.friend.shared')}</button>`
-      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">${t('person.friend.remove')}</button>`);
-    $("psActions").innerHTML = mapBtn + friendBtn;
+    if(fr) mgmt = shared.length
+      ? `<p class="ps-note">${t('person.friend.shared')}</p>`
+      : `<button class="btn-ghost btn-ghost--danger" data-rmfriend="${fr.id}">${t('person.friend.remove')}</button>`;
   }
+  $("psFriendMgmt").innerHTML = mgmt;
 }
 $("psClose").addEventListener("click",()=>$("psSheet").hidden=true);
 $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psSheet").hidden=true; });
 let _psCurrentEntry = null;
-$("psChatBtn").addEventListener("click", async ()=>{
-  if(!_psCurrentEntry) return;
-  $("psSheet").hidden=true;
-  await openDMChat(_psCurrentEntry.uid, _psCurrentEntry.name);
-});
 $("psActions").addEventListener("click", async e=>{
-  const mb=e.target.closest("[data-uid]#psFriendMap, [data-uid]");
-  if(mb && mb.id==="psFriendMap"){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
+  const mb=e.target.closest("#psFriendMap");
+  if(mb){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
+  if(e.target.closest("[data-pschat]")){ if(!_psCurrentEntry) return; $("psSheet").hidden=true; await openDMChat(_psCurrentEntry.uid, _psCurrentEntry.name); return; }
+});
+$("psFriendMgmt").addEventListener("click", async e=>{
   const b=e.target.closest("[data-rmfriend]"); if(!b)return;
   if(!confirm(t('confirm.friend.remove'))) return;
   try{ await removeFriend(b.dataset.rmfriend); toast(t('toast.friend.removed')); $("psSheet").hidden=true; if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }

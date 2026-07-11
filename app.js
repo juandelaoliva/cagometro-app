@@ -1236,14 +1236,31 @@ function renderStats(){
   const thisMonthCount=(me?.countsByMonth||{})[`${_cy}_${_cm}`]||0;
   const daysElapsedMonth=_now.getDate();
   const monthAvg=(thisMonthCount/daysElapsedMonth).toFixed(2);
+  // Opción 3 (mixta): en un AÑO PASADO no tienen sentido "media/mes", "racha actual"
+  // ni "media este año" → mostramos solo lo propio del año (total, mejor día,
+  // media/día del año) + gráficas. El año en curso y el histórico se quedan igual.
+  const isPastYear = statsScope!=="all" && statsScope!==_cy;
+  let extraTiles;
+  if(isPastYear){
+    // media/día del año: cacas del año ÷ días activos (desde tu 1ª caca o el 1-ene, hasta el 31-dic)
+    const jan1Y=new Date(statsScope,0,1).getTime(), dec31Y=new Date(statsScope,11,31).getTime();
+    const startY=firstTs?Math.max(firstTs,jan1Y):jan1Y;
+    const d0=new Date(startY);d0.setHours(0,0,0,0); const d1=new Date(dec31Y);d1.setHours(0,0,0,0);
+    const daysY=Math.max(1,Math.round((d1-d0)/DAY)+1);
+    const pastAvg=total?(total/daysY).toFixed(2):"—";
+    extraTiles=`<div class="stat"><b>${pastAvg}</b><span>${t('perfil.stat.avg')}</span></div>`;
+  } else {
+    extraTiles=`
+      <div class="stat"><b>${yearAvg}</b><span>${t('perfil.stat.avg_year')}</span></div>
+      ${lifeAvg!==null?`<div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>`:''}
+      <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
+      <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
+      <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;
+  }
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?t('perfil.stat.total_historical'):statsScope}</span></div>
     <div class="stat"><b>${bestDay}</b><span>${t('perfil.stat.bestday')}</span></div>
-    <div class="stat"><b>${yearAvg}</b><span>${t('perfil.stat.avg_year')}</span></div>
-    ${lifeAvg!==null?`<div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>`:''}
-    <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
-    <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
-    <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;
+    ${extraTiles}`;
   if(statsScope==="all"){
     $("chartTitle").textContent=t('perfil.chart.byyear');
     const by={}; for(const c of items){ const y=tzParts(c.ts,c.tz).year; by[y]=(by[y]||0)+1; }

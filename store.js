@@ -439,11 +439,14 @@ export async function groupYearCacas(group){
 // Respeta la privacidad: omite a quien tenga shareMap desactivado. Cada punto lleva
 // el uid/nombre/color de su dueño para pintar el marcador y la leyenda.
 export async function groupLocatedCacas(group){
-  const year = new Date().getFullYear();
+  // Filtramos por FECHA real (ts), no por el campo `year`: hay cacas (importadas del
+  // bot o antiguas) a las que les puede faltar `year` o venir como string, y el
+  // where("year"==n) las descartaría aunque por fecha sean de este año.
+  const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
   const chunks = await Promise.all((group.members||[]).map(async m => {
     const u = await getUser(m);
     if (!u || u.shareMap === false) return [];              // respeta "compartir mapa"
-    const snap = await getDocs(query(collection(db,"users",m,"cacas"), where("year","==",year), limit(3000)));
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), where("ts",">=",yearStart), orderBy("ts","desc"), limit(3000)));
     return snap.docs
       .map(d => d.data())
       .filter(c => isFinite(c.lat) && isFinite(c.lng))

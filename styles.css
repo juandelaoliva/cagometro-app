@@ -323,6 +323,8 @@ ol,ul{list-style:none}
   box-shadow:var(--shadow);font-family:var(--font-b);font-weight:700;font-size:13px;color:var(--ink);transition:.15s}
 .gact:active{transform:translateY(1px);background:var(--paper)}
 .gact__ico{font-size:26px;line-height:1}
+/* en la ficha del amigo, separar las tarjetas Mapa/Chat de los chips de grupos de arriba */
+#psActions{margin-top:12px}
 .gact--off{opacity:.5;cursor:default;color:var(--ink-soft)}
 .gact--off:active{transform:none;background:var(--card)}
 /* gestión de amistad (abajo de la ficha): botón eliminar o nota "estáis en un grupo" */
@@ -588,6 +590,7 @@ body.sheet-open{overflow:hidden}
 .set-id .avatar--lg{margin:0}
 .set-label{display:block;font-weight:700;font-size:13px;color:var(--ink-soft);margin:18px 0 8px}
 .set-label small{font-weight:500;color:var(--ink-faint)}
+.set-hint{font-size:12px;color:var(--ink-faint);line-height:1.45;margin:8px 2px 0}
 .set-row{display:flex;gap:8px;align-items:stretch}
 .set-row .field{flex:1;min-width:0}
 .set-save{flex:none;padding:0 18px}

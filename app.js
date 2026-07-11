@@ -1496,6 +1496,11 @@ async function openMap(friend){
 
 // Mapa del grupo: cacas de todos los miembros (año actual), un color por persona,
 // leyenda con filtro (tocar un nombre = mostrar/ocultar sus cacas). Respeta shareMap.
+// Paleta de tonos bien separados para distinguir a cada miembro EN EL MAPA. No usamos
+// el color propio del usuario (colorForUid/el elegido en Ajustes) porque dos miembros
+// pueden tener el mismo o parecido → aquí se asigna por orden de uid, garantizando que
+// sean distintos dentro del grupo (la leyenda hace de referencia color→persona).
+const GROUP_PALETTE = ["#E4572E","#2E9E68","#3E7CB1","#B5179E","#E5A50A","#6A4C93","#158A8A","#C1272D","#5B7B1F","#9B5DE5","#8B5E3C","#00A6A6"];
 function pinIcon(color){
   return L.divIcon({ className:"",
     html:`<div class="mappin" style="--c:${color}"><span class="mappin__emo">💩</span></div>`,
@@ -1512,7 +1517,9 @@ async function openGroupMap(group){
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
   // agrupar por persona
   const byUid={};
-  for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,color:p.color,pts:[]}).pts.push(p); }
+  for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,pts:[]}).pts.push(p); }
+  // color distinto por miembro desde la paleta (por orden de uid → estable y sin choques)
+  Object.keys(byUid).sort().forEach((u2,i)=>{ byUid[u2].color = GROUP_PALETTE[i % GROUP_PALETTE.length]; });
   for(const [u2,info] of Object.entries(byUid)){
     const icon=pinIcon(info.color);
     _groupMarkers[u2]=info.pts.map(p=>{

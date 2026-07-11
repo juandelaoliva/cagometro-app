@@ -844,6 +844,20 @@ async function openPersonSheet(entry, opts={}){
       <div class="cmp-row"><span class="cmp-val ${w(myStreak,theirStreak)}">${myStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(theirStreak,myStreak)}">${theirStreak} 🔥<span class="cmp-meta">${t('person.cmp.streak')}</span></span></div>`;
   } else if(cmpEl){ cmpEl.hidden=true; }
   $("psChart").innerHTML=barsHTML(monthly, PM);
+  // horas y día de la semana: desde los rollups del amigo (byHour/byWeekday), SIN leer
+  // sus cacas. Solo si ya los tiene (usuario nuevo o que ha abierto su perfil tras el backfill).
+  const bh=u?.byHour||{}, bw=u?.byWeekday||{};
+  if(Object.keys(bh).length){
+    const h=Array.from({length:24},(_,i)=>bh[i]||0), peak=h.indexOf(Math.max(...h));
+    $("psPeakHour").textContent=t('perfil.chart.peak',{h:String(peak).padStart(2,"0"),n:h[peak]});
+    $("psChartHours").innerHTML=barsHTML(h, h.map((_,i)=>i%6===0?i:""), {showVal:false});
+    $("psHoursWrap").hidden=false;
+  } else $("psHoursWrap").hidden=true;
+  if(Object.keys(bw).length){
+    const wk=Array.from({length:7},(_,i)=>bw[i]||0), WD=["L","M","X","J","V","S","D"];
+    $("psChartWeek").innerHTML=barsHTML(wk, WD);
+    $("psWeekWrap").hidden=false;
+  } else $("psWeekWrap").hidden=true;
   // grupos en común: caché del viewer (sin leer)
   const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));

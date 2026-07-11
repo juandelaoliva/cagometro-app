@@ -435,18 +435,23 @@ export async function groupYearCacas(group){
   return chunks.flat();
 }
 
-// Cacas CON UBICACIÓN de los miembros del grupo (año actual), para el mapa del grupo.
+// Cacas CON UBICACIÓN de los miembros del grupo, para el mapa del grupo.
 // Respeta la privacidad: omite a quien tenga shareMap desactivado. Cada punto lleva
 // el uid/nombre/color de su dueño para pintar el marcador y la leyenda.
+//
+// DECISIÓN (2026-07): el mapa del grupo muestra TODOS LOS AÑOS (no solo el actual),
+// para que coincida con el mapa personal de cada uno, AUNQUE cueste más lecturas.
+// COSTE / MEJORA FUTURA: hoy leemos hasta 3000 cacas por miembro y filtramos en el
+// cliente las que llevan lat/lng → es caro (leemos el histórico entero) y no está
+// denormalizado. Idea a futuro: guardar las ubicaciones aparte y escribirlas al sumar
+// una caca con ubicación (p.ej. una subcolección `users/{uid}/locations` con
+// {lat,lng,ts}, o un array denormalizado en el doc), y leer SOLO esos puntos en vez
+// de recorrer todas las cacas. Ver FEATURES.md · Decisiones.
 export async function groupLocatedCacas(group){
-  // Filtramos por FECHA real (ts), no por el campo `year`: hay cacas (importadas del
-  // bot o antiguas) a las que les puede faltar `year` o venir como string, y el
-  // where("year"==n) las descartaría aunque por fecha sean de este año.
-  const yearStart = new Date(new Date().getFullYear(), 0, 1).getTime();
   const chunks = await Promise.all((group.members||[]).map(async m => {
     const u = await getUser(m);
     if (!u || u.shareMap === false) return [];              // respeta "compartir mapa"
-    const snap = await getDocs(query(collection(db,"users",m,"cacas"), where("ts",">=",yearStart), orderBy("ts","desc"), limit(3000)));
+    const snap = await getDocs(query(collection(db,"users",m,"cacas"), orderBy("ts","desc"), limit(3000)));
     return snap.docs
       .map(d => d.data())
       .filter(c => isFinite(c.lat) && isFinite(c.lng))

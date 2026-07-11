@@ -69,6 +69,15 @@ const DAY = 86400000;
 const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
 // Inicio de la semana natural (lunes 00:00 local)
 const startOfWeek = () => { const d=new Date(); d.setHours(0,0,0,0); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return d.getTime(); };
+// Racha VIVA: `currentStreak` se guarda al sumar y nunca "caduca" sola, así que
+// puede quedar inflada tras romperla. La racha real solo sigue viva si la última
+// caca fue hoy o ayer; si pasó más de un día, está rota → 0. Sin lecturas extra.
+function liveStreak(streak, lastCacaTs){
+  if(!streak || !lastCacaTs) return 0;
+  const d=new Date(lastCacaTs); d.setHours(0,0,0,0);
+  const diffDays = Math.round((startOfToday()-d.getTime())/DAY);
+  return diffDays<=1 ? streak : 0;
+}
 const av = (name,color) => `<span class="av" style="background:${color||'#6E3F1C'}">${initial(name)}</span>`;
 const _meses=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function fmtWhen(ts){
@@ -438,7 +447,7 @@ async function loadActivity(mode){
       const mine = await myActivity(uid,120);
       const t0=startOfToday(),wk=startOfWeek(); let today=0,week=0; const days=new Set();
       for(const c of mine){ if(c.ts>=t0)today++; if(c.ts>=wk)week++; const d=new Date(c.ts);d.setHours(0,0,0,0);days.add(d.getTime()); }
-      const streak = me?.currentStreak ?? 0;
+      const streak = liveStreak(me?.currentStreak, me?.lastCacaTs);
       _chips={today,week,streak,days};
       $("statToday").textContent=today; $("statWeek").textContent=week; $("statStreak").textContent=streak;
       _feedLoadedAt=Date.now();
@@ -813,8 +822,8 @@ async function openPersonSheet(entry, opts={}){
   if(me && cmpEl){
     const myMon = (me.countsByMonth||{})[`${cy}_${cm}`]||0;
     const myYear = me.totalCount||0;
-    const myStreak = me.currentStreak||0;
-    const theirStreak = u?.currentStreak||0;
+    const myStreak = liveStreak(me.currentStreak, me.lastCacaTs);
+    const theirStreak = liveStreak(u?.currentStreak, u?.lastCacaTs);
     // media/día: días naturales (medianoche a medianoche) desde la primera caca hasta hoy, ambos inclusive
     const _sinceFirst = firstTs => {
       if(!firstTs) return 1;
@@ -1207,7 +1216,7 @@ function renderStats(){
   const total=items.length;
   const dayCount={}; for(const c of items){ const p=tzParts(c.ts,c.tz); const k=`${p.year}-${p.month}-${p.day}`; dayCount[k]=(dayCount[k]||0)+1; }
   const bestDay=Math.max(0,...Object.values(dayCount),0);
-  const curStreak = me?.currentStreak || 0;
+  const curStreak = liveStreak(me?.currentStreak, me?.lastCacaTs);
   const bestStreak = me?.longestStreak || 0;
   const _now=new Date(), _cm=_now.getMonth(), _cy=_now.getFullYear();
   // media este año: cacas del año actual ÷ días transcurridos desde el 1 ene (o desde la primera caca si fue este año)

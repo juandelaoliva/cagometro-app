@@ -1254,8 +1254,10 @@ function renderStats(){
       <div class="stat"><b>${yearAvg}</b><span>${t('perfil.stat.avg_year')}</span></div>
       ${lifeAvg!==null?`<div class="stat"><b>${lifeAvg}</b><span>${t('perfil.stat.avg_total')}</span></div>`:''}
       <div class="stat"><b>${monthAvg}</b><span>${t('perfil.stat.avg_month')}</span></div>
-      <div class="stat"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
-      <div class="stat"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>`;
+      <div class="stat stat--streak">
+        <div class="half"><b>${curStreak} 🔥</b><span>${t('perfil.stat.streak')}</span></div>
+        <div class="half"><b>${bestStreak}</b><span>${t('perfil.stat.beststreak')}</span></div>
+      </div>`;
   }
   $("statGrid").innerHTML=`
     <div class="stat stat--accent"><b>${total}</b><span>${statsScope==="all"?t('perfil.stat.total_historical'):statsScope}</span></div>

@@ -323,6 +323,8 @@ ol,ul{list-style:none}
   box-shadow:var(--shadow);font-family:var(--font-b);font-weight:700;font-size:13px;color:var(--ink);transition:.15s}
 .gact:active{transform:translateY(1px);background:var(--paper)}
 .gact__ico{font-size:26px;line-height:1}
+/* en la ficha del amigo, separar las tarjetas Mapa/Chat de los chips de grupos de arriba */
+#psActions{margin-top:12px}
 .gact--off{opacity:.5;cursor:default;color:var(--ink-soft)}
 .gact--off:active{transform:none;background:var(--card)}
 /* gestión de amistad (abajo de la ficha): botón eliminar o nota "estáis en un grupo" */

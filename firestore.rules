@@ -1,0 +1,111 @@
+rules_version = '2';
+// Cagómetro · Firestore security rules
+// Privacy model: a user's data is visible to accepted friends and to members of
+// groups they share. Starter version below is intentionally simple for emulator
+// dev; the read rules get tightened to friend/group checks before going live.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    // admin único (Juan). Es la barrera real del panel de administración.
+    function isAdmin() { return signedIn() && request.auth.uid == "OQxbpTTQqBbWsykiU7JKcUdZ7z32"; }
+
+    // --- users: profile + denormalized totalCount ---
+    match /users/{uid} {
+      allow read:          if signedIn();              // TODO: restrict to friends/group-mates
+      allow create, update:if isOwner(uid) || isAdmin();
+      allow delete:        if isAdmin();
+      // a user's caca history (event-sourced)
+      match /cacas/{cacaId} {
+        allow read:   if signedIn();                   // TODO: restrict to friends/group-mates
+        allow create: if isOwner(uid)
+                       && request.resource.data.uid == uid
+                       && request.resource.data.ts is number;
+        // el dueño edita su caca; cualquier usuario autenticado puede tocar SOLO
+        // el campo `reactions` (para reaccionar a cacas de amigos)
+        allow update: if isOwner(uid)
+                       || (signedIn()
+                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+      // datos privados del usuario (tokens de push): solo el dueño (o admin)
+      match /private/{doc} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // --- config global de la app (p.ej. modo mantenimiento): lectura para todos los
+    //     autenticados; solo el admin la escribe ---
+    match /config/{doc} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- cola de envío de push: la crean los clientes; solo el emisor (Admin SDK) la lee/borra ---
+    match /pushQueue/{id} {
+      allow create: if signedIn() && request.resource.data.fromUid == request.auth.uid;
+      allow read, update, delete: if false;
+    }
+
+    // --- feed de actividad: lo lee quien está en la audiencia; lo crea el autor.
+    //     Cualquier autenticado puede tocar SOLO `reactions` (reaccionar). ---
+    match /activity/{id} {
+      allow read:   if signedIn() && (request.auth.uid in resource.data.audience || resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid)
+                     || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+      allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+    }
+
+    // --- friendships: doc id = sorted "uidA_uidB"; both parties listed ---
+    match /friendships/{pair} {
+      allow read:   if (signedIn() && request.auth.uid in resource.data.uids) || isAdmin();
+      allow create: if signedIn() && request.auth.uid in request.resource.data.uids;
+      allow update: if signedIn() && request.auth.uid in resource.data.uids;
+      allow delete: if (signedIn() && request.auth.uid in resource.data.uids) || isAdmin();
+    }
+
+    // --- invitaciones a grupos: el destinatario lee/actualiza; miembros del grupo crean ---
+    match /groupInvites/{inviteId} {
+      allow read:   if signedIn() && (resource == null || request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid);
+      allow create: if signedIn() && request.auth.uid == request.resource.data.fromUid;
+      allow update: if signedIn() && request.auth.uid == resource.data.toUid
+                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.fromUid && resource.data.status != "pending");
+    }
+
+    // --- chat: DMs y grupos ---
+    match /chats/{chatId} {
+      allow read, update: if signedIn() && request.auth.uid in resource.data.members;
+      allow create:       if signedIn() && request.auth.uid in request.resource.data.members;
+
+      match /messages/{msgId} {
+        allow read:   if signedIn() && request.auth.uid in
+                         get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow create: if signedIn()
+                         && request.auth.uid == request.resource.data.senderUid
+                         && request.auth.uid in
+                            get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow update: if signedIn()
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+        allow delete: if false;
+      }
+    }
+
+    // --- groups: members[] of uids ---
+    match /groups/{gid} {
+      allow read:   if signedIn();
+      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow update: if isAdmin()
+                     || (signedIn() && request.auth.uid == resource.data.createdBy)  // admin: rename, kick, anything
+                     || (signedIn() && request.auth.uid in resource.data.members     // member: only leave
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']))
+                     || (signedIn() && request.auth.uid in request.resource.data.members  // join by code
+                         && !(request.auth.uid in resource.data.members)
+                         && request.resource.data.members.size() == resource.data.members.size() + 1
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']));
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.createdBy);
+    }
+  }
+}

@@ -323,6 +323,11 @@ ol,ul{list-style:none}
   box-shadow:var(--shadow);font-family:var(--font-b);font-weight:700;font-size:13px;color:var(--ink);transition:.15s}
 .gact:active{transform:translateY(1px);background:var(--paper)}
 .gact__ico{font-size:26px;line-height:1}
+.gact--off{opacity:.5;cursor:default;color:var(--ink-soft)}
+.gact--off:active{transform:none;background:var(--card)}
+/* gestión de amistad (abajo de la ficha): botón eliminar o nota "estáis en un grupo" */
+.ps-mgmt{margin-bottom:8px}
+.ps-note{text-align:center;color:var(--ink-soft);font-size:13px;line-height:1.4;padding:8px 6px;margin:0}
 .tab__ico{font-size:19px;filter:grayscale(.5);transition:.2s}
 .tab.is-active{color:var(--brand);background:var(--paper)}
 .tab.is-active .tab__ico{filter:none;transform:translateY(-1px)}
@@ -572,8 +577,10 @@ body.sheet-open{overflow:hidden}
 .feed__item[data-i]{cursor:pointer}
 .ps-head{display:flex;align-items:center;gap:14px;margin-bottom:16px}
 .ps-head .avatar--lg{margin:0}
-.psg-row{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-.psg{padding:13px;border-radius:13px;width:100%}
+.psg-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+/* chips de grupos en común: uno solo ocupa el ancho; varios se reparten en fila
+   y saltan a otra línea según quepan (por el largo del nombre) */
+.psg{flex:1 1 auto;min-width:120px;padding:13px;border-radius:13px}
 .sheet__panel--profile{max-height:90vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
 
 /* ── Ajustes ── */

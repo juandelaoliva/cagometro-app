@@ -631,7 +631,22 @@ body.sheet-open{overflow:hidden}
 .map-title{position:absolute;bottom:calc(28px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:1000;
   background:#fff;box-shadow:var(--shadow-lg);border-radius:999px;padding:8px 18px;
   font-weight:800;font-size:14px;color:var(--ink);max-width:70vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* en el mapa de grupo el título va arriba, para no chocar con la leyenda inferior */
+.map-title--top{top:calc(14px + env(safe-area-inset-top));bottom:auto}
 .leaflet-container{font-family:var(--font-b)}
+/* marcador del mapa de grupo: pin (gota) del color de la persona con 💩 (estilo 1) */
+.mappin{position:relative;width:34px;height:34px}
+.mappin::before{content:"";position:absolute;inset:0;background:var(--c,#6E3F1C);border:2px solid #fff;
+  border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 6px rgba(0,0,0,.35)}
+.mappin__emo{position:absolute;inset:0;display:grid;place-items:center;font-size:17px;line-height:1}
+/* leyenda del mapa de grupo: chips con color + nombre, se atenúan al filtrar */
+.map-legend{position:absolute;left:50%;transform:translateX(-50%);z-index:1000;
+  bottom:calc(24px + env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
+  max-width:92vw;background:rgba(255,255,255,.94);box-shadow:var(--shadow-lg);border-radius:16px;padding:8px 10px}
+.leg-chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ink);
+  background:var(--card);border:1px solid var(--line-2);border-radius:999px;padding:5px 11px 5px 8px;cursor:pointer;user-select:none}
+.leg-chip__dot{width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.3);flex:none}
+.leg-chip.off{opacity:.4;text-decoration:line-through}
 
 @media (min-width:520px){
   .app{border-left:1px solid var(--line);border-right:1px solid var(--line);min-height:100vh;background:rgba(255,255,255,.25)}

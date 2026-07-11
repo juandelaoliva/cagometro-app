@@ -7,7 +7,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
-  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince,
+  createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
   renameGroup, kickFromGroup, deleteGroup,
@@ -1057,6 +1057,7 @@ $("joinGroupBtn").addEventListener("click", async ()=>{
 });
 $("shareCode").addEventListener("click", ()=>{ if(activeGroup) shareInvite(inviteUrl("join="+encodeURIComponent(activeGroup.inviteCode)), t('grupos.invite.text',{name:activeGroup.name})); });
 $("inviteToGroupBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupInvitePicker(activeGroup); });
+$("groupMapBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupMap(activeGroup); });
 $("groupChatBtn").addEventListener("click", ()=>{ if(activeGroup) openGroupChat(activeGroup); });
 $("leaveGroupBtn").addEventListener("click", async ()=>{
   if(!activeGroup)return; if(!confirm(t('confirm.group.leave',{name:activeGroup.name})))return;
@@ -1462,22 +1463,27 @@ function getGeo(){
       {enableHighAccuracy:false,timeout:8000,maximumAge:60000});
   });
 }
-let _map=null,_markers=[];
+let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set();
 $("openMapBtn").addEventListener("click", ()=>openMap());
 $("mapClose").addEventListener("click", ()=>$("mapSheet").hidden=true);
-// friend = { uid, name } para ver el mapa de un amigo; omitir para el propio.
-async function openMap(friend){
-  $("mapSheet").hidden=false; $("mapEmpty").hidden=true;
-  const titleEl=$("mapTitle");
-  if(friend){ titleEl.textContent=`🗺️ ${friend.name}`; titleEl.hidden=false; }
-  else { titleEl.hidden=true; }
-  if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
+function _ensureMap(){
   if(!_map){
     _map=L.map("map",{zoomControl:true});
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_map);
   }
   setTimeout(()=>_map.invalidateSize(),120);
-  _markers.forEach(m=>_map.removeLayer(m)); _markers=[];
+}
+// friend = { uid, name } para ver el mapa de un amigo; omitir para el propio.
+async function openMap(friend){
+  $("mapSheet").hidden=false; $("mapEmpty").hidden=true; $("mapLegend").hidden=true;
+  $("mapEmpty").textContent=t('map.empty');
+  const titleEl=$("mapTitle");
+  titleEl.classList.remove("map-title--top");
+  if(friend){ titleEl.textContent=`🗺️ ${friend.name}`; titleEl.hidden=false; }
+  else { titleEl.hidden=true; }
+  if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
+  _ensureMap();
+  _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={};
   const targetUid = friend ? friend.uid : uid;
   const cacas = (!friend && statsCacas.length && Date.now()-_statsLoadedAt < 120000)
     ? statsCacas : await myActivity(targetUid, 2000);
@@ -1487,6 +1493,51 @@ async function openMap(friend){
   if(_markers.length) setTimeout(()=>_map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)),160);
   else { _map.setView([40.4168,-3.7038],5); $("mapEmpty").hidden=false; }
 }
+
+// Mapa del grupo: cacas de todos los miembros (año actual), un color por persona,
+// leyenda con filtro (tocar un nombre = mostrar/ocultar sus cacas). Respeta shareMap.
+function pinIcon(color){
+  return L.divIcon({ className:"",
+    html:`<div class="mappin" style="--c:${color}"><span class="mappin__emo">💩</span></div>`,
+    iconSize:[34,34], iconAnchor:[17,34], popupAnchor:[0,-30] });
+}
+async function openGroupMap(group){
+  $("mapSheet").hidden=false; $("mapEmpty").hidden=true;
+  $("mapTitle").textContent=`🗺️ ${group.name}`; $("mapTitle").hidden=false; $("mapTitle").classList.add("map-title--top");
+  if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
+  _ensureMap();
+  _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={}; _legendHidden=new Set();
+  const pts = await groupLocatedCacas(group);
+  if(!pts.length){ $("mapLegend").hidden=true; _map.setView([40.4168,-3.7038],5);
+    $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
+  // agrupar por persona
+  const byUid={};
+  for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,color:p.color,pts:[]}).pts.push(p); }
+  for(const [u2,info] of Object.entries(byUid)){
+    const icon=pinIcon(info.color);
+    _groupMarkers[u2]=info.pts.map(p=>{
+      const m=L.marker([p.lat,p.lng],{icon}).addTo(_map);
+      m.bindPopup(`<b>${info.name}</b><br>${fmtFull(p.ts)}`);
+      _markers.push(m); return m;
+    });
+  }
+  setTimeout(()=>{ if(_markers.length) _map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)); },160);
+  renderMapLegend(byUid);
+}
+function renderMapLegend(byUid){
+  const el=$("mapLegend");
+  const members=Object.entries(byUid).sort((a,b)=>b[1].pts.length-a[1].pts.length);
+  el.innerHTML=members.map(([u,info])=>
+    `<span class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${u}"><span class="leg-chip__dot" style="background:${info.color}"></span>${info.name} · ${info.pts.length}</span>`
+  ).join("");
+  el.hidden=false;
+}
+$("mapLegend").addEventListener("click", e=>{
+  const chip=e.target.closest("[data-leguid]"); if(!chip) return;
+  const u=chip.dataset.leguid, markers=_groupMarkers[u]||[];
+  if(_legendHidden.has(u)){ _legendHidden.delete(u); markers.forEach(m=>m.addTo(_map)); chip.classList.remove("off"); }
+  else { _legendHidden.add(u); markers.forEach(m=>_map.removeLayer(m)); chip.classList.add("off"); }
+});
 
 /* ---------- delight ---------- */
 function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("div");p.className="poo-fly";p.textContent="💩";

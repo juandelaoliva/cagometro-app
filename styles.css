@@ -651,6 +651,15 @@ body.sheet-open{overflow:hidden}
 /* en el mapa de grupo el título va arriba, para no chocar con la leyenda inferior */
 .map-title--top{top:calc(14px + env(safe-area-inset-top));bottom:auto}
 .leaflet-container{font-family:var(--font-b)}
+/* loader del mapa: aparece solo si tarda un poco; 💩 girando + frase graciosa */
+.map-loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:600;
+  display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;
+  background:rgba(255,255,255,.94);box-shadow:var(--shadow-lg);border-radius:18px;padding:22px 26px;max-width:78vw}
+.map-loading__poo{font-size:40px;line-height:1;animation:mapSpin 1.1s linear infinite}
+.map-loading__txt{font-size:14px;font-weight:700;color:var(--ink);line-height:1.35}
+@keyframes mapSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){ .map-loading__poo{animation:mapPulse 1.2s ease-in-out infinite} }
+@keyframes mapPulse{0%,100%{opacity:1}50%{opacity:.45}}
 /* marcador del mapa de grupo: pin (gota) del color de la persona con 💩 (estilo 1) */
 .mappin{position:relative;width:34px;height:34px}
 .mappin::before{content:"";position:absolute;inset:0;background:var(--c,#6E3F1C);border:2px solid #fff;

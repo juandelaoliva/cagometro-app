@@ -16,7 +16,7 @@ import {
   getGroup, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
-import { t, getLang, setLang } from "./i18n.js";
+import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
@@ -1467,7 +1467,7 @@ function getGeo(){
 }
 let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set();
 $("openMapBtn").addEventListener("click", ()=>openMap());
-$("mapClose").addEventListener("click", ()=>$("mapSheet").hidden=true);
+$("mapClose").addEventListener("click", ()=>{ $("mapSheet").hidden=true; hideMapLoading(); });
 function _ensureMap(){
   if(!_map){
     _map=L.map("map",{zoomControl:true});
@@ -1475,6 +1475,14 @@ function _ensureMap(){
   }
   setTimeout(()=>_map.invalidateSize(),120);
 }
+// Loader del mapa: solo aparece si la carga tarda un poco (delay), con una frase graciosa,
+// para no parpadear en las cargas rápidas.
+let _mapLoadTimer=null;
+function showMapLoadingDelayed(delay=450){
+  clearTimeout(_mapLoadTimer);
+  _mapLoadTimer=setTimeout(()=>{ $("mapLoadingTxt").textContent=mapLoadingPhrase(); $("mapLoading").hidden=false; }, delay);
+}
+function hideMapLoading(){ clearTimeout(_mapLoadTimer); $("mapLoading").hidden=true; }
 // friend = { uid, name } para ver el mapa de un amigo; omitir para el propio.
 async function openMap(friend){
   $("mapSheet").hidden=false; $("mapEmpty").hidden=true; $("mapLegend").hidden=true;
@@ -1486,12 +1494,14 @@ async function openMap(friend){
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={};
+  showMapLoadingDelayed();
   const targetUid = friend ? friend.uid : uid;
   const cacas = (!friend && statsCacas.length && Date.now()-_statsLoadedAt < 120000)
     ? statsCacas : await myActivity(targetUid, 2000);
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
   const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
   _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));
+  hideMapLoading();
   if(_markers.length) setTimeout(()=>_map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)),160);
   else { _map.setView([40.4168,-3.7038],5); $("mapEmpty").hidden=false; }
 }
@@ -1514,7 +1524,9 @@ async function openGroupMap(group){
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={}; _legendHidden=new Set();
+  showMapLoadingDelayed();
   const pts = await groupLocatedCacas(group);
+  hideMapLoading();
   if(!pts.length){ $("mapLegend").hidden=true; _map.setView([40.4168,-3.7038],5);
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
   // agrupar por persona

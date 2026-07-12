@@ -779,3 +779,27 @@ export const t = (key, vars) => {
   if (!vars) return str;
   return str.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 };
+
+// Frases graciosas para el loader del mapa (cuando tarda un poco en cargar).
+const _mapPhrasesEs = [
+  'Cargando el mapa de la conquista marrón…',
+  'Rastreando tus cacas por el mundo…',
+  'Desplegando el GPS intestinal…',
+  'Buscando tesoros marrones…',
+  'Cartografiando el imperio caca…',
+  'Triangulando posiciones estratégicas…',
+  'Tirando de la cadena de datos…',
+];
+const _mapPhrasesEn = [
+  'Loading the map of the brown conquest…',
+  'Tracking your poops across the globe…',
+  'Deploying the intestinal GPS…',
+  'Searching for brown treasures…',
+  'Mapping the poop empire…',
+  'Triangulating strategic positions…',
+  'Flushing the data pipes…',
+];
+export const mapLoadingPhrase = () => {
+  const arr = _lang === 'en' ? _mapPhrasesEn : _mapPhrasesEs;
+  return arr[Math.floor(Math.random() * arr.length)];
+};

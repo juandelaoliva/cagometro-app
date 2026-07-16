@@ -166,15 +166,19 @@ function _renderFact(offset, animate=false){
 
 function maybeShowFunFact(){
   if(!(FUNFACT_FOR_ALL || uid===ADMIN_UID)) return;
-  const wasHidden = $("funFact").hidden;
   $("funFact").hidden = false;
-  const collapsed = localStorage.getItem("cago_fact_collapsed") === "1";
-  _setFactCollapsed(collapsed);
-  _renderFact(_factCurrentIdx());
-  // Si es nuevo día, expandir automáticamente
   const dayKey = String(_factDay());
   const idxDay = localStorage.getItem("cago_fact_idx_day");
-  if(wasHidden || idxDay !== dayKey) _setFactCollapsed(false);
+  const isNewDay = idxDay !== dayKey;
+  if(isNewDay){
+    // Día nuevo: expandir y resetear estado colapsado
+    localStorage.removeItem("cago_fact_collapsed");
+    _setFactCollapsed(false);
+  } else {
+    // Mismo día: respetar lo que eligió el usuario
+    _setFactCollapsed(localStorage.getItem("cago_fact_collapsed") === "1");
+  }
+  _renderFact(_factCurrentIdx());
 }
 
 $("funFactToggle")?.addEventListener("click", ()=>{

@@ -34,6 +34,9 @@ const _es = {
 
   // ── Feed ──
   'feed.title': 'Actividad',
+  'funfact.title': '¿Sabías que?',
+  'funfact.source': 'fuente',
+  'funfact.another': 'otra 🔀',
   'feed.hint': 'tú, amigos y grupos',
   'feed.search.placeholder': 'Buscar persona…',
   'feed.loadmore': 'Cargar más',
@@ -424,6 +427,9 @@ const _en = {
 
   // ── Feed ──
   'feed.title': 'Activity',
+  'funfact.title': 'Did you know?',
+  'funfact.source': 'source',
+  'funfact.another': 'another 🔀',
   'feed.hint': 'you, friends and groups',
   'feed.search.placeholder': 'Search person…',
   'feed.loadmore': 'Load more',

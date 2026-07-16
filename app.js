@@ -17,6 +17,7 @@ import {
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
+import { FUN_FACTS } from "./funfacts.js";
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
@@ -112,6 +113,26 @@ function barsHTML(values, labels, {showVal=true}={}){
 }
 
 let uid=null, me=null, unsub=null, lastTotal=null;
+
+// ── Fun fact del día (arriba del feed) ──────────────────────────────────────
+// "Del día": índice determinista por fecha local → todos ven el mismo cada día y
+// rota cada 100 días. Descartable (se recuerda el día en localStorage). "otra 🔀"
+// muestra una al azar. DE MOMENTO SOLO LO VE EL ADMIN (pruebas); para todos → true.
+const FUNFACT_FOR_ALL = false;
+const _factDay = () => Math.floor(startOfToday()/DAY);
+function _renderFact(i){
+  const f = FUN_FACTS[((i % FUN_FACTS.length)+FUN_FACTS.length) % FUN_FACTS.length];
+  $("funFactText").textContent = getLang()==="en" ? f.en : f.es;
+  $("funFactSrc").href = f.url;
+  $("funFact").hidden = false;
+}
+function maybeShowFunFact(){
+  if(!(FUNFACT_FOR_ALL || uid===ADMIN_UID)) return;
+  if(String(_factDay()) === localStorage.getItem("cago_fact_day")) return;   // ya descartado hoy
+  _renderFact(_factDay());
+}
+$("funFactClose")?.addEventListener("click", ()=>{ $("funFact").hidden=true; localStorage.setItem("cago_fact_day", String(_factDay())); });
+$("funFactShuffle")?.addEventListener("click", ()=>{ _renderFact(Math.floor(Math.random()*FUN_FACTS.length)); });
 
 /* ---------- enlaces de invitación ---------- */
 const inviteUrl = q => `${location.origin}${location.pathname}?${q}`;
@@ -256,6 +277,8 @@ function showApp(){
   startNotifications();
   enablePush();                       // si ya hay permiso, refresca el token FCM
   startChatListener(uid, "");
+  maybeShowFunFact();
+
 }
 
 /* ---------- hoja: aceptar invitación de amigo ---------- */
@@ -1609,6 +1632,8 @@ function applyLang(){
   // elementos con estructura HTML interna (no pueden usar textContent)
   const cu=$("counterUnit");
   if(cu) cu.innerHTML=`${t('hero.unit')}<br/><span>${t('hero.unit.sub')}</span>`;
+  // fun fact: si está visible, re-renderiza el del día en el nuevo idioma
+  if($("funFact") && !$("funFact").hidden) _renderFact(_factDay());
   const ey=document.querySelector(".hero__eyebrow");
   if(ey) ey.textContent=t('hero.eyebrow');
   // settings labels with <small> children (textContent would strip the tag)

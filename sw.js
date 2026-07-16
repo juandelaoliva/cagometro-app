@@ -2,7 +2,7 @@
 const CACHE = "cagometro-20260709-192408";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
-  "./app.js", "./store.js", "./firebase.js", "./i18n.js",
+  "./app.js", "./store.js", "./firebase.js", "./i18n.js", "./funfacts.js",
   "./firebase-bundle.js",
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"
 ];

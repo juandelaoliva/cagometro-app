@@ -13,7 +13,8 @@ import {
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
-  getGroup, STATS_V
+  getGroup,
+  saveBristol, setBristolMode, setBristolBeta, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
@@ -36,7 +37,14 @@ function applyMaintenance(on, msg){
   const t = $("maintToggle"); if(t) t.checked = maintOn;
 }
 applyMaintenance(MAINT_FORCE, t('maint.default'));   // inmediato: no depende de Firestore
-if(!MAINT_FORCE){ getAppConfig().then(c=>{ if(c) applyMaintenance(!!c.maintenance, c.message); }).catch(()=>{}); }
+let _bristolBeta = [ADMIN_UID]; // admin siempre tiene acceso
+if(!MAINT_FORCE){ getAppConfig().then(c=>{
+  if(c){
+    applyMaintenance(!!c.maintenance, c.message);
+    if(Array.isArray(c.bristolBeta)) _bristolBeta = [...new Set([ADMIN_UID, ...c.bristolBeta])];
+  }
+}).catch(()=>{}); }
+const _bristolAccess = () => _bristolBeta.includes(uid);
 
 // ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
 let hapticsOn = localStorage.getItem("cago_haptics") !== "0";
@@ -393,6 +401,9 @@ function openSettings(){
   $("setHaptics").checked = hapticsOn;
   $("setShareMap").checked = me.shareMap !== false;
   $("adminBtn").hidden = uid!==ADMIN_UID;
+  const hasBristol = _bristolAccess();
+  $("bristolSettingRow").hidden = !hasBristol;
+  if(hasBristol) $("setBristol").checked = !!me.bristolMode;
   _syncLangBtns(getLang());
   $("settingsSheet").hidden=false;
 }
@@ -427,9 +438,26 @@ async function renderAdminUsers(){
       </div>`).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
   }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loadfail')}</p>`; console.error(err); }
 }
-function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
+function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); _renderBristolBetaList(); }
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
+
+function _renderBristolBetaList(){
+  $("bristolBetaList").textContent = _bristolBeta.filter(u=>u!==ADMIN_UID).join("\n") || "(solo admin)";
+}
+$("bristolBetaAdd").addEventListener("click", async ()=>{
+  const input = $("bristolBetaInput");
+  const newUid = input.value.trim();
+  if(!newUid) return;
+  const updated = [...new Set([..._bristolBeta.filter(u=>u!==ADMIN_UID), newUid])];
+  try{
+    await setBristolBeta(updated);
+    _bristolBeta = [ADMIN_UID, ...updated];
+    input.value = "";
+    _renderBristolBetaList();
+    toast("UID añadido al beta ✓");
+  } catch(e){ toast("Error al guardar"); }
+});
 $("adminResetFunFact").addEventListener("click", ()=>{
   localStorage.removeItem("cago_fact_idx");
   localStorage.removeItem("cago_fact_idx_day");
@@ -476,7 +504,11 @@ $("setShareMap").addEventListener("change", async e=>{
 $("setHaptics").addEventListener("change", e=>{
   hapticsOn = e.target.checked;
   localStorage.setItem("cago_haptics", hapticsOn ? "1" : "0");
-  if(hapticsOn) haptic(20);   // confirmación al activar (Android vibra, iOS háptica nativa)
+  if(hapticsOn) haptic(20);
+});
+$("setBristol").addEventListener("change", async e=>{
+  try{ await setBristolMode(uid, e.target.checked); }
+  catch(){ e.target.checked = !e.target.checked; }
 });
 $("setNotif").addEventListener("change", async e=>{
   const on=e.target.checked;
@@ -1018,11 +1050,12 @@ $("addBtn").addEventListener("click",async e=>{
   const num=$("meCount");num.textContent=(parseInt(num.textContent,10)||0)+1;
   num.classList.remove("pop");void num.offsetWidth;num.classList.add("pop");floatPoo(r.left+r.width/2,r.top);
   try{
-    await _graphPromise;   // si el grafo aún se está cargando, esperamos; si ya está listo es un no-op
+    await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    await addCaca(uid, loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
-    bumpChipsLocal(); _statsLoadedAt=0;   // chips al instante (sin leer); el listener pinta el feed
-    checkSyncPoop();         // ¿algún amigo ha cagado hace <5 min? → conexión de tuberías
+    const cacaId = await addCaca(uid, loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
+    bumpChipsLocal(); _statsLoadedAt=0;
+    checkSyncPoop();
+    if(me?.bristolMode && _bristolAccess() && cacaId) _openBristolSheet(cacaId);
   }
   catch(err){
     if(!navigator.onLine){
@@ -1067,6 +1100,65 @@ $("miGeo").addEventListener("click", async ()=>{
 });
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
+// ── Bristol sheet ────────────────────────────────────────────────
+const BRISTOL_INFO = [
+  { emoji:"🪨", desc:"Trozos duros separados, con mucho esfuerzo" },
+  { emoji:"🌰", desc:"Con forma de salchicha, compuesta de fragmentos" },
+  { emoji:"🌭", desc:"Con grietas en la superficie, normal" },
+  { emoji:"💩", desc:"Como una salchicha, lisa y blanda, ideal" },
+  { emoji:"🫧", desc:"Trozos blandos con bordes definidos" },
+  { emoji:"💦", desc:"Fragmentos esponjosos, bordes irregulares" },
+  { emoji:"🌊", desc:"Acuosa, totalmente líquida" },
+];
+let _bristolCacaId = null;
+let _bristolSelected = null;
+
+function _openBristolSheet(cacaId){
+  _bristolCacaId = cacaId;
+  _bristolSelected = null;
+  $("bristolNote").value = "";
+  document.querySelectorAll(".bristol-tag").forEach(b=>b.classList.remove("selected"));
+  // Renderizar tipos
+  $("bristolTypes").innerHTML = BRISTOL_INFO.map((b,i)=>
+    `<button class="bristol-type" data-type="${i+1}">
+      <span class="bristol-type__num">${i+1}</span>
+      <span class="bristol-type__emoji">${b.emoji}</span>
+    </button>`
+  ).join("");
+  $("bristolTypeDesc").textContent = "";
+  $("bristolSave").disabled = true;
+  $("bristolSheet").hidden = false;
+}
+
+$("bristolTypes").addEventListener("click", e=>{
+  const btn = e.target.closest(".bristol-type"); if(!btn) return;
+  const type = parseInt(btn.dataset.type);
+  _bristolSelected = type;
+  document.querySelectorAll(".bristol-type").forEach(b=>b.classList.toggle("selected", parseInt(b.dataset.type)===type));
+  $("bristolTypeDesc").textContent = `Tipo ${type}: ${BRISTOL_INFO[type-1].desc}`;
+  $("bristolSave").disabled = false;
+});
+
+$("bristolTags").addEventListener("click", e=>{
+  const btn = e.target.closest(".bristol-tag"); if(!btn) return;
+  btn.classList.toggle("selected");
+});
+
+$("bristolSkip").addEventListener("click", ()=>{ $("bristolSheet").hidden=true; });
+$("bristolSheet").addEventListener("click", e=>{ if(e.target===$("bristolSheet")) $("bristolSheet").hidden=true; });
+
+$("bristolSave").addEventListener("click", async ()=>{
+  if(!_bristolSelected || !_bristolCacaId) return;
+  const tags = [...document.querySelectorAll(".bristol-tag.selected")].map(b=>b.dataset.tag);
+  const note = $("bristolNote").value;
+  $("bristolSheet").hidden = true;
+  try{ await saveBristol(uid, _bristolCacaId, _bristolSelected, tags, note); }
+  catch(e){ console.error("bristol save:", e); }
+});
+
+// Marcar con sangre en rojo
+document.querySelector(".bristol-tag[data-tag='Con sangre']")?.classList.add("bristol-tag--danger");
+
 $("lateConfirm").addEventListener("click",async()=>{
   const v=$("lateWhen").value; if(!v)return;
   const ts=new Date(v).getTime();

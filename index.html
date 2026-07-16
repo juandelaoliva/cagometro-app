@@ -417,6 +417,14 @@
       <hr style="margin:16px 0;opacity:.2">
       <p class="sheet__sub">🧪 Testing</p>
       <button class="btn-ghost" id="adminResetFunFact">Reset fun fact (ver de nuevo hoy)</button>
+      <div style="margin-top:8px">
+        <p class="sheet__sub" style="margin-bottom:6px">🧫 Bristol beta — UIDs con acceso</p>
+        <div id="bristolBetaList" style="font-size:12px;color:var(--ink-soft);margin-bottom:6px"></div>
+        <div style="display:flex;gap:8px">
+          <input class="field" id="bristolBetaInput" placeholder="UID del usuario" style="flex:1;font-size:13px" />
+          <button class="btn-solid" id="bristolBetaAdd" style="white-space:nowrap;font-size:13px">Añadir</button>
+        </div>
+      </div>
       <button class="btn-ghost" id="adminClose" data-i18n="admin.close">Cerrar</button>
     </div>
   </div>
@@ -451,6 +459,15 @@
 
       <label class="set-label" id="setLocLabel">Ubicación <small>al sumar una caca</small></label>
       <div class="yearsel" id="locSel"></div>
+
+      <div id="bristolSettingRow" hidden>
+        <label class="set-label">Escala de Bristol <small>(privado, solo tú lo ves)</small></label>
+        <label class="toggle">
+          <input type="checkbox" id="setBristol" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt">Preguntarme el tipo de caca al sumar</span>
+        </label>
+      </div>
 
       <label class="set-label" data-i18n="settings.privacy.label">Privacidad</label>
       <label class="toggle">
@@ -524,6 +541,32 @@
   </div>
 
   <!-- ───────── Admin del grupo ───────── -->
+  <!-- ───────── Bristol sheet ───────── -->
+  <div class="sheet" id="bristolSheet" hidden>
+    <div class="sheet__panel">
+      <h3 class="sheet__title">¿Cómo ha ido? 💩</h3>
+      <p class="sheet__sub" style="margin-top:-8px;margin-bottom:14px">Solo tú puedes ver esto</p>
+      <div class="bristol-types" id="bristolTypes"></div>
+      <div id="bristolTypeDesc" class="bristol-desc"></div>
+      <label class="set-label" style="margin-top:16px">Características <small>(opcional)</small></label>
+      <div class="bristol-tags" id="bristolTags">
+        <button class="bristol-tag" data-tag="Con esfuerzo">Con esfuerzo</button>
+        <button class="bristol-tag" data-tag="Sin esfuerzo">Sin esfuerzo</button>
+        <button class="bristol-tag" data-tag="Urgente">Urgente</button>
+        <button class="bristol-tag" data-tag="Lenta">Lenta</button>
+        <button class="bristol-tag" data-tag="Incompleta">Incompleta</button>
+        <button class="bristol-tag" data-tag="Con dolor">Con dolor</button>
+        <button class="bristol-tag" data-tag="Con sangre">Con sangre</button>
+        <button class="bristol-tag" data-tag="Express">Express</button>
+      </div>
+      <textarea class="field bristol-note" id="bristolNote" rows="2" placeholder="Nota libre (ej: después del café)…" maxlength="280"></textarea>
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn-ghost" id="bristolSkip" style="flex:1">Saltar</button>
+        <button class="btn-solid" id="bristolSave" style="flex:2" disabled>Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="sheet" id="groupAdminSheet" hidden>
     <div class="sheet__panel sheet__panel--tall">
       <div class="sheet__top"><h3 data-i18n="grupos.admin.title">Administrar grupo</h3></div>

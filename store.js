@@ -96,6 +96,7 @@ export const getGroup = async gid => { const s = await getDoc(doc(db,"groups",gi
 // contadores y crea el evento de actividad con el `n` EXACTO (sin desfases).
 export async function addCaca(uid, loc, act){
   const ts = Date.now(), y = yearNow();
+  const cacaRef = doc(collection(db,"users",uid,"cacas"));
   await runTransaction(db, async tx => {
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
@@ -103,7 +104,7 @@ export async function addCaca(uid, loc, act){
     const n = (data.totalCount || 0) + 1;
     const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
-    tx.set(doc(collection(db,"users",uid,"cacas")), cdata);
+    tx.set(cacaRef, cdata);
     // streak: consecutive-day logic
     const lastTs = data.lastCacaTs || 0;
     const d0 = new Date(ts); d0.setHours(0,0,0,0); const today0 = d0.getTime();
@@ -125,7 +126,18 @@ export async function addCaca(uid, loc, act){
       ...(cdata.lat!=null ? { lat:cdata.lat, lng:cdata.lng } : {}),
     });
   });
+  return cacaRef.id;
 }
+
+export const saveBristol = (uid, cacaId, bristol, tags, note) =>
+  updateDoc(doc(db,"users",uid,"cacas",cacaId), {
+    bristol,
+    bristolTags: tags,
+    ...(note.trim() ? { bristolNote: note.trim() } : {}),
+  });
+
+export const setBristolMode = (uid, on) => updateDoc(doc(db,"users",uid), { bristolMode: on });
+
 export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
 
 // ── Feed de actividad (fan-out en escritura) ────────────────────────────
@@ -154,6 +166,7 @@ export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 export const getAppConfig = async () => { try{ const s = await getDoc(doc(db,"config","app")); return s.exists() ? s.data() : null; }catch(e){ return null; } };
 export const setMaintenance = (on, message) => setDoc(doc(db,"config","app"),
   { maintenance: !!on, ...(message != null ? { message } : {}), updatedAt: serverTimestamp() }, { merge:true });
+export const setBristolBeta = (uids) => setDoc(doc(db,"config","app"), { bristolBeta: uids }, { merge:true });
 
 // ── Push (FCM) ──────────────────────────────────────────────────────────
 // Tokens del dispositivo en una subcolección PRIVADA (solo el dueño / el emisor admin).

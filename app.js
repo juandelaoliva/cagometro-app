@@ -508,7 +508,7 @@ $("setHaptics").addEventListener("change", e=>{
 });
 $("setBristol").addEventListener("change", async e=>{
   try{ await setBristolMode(uid, e.target.checked); }
-  catch(){ e.target.checked = !e.target.checked; }
+  catch(_){ e.target.checked = !e.target.checked; }
 });
 $("setNotif").addEventListener("change", async e=>{
   const on=e.target.checked;

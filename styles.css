@@ -210,8 +210,7 @@ ol,ul{list-style:none}
 .funfact__toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
   padding:10px 13px;gap:8px;background:none;cursor:pointer}
 .funfact__toggle-label{font-family:var(--font-d);font-weight:800;font-size:13px;color:var(--brand)}
-.funfact__toggle-chevron{font-size:11px;color:var(--brand);transition:transform .25s ease;line-height:1}
-.funfact--collapsed .funfact__toggle-chevron{transform:rotate(-90deg)}
+.funfact__toggle-chevron{font-size:16px;color:var(--ink-soft);line-height:1;opacity:.6}
 .funfact__body{padding:0 13px 12px;overflow:hidden;
   display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s ease,opacity .22s ease;opacity:1}
 .funfact--collapsed .funfact__body{grid-template-rows:0fr;opacity:0;pointer-events:none;padding-bottom:0}

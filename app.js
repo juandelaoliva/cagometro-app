@@ -131,7 +131,7 @@ function _factCurrentIdx(){
 
 function _setFactCollapsed(collapsed){
   $("funFact").classList.toggle("funfact--collapsed", collapsed);
-  $("funFactChevron").textContent = collapsed ? "▸" : "▾";
+  $("funFactChevron").textContent = collapsed ? "" : "✕";
 }
 
 function _renderFact(offset, animate=false){

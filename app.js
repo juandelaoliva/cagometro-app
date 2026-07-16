@@ -65,7 +65,7 @@ let _bristolBeta = [ADMIN_UID];
 if(!MAINT_FORCE){ getAppConfig().then(c=>{
   if(c && Array.isArray(c.bristolBeta)) _bristolBeta = [...new Set([ADMIN_UID, ...c.bristolBeta])];
 }).catch(()=>{}); }
-const _bristolAccess = () => _bristolBeta.includes(uid);
+const _bristolAccess = () => !!uid;
 // Hitos: pequeños al principio y, de 100 en adelante, SIEMPRE cada 50 (sin tope).
 const SMALL_MS = [10,25,50,75];
 const isMilestone = n => SMALL_MS.includes(n) || (n>=100 && n%50===0);

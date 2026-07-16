@@ -1050,10 +1050,18 @@ $("addBtn").addEventListener("click",async e=>{
   try{
     await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    const cacaId = await addCaca(uid, loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
+    // Si bristol está activo, abrir el sheet inmediatamente sin esperar la transacción
+    let cacaIdPromise = null;
+    if(me?.bristolMode && _bristolAccess()){
+      cacaIdPromise = addCaca(uid, loc, actMeta());
+      _openBristolSheet(cacaIdPromise);
+    } else {
+      cacaIdPromise = addCaca(uid, loc, actMeta());
+    }
+    const cacaId = await cacaIdPromise;
+    toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
     checkSyncPoop();
-    if(me?.bristolMode && _bristolAccess() && cacaId) _openBristolSheet(cacaId);
   }
   catch(err){
     if(!navigator.onLine){
@@ -1108,11 +1116,11 @@ const BRISTOL_INFO = [
   { desc:"Fragmentos esponjosos, bordes irregulares" },
   { desc:"Acuosa, totalmente líquida" },
 ];
-let _bristolCacaId = null;
+let _bristolCacaId = null; // puede ser string o Promise<string>
 let _bristolSelected = null;
 
-function _openBristolSheet(cacaId){
-  _bristolCacaId = cacaId;
+function _openBristolSheet(cacaIdOrPromise){
+  _bristolCacaId = cacaIdOrPromise;
   _bristolSelected = null;
   $("bristolNote").value = "";
   document.querySelectorAll(".bristol-tag").forEach(b=>b.classList.remove("selected"));
@@ -1151,8 +1159,11 @@ $("bristolSave").addEventListener("click", async ()=>{
   const tags = [...document.querySelectorAll(".bristol-tag.selected")].map(b=>b.dataset.tag);
   const note = $("bristolNote").value;
   $("bristolSheet").hidden = true;
-  try{ await saveBristol(uid, _bristolCacaId, _bristolSelected, tags, note); }
-  catch(e){ console.error("bristol save:", e); }
+  try{
+    const cacaId = await Promise.resolve(_bristolCacaId);
+    await saveBristol(uid, cacaId, _bristolSelected, tags, note);
+    toast("✓ Registro guardado");
+  } catch(e){ console.error("bristol save:", e); toast("Error al guardar"); }
 });
 
 // Marcar con sangre en rojo

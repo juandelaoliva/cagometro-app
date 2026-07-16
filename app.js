@@ -36,15 +36,8 @@ function applyMaintenance(on, msg){
   if(bar){ bar.innerHTML = (msg && String(msg).trim()) ? msg : MAINT_MSG_DEFAULT; bar.hidden = !maintOn; }
   const t = $("maintToggle"); if(t) t.checked = maintOn;
 }
-applyMaintenance(MAINT_FORCE, t('maint.default'));   // inmediato: no depende de Firestore
-let _bristolBeta = [ADMIN_UID]; // admin siempre tiene acceso
-if(!MAINT_FORCE){ getAppConfig().then(c=>{
-  if(c){
-    applyMaintenance(!!c.maintenance, c.message);
-    if(Array.isArray(c.bristolBeta)) _bristolBeta = [...new Set([ADMIN_UID, ...c.bristolBeta])];
-  }
-}).catch(()=>{}); }
-const _bristolAccess = () => _bristolBeta.includes(uid);
+applyMaintenance(MAINT_FORCE, t('maint.default'));
+if(!MAINT_FORCE){ getAppConfig().then(c=>{ if(c) applyMaintenance(!!c.maintenance, c.message); }).catch(()=>{}); }
 
 // ── háptica (preferencia por dispositivo, en localStorage; por defecto ON) ──
 let hapticsOn = localStorage.getItem("cago_haptics") !== "0";
@@ -68,6 +61,11 @@ document.addEventListener("click", e=>{
   if(e.target.closest("button:not(#addBtn), .tab, .ychip, .rx, .swatch, .psg, .menu-item, .grouplist .ghead, .feed__item, .iconbtn, .brand, .profile, .addchip")) haptic(8);
 }, true);
 const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // admin único (la barrera real está en las reglas)
+let _bristolBeta = [ADMIN_UID];
+if(!MAINT_FORCE){ getAppConfig().then(c=>{
+  if(c && Array.isArray(c.bristolBeta)) _bristolBeta = [...new Set([ADMIN_UID, ...c.bristolBeta])];
+}).catch(()=>{}); }
+const _bristolAccess = () => _bristolBeta.includes(uid);
 // Hitos: pequeños al principio y, de 100 en adelante, SIEMPRE cada 50 (sin tope).
 const SMALL_MS = [10,25,50,75];
 const isMilestone = n => SMALL_MS.includes(n) || (n>=100 && n%50===0);

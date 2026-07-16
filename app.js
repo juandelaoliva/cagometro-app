@@ -394,6 +394,14 @@ async function renderAdminUsers(){
 function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
+$("adminResetFunFact").addEventListener("click", ()=>{
+  localStorage.removeItem("cago_fact_day");
+  localStorage.removeItem("cago_fact_idx");
+  localStorage.removeItem("cago_fact_idx_day");
+  $("adminSheet").hidden = true;
+  maybeShowFunFact();
+  toast("Fun fact reseteado ✓");
+});
 $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
 $("maintToggle").addEventListener("change", async e=>{
   if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }

@@ -115,24 +115,62 @@ function barsHTML(values, labels, {showVal=true}={}){
 let uid=null, me=null, unsub=null, lastTotal=null;
 
 // ── Fun fact del día (arriba del feed) ──────────────────────────────────────
-// "Del día": índice determinista por fecha local → todos ven el mismo cada día y
-// rota cada 100 días. Descartable (se recuerda el día en localStorage). "otra 🔀"
-// muestra una al azar. DE MOMENTO SOLO LO VE EL ADMIN (pruebas); para todos → true.
-const FUNFACT_FOR_ALL = false;
+// 3 facts por día (mismo bloque para todos). Se muestran de uno en uno con "otra 🔀".
+// Al agotar los 3, aparece un mensaje gracioso en lugar del botón.
+// Se recuerda: qué día se descartó (cago_fact_day) y cuántos se han visto hoy (cago_fact_idx).
+const FUNFACT_FOR_ALL = true;
+const FACTS_PER_DAY = 3;
 const _factDay = () => Math.floor(startOfToday()/DAY);
-function _renderFact(i){
-  const f = FUN_FACTS[((i % FUN_FACTS.length)+FUN_FACTS.length) % FUN_FACTS.length];
+const _factBaseIdx = () => (_factDay() * FACTS_PER_DAY) % FUN_FACTS.length;
+
+function _renderFact(offset){
+  const f = FUN_FACTS[(_factBaseIdx() + offset) % FUN_FACTS.length];
   $("funFactText").textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;
   $("funFact").hidden = false;
+  // Botón "otra": si quedan facts del día lo muestra, si no mensaje gracioso
+  const shuffleBtn = $("funFactShuffle");
+  if(offset < FACTS_PER_DAY - 1){
+    shuffleBtn.textContent = t("funfact.another");
+    shuffleBtn.disabled = false;
+  } else {
+    shuffleBtn.textContent = getLang()==="en"
+      ? "Come back tomorrow for more 💩 data"
+      : "Vuelve mañana a por más datos de mierda 💩";
+    shuffleBtn.disabled = true;
+  }
 }
+
 function maybeShowFunFact(){
   if(!(FUNFACT_FOR_ALL || uid===ADMIN_UID)) return;
-  if(String(_factDay()) === localStorage.getItem("cago_fact_day")) return;   // ya descartado hoy
-  _renderFact(_factDay());
+  const dayKey = String(_factDay());
+  if(localStorage.getItem("cago_fact_day") === dayKey) return; // descartado hoy
+  const idx = parseInt(localStorage.getItem("cago_fact_idx")||"0", 10);
+  // Si el idx guardado es de otro día, resetearlo
+  const idxDay = localStorage.getItem("cago_fact_idx_day");
+  const currentIdx = idxDay === dayKey ? idx : 0;
+  _renderFact(currentIdx);
 }
-$("funFactClose")?.addEventListener("click", ()=>{ $("funFact").hidden=true; localStorage.setItem("cago_fact_day", String(_factDay())); });
-$("funFactShuffle")?.addEventListener("click", ()=>{ _renderFact(Math.floor(Math.random()*FUN_FACTS.length)); });
+
+$("funFactClose")?.addEventListener("click", ()=>{
+  $("funFact").hidden = true;
+  localStorage.setItem("cago_fact_day", String(_factDay()));
+});
+
+$("funFactShuffle")?.addEventListener("click", ()=>{
+  const dayKey = String(_factDay());
+  const idxDay = localStorage.getItem("cago_fact_idx_day");
+  const prev = idxDay === dayKey ? parseInt(localStorage.getItem("cago_fact_idx")||"0", 10) : 0;
+  const next = Math.min(prev + 1, FACTS_PER_DAY - 1);
+  localStorage.setItem("cago_fact_idx", String(next));
+  localStorage.setItem("cago_fact_idx_day", dayKey);
+  _renderFact(next);
+});
+
+// Fix bug: re-check al volver a primer plano (ej. app en background toda la noche)
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible" && uid) maybeShowFunFact();
+});
 
 /* ---------- enlaces de invitación ---------- */
 const inviteUrl = q => `${location.origin}${location.pathname}?${q}`;
@@ -1633,7 +1671,12 @@ function applyLang(){
   const cu=$("counterUnit");
   if(cu) cu.innerHTML=`${t('hero.unit')}<br/><span>${t('hero.unit.sub')}</span>`;
   // fun fact: si está visible, re-renderiza el del día en el nuevo idioma
-  if($("funFact") && !$("funFact").hidden) _renderFact(_factDay());
+  if($("funFact") && !$("funFact").hidden){
+    const dayKey = String(_factDay());
+    const idxDay = localStorage.getItem("cago_fact_idx_day");
+    const idx = idxDay === dayKey ? parseInt(localStorage.getItem("cago_fact_idx")||"0",10) : 0;
+    _renderFact(idx);
+  }
   const ey=document.querySelector(".hero__eyebrow");
   if(ey) ey.textContent=t('hero.eyebrow');
   // settings labels with <small> children (textContent would strip the tag)

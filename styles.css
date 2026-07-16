@@ -205,16 +205,25 @@ ol,ul{list-style:none}
 .link{color:var(--brand-2);font-weight:700;font-size:13.5px}
 
 /* fun fact del día: tarjeta "nota" cálida, distinta de la actividad */
-.funfact{position:relative;margin-top:18px;background:linear-gradient(160deg,#FFF7E6,#FCECCF);
-  border:1px solid rgba(229,154,46,.38);border-radius:18px;padding:15px 16px;box-shadow:var(--shadow)}
-.funfact__close{position:absolute;top:8px;right:8px;width:26px;height:26px;border-radius:50%;
-  background:rgba(36,27,18,.06);color:var(--ink-soft);font-size:12px;display:grid;place-items:center}
-.funfact__head{font-family:var(--font-d);font-weight:800;font-size:14px;color:var(--brand);margin-bottom:6px;padding-right:26px}
+.funfact{margin-top:18px;background:linear-gradient(160deg,#FFF7E6,#FCECCF);
+  border:1px solid rgba(229,154,46,.38);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.funfact__toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:12px 14px;gap:8px;background:none;cursor:pointer}
+.funfact__toggle-label{font-family:var(--font-d);font-weight:800;font-size:14px;color:var(--brand)}
+.funfact__toggle-chevron{font-size:13px;color:var(--brand);transition:transform .25s ease;line-height:1}
+.funfact--collapsed .funfact__toggle-chevron{transform:rotate(-90deg)}
+.funfact__body{padding:0 14px 14px;overflow:hidden;
+  display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s ease, opacity .25s ease;opacity:1}
+.funfact--collapsed .funfact__body{grid-template-rows:0fr;opacity:0;pointer-events:none}
+.funfact__body > *{min-height:0}
 .funfact__text{font-size:14.5px;line-height:1.5;color:var(--ink);margin:0 0 12px}
 .funfact__foot{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .funfact__src{font-size:12.5px;color:var(--ink-faint);text-decoration:underline}
-.funfact__more{font-size:13px;font-weight:700;color:var(--brand-2);background:rgba(229,154,46,.16);border-radius:999px;padding:6px 12px}
+.funfact__more{font-size:13px;font-weight:700;color:var(--brand-2);background:rgba(229,154,46,.16);border-radius:999px;padding:6px 12px;transition:transform .15s}
 .funfact__more:active{transform:translateY(1px)}
+.funfact__more:disabled{opacity:.55;cursor:default}
+@keyframes fact-slide-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.funfact__text--anim{animation:fact-slide-in .3s ease}
 .feed{display:flex;flex-direction:column;gap:9px}
 .feed__item{
   display:flex;align-items:center;gap:12px;

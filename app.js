@@ -115,20 +115,35 @@ function barsHTML(values, labels, {showVal=true}={}){
 let uid=null, me=null, unsub=null, lastTotal=null;
 
 // ── Fun fact del día (arriba del feed) ──────────────────────────────────────
-// 3 facts por día (mismo bloque para todos). Se muestran de uno en uno con "otra 🔀".
-// Al agotar los 3, aparece un mensaje gracioso en lugar del botón.
-// Se recuerda: qué día se descartó (cago_fact_day) y cuántos se han visto hoy (cago_fact_idx).
+// 3 facts por día (mismo bloque para todos, determinista por fecha).
+// Card siempre visible pero colapsable. "otra 🔀" anima el texto al cambiar.
+// Al agotar los 3: botón cambia a mensaje gracioso; el card se puede colapsar/expandir.
 const FUNFACT_FOR_ALL = true;
 const FACTS_PER_DAY = 3;
 const _factDay = () => Math.floor(startOfToday()/DAY);
 const _factBaseIdx = () => (_factDay() * FACTS_PER_DAY) % FUN_FACTS.length;
 
-function _renderFact(offset){
+function _factCurrentIdx(){
+  const dayKey = String(_factDay());
+  const idxDay = localStorage.getItem("cago_fact_idx_day");
+  return idxDay === dayKey ? parseInt(localStorage.getItem("cago_fact_idx")||"0", 10) : 0;
+}
+
+function _setFactCollapsed(collapsed){
+  $("funFact").classList.toggle("funfact--collapsed", collapsed);
+  $("funFactChevron").textContent = collapsed ? "▸" : "▾";
+}
+
+function _renderFact(offset, animate=false){
   const f = FUN_FACTS[(_factBaseIdx() + offset) % FUN_FACTS.length];
-  $("funFactText").textContent = getLang()==="en" ? f.en : f.es;
+  const textEl = $("funFactText");
+  if(animate){
+    textEl.classList.remove("funfact__text--anim");
+    void textEl.offsetWidth; // reflow para reiniciar animación
+    textEl.classList.add("funfact__text--anim");
+  }
+  textEl.textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;
-  $("funFact").hidden = false;
-  // Botón "otra": si quedan facts del día lo muestra, si no mensaje gracioso
   const shuffleBtn = $("funFactShuffle");
   if(offset < FACTS_PER_DAY - 1){
     shuffleBtn.textContent = t("funfact.another");
@@ -143,31 +158,33 @@ function _renderFact(offset){
 
 function maybeShowFunFact(){
   if(!(FUNFACT_FOR_ALL || uid===ADMIN_UID)) return;
+  const wasHidden = $("funFact").hidden;
+  $("funFact").hidden = false;
+  const collapsed = localStorage.getItem("cago_fact_collapsed") === "1";
+  _setFactCollapsed(collapsed);
+  _renderFact(_factCurrentIdx());
+  // Si es nuevo día, expandir automáticamente
   const dayKey = String(_factDay());
-  if(localStorage.getItem("cago_fact_day") === dayKey) return; // descartado hoy
-  const idx = parseInt(localStorage.getItem("cago_fact_idx")||"0", 10);
-  // Si el idx guardado es de otro día, resetearlo
   const idxDay = localStorage.getItem("cago_fact_idx_day");
-  const currentIdx = idxDay === dayKey ? idx : 0;
-  _renderFact(currentIdx);
+  if(wasHidden || idxDay !== dayKey) _setFactCollapsed(false);
 }
 
-$("funFactClose")?.addEventListener("click", ()=>{
-  $("funFact").hidden = true;
-  localStorage.setItem("cago_fact_day", String(_factDay()));
+$("funFactToggle")?.addEventListener("click", ()=>{
+  const isCollapsed = $("funFact").classList.contains("funfact--collapsed");
+  _setFactCollapsed(!isCollapsed);
+  localStorage.setItem("cago_fact_collapsed", isCollapsed ? "0" : "1");
 });
 
 $("funFactShuffle")?.addEventListener("click", ()=>{
   const dayKey = String(_factDay());
-  const idxDay = localStorage.getItem("cago_fact_idx_day");
-  const prev = idxDay === dayKey ? parseInt(localStorage.getItem("cago_fact_idx")||"0", 10) : 0;
+  const prev = _factCurrentIdx();
   const next = Math.min(prev + 1, FACTS_PER_DAY - 1);
   localStorage.setItem("cago_fact_idx", String(next));
   localStorage.setItem("cago_fact_idx_day", dayKey);
-  _renderFact(next);
+  _renderFact(next, true);
 });
 
-// Fix bug: re-check al volver a primer plano (ej. app en background toda la noche)
+// Fix: re-check al volver a primer plano (ej. app en background toda la noche)
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState === "visible" && uid) maybeShowFunFact();
 });
@@ -395,11 +412,12 @@ function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
 $("adminResetFunFact").addEventListener("click", ()=>{
-  localStorage.removeItem("cago_fact_day");
   localStorage.removeItem("cago_fact_idx");
   localStorage.removeItem("cago_fact_idx_day");
+  localStorage.removeItem("cago_fact_collapsed");
   $("adminSheet").hidden = true;
-  maybeShowFunFact();
+  _setFactCollapsed(false);
+  _renderFact(0);
   toast("Fun fact reseteado ✓");
 });
 $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
@@ -1679,12 +1697,7 @@ function applyLang(){
   const cu=$("counterUnit");
   if(cu) cu.innerHTML=`${t('hero.unit')}<br/><span>${t('hero.unit.sub')}</span>`;
   // fun fact: si está visible, re-renderiza el del día en el nuevo idioma
-  if($("funFact") && !$("funFact").hidden){
-    const dayKey = String(_factDay());
-    const idxDay = localStorage.getItem("cago_fact_idx_day");
-    const idx = idxDay === dayKey ? parseInt(localStorage.getItem("cago_fact_idx")||"0",10) : 0;
-    _renderFact(idx);
-  }
+  if($("funFact") && !$("funFact").hidden) _renderFact(_factCurrentIdx());
   const ey=document.querySelector(".hero__eyebrow");
   if(ey) ey.textContent=t('hero.eyebrow');
   // settings labels with <small> children (textContent would strip the tag)

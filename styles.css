@@ -231,7 +231,8 @@ ol,ul{list-style:none}
 @keyframes fact-slide-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .funfact__text--anim{animation:fact-slide-in .25s ease}
 /* ── Bristol ─────────────────────────────────────────────────── */
-.bristol-types{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.bristol-types{display:flex;flex-direction:column;gap:8px}
+.bristol-types__row{display:flex;justify-content:center;gap:8px}
 .bristol-type{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
   border:2px solid transparent;background:var(--bg);transition:all .15s;cursor:pointer}
 .bristol-type__img{width:100%;aspect-ratio:1;object-fit:contain}

@@ -1117,12 +1117,13 @@ function _openBristolSheet(cacaId){
   $("bristolNote").value = "";
   document.querySelectorAll(".bristol-tag").forEach(b=>b.classList.remove("selected"));
   // Renderizar tipos
-  $("bristolTypes").innerHTML = BRISTOL_INFO.map((b,i)=>
-    `<button class="bristol-type" data-type="${i+1}">
-      <img class="bristol-type__img" src="assets/bristol-${i+1}.png" alt="Tipo ${i+1}">
-      <span class="bristol-type__num">${i+1}</span>
-    </button>`
-  ).join("");
+  const typeBtn = (i) => `<button class="bristol-type" data-type="${i+1}">
+    <img class="bristol-type__img" src="assets/bristol-${i+1}.png" alt="Tipo ${i+1}">
+    <span class="bristol-type__num">${i+1}</span>
+  </button>`;
+  $("bristolTypes").innerHTML = `
+    <div class="bristol-types__row">${[0,1,2,3].map(typeBtn).join("")}</div>
+    <div class="bristol-types__row">${[4,5,6].map(typeBtn).join("")}</div>`;
   $("bristolTypeDesc").textContent = "";
   $("bristolSave").disabled = true;
   $("bristolSheet").hidden = false;

@@ -234,7 +234,7 @@ ol,ul{list-style:none}
 .bristol-types{display:flex;flex-direction:column;gap:8px}
 .bristol-types__row{display:flex;justify-content:center;gap:8px}
 .bristol-type{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
-  border:2px solid transparent;background:var(--bg);transition:all .15s;cursor:pointer}
+  border:2px solid transparent;background:var(--bg);transition:all .15s;cursor:pointer;width:70px;flex-shrink:0}
 .bristol-type__img{width:100%;aspect-ratio:1;object-fit:contain}
 .bristol-type__num{font-family:var(--font-d);font-weight:900;font-size:13px;line-height:1;color:var(--ink-soft)}
 .bristol-type.selected{border-color:var(--brand);background:rgba(139,90,43,.08)}

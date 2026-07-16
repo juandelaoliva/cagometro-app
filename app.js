@@ -1515,7 +1515,7 @@ function renderStats(){
 /* ---------- estadísticas Bristol ---------- */
 function renderBristolStats(){
   const block = $("bristolStatsBlock");
-  if(!_bristolAccess() || !me?.bristolMode){ block.hidden=true; return; }
+  if(!_bristolAccess()){ block.hidden=true; return; }
   // Últimas 30 cacas con datos Bristol
   const withBristol = statsCacas.filter(c=>c.bristol).slice(-30);
   if(withBristol.length < 1){ block.hidden=true; return; }

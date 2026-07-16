@@ -139,20 +139,24 @@ function _renderFact(offset, animate=false){
   const textEl = $("funFactText");
   if(animate){
     textEl.classList.remove("funfact__text--anim");
-    void textEl.offsetWidth; // reflow para reiniciar animación
+    void textEl.offsetWidth;
     textEl.classList.add("funfact__text--anim");
   }
   textEl.textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;
+  // dots de posición
+  const dotsEl = $("funFactDots");
+  dotsEl.innerHTML = Array.from({length: FACTS_PER_DAY}, (_,i) =>
+    `<span class="funfact__dot${i===offset?" funfact__dot--active":""}"></span>`
+  ).join("");
+  // botón "otra" vs estado agotado
   const shuffleBtn = $("funFactShuffle");
-  if(offset < FACTS_PER_DAY - 1){
+  const rereadBtn = $("funFactReread");
+  const exhausted = offset >= FACTS_PER_DAY - 1;
+  shuffleBtn.hidden = exhausted;
+  rereadBtn.hidden = !exhausted;
+  if(!exhausted){
     shuffleBtn.textContent = t("funfact.another");
-    shuffleBtn.disabled = false;
-  } else {
-    shuffleBtn.textContent = getLang()==="en"
-      ? "Come back tomorrow for more 💩 data"
-      : "Vuelve mañana a por más datos de mierda 💩";
-    shuffleBtn.disabled = true;
   }
 }
 
@@ -182,6 +186,13 @@ $("funFactShuffle")?.addEventListener("click", ()=>{
   localStorage.setItem("cago_fact_idx", String(next));
   localStorage.setItem("cago_fact_idx_day", dayKey);
   _renderFact(next, true);
+});
+
+$("funFactReread")?.addEventListener("click", ()=>{
+  const dayKey = String(_factDay());
+  localStorage.setItem("cago_fact_idx", "0");
+  localStorage.setItem("cago_fact_idx_day", dayKey);
+  _renderFact(0, true);
 });
 
 // Fix: re-check al volver a primer plano (ej. app en background toda la noche)

@@ -205,25 +205,29 @@ ol,ul{list-style:none}
 .link{color:var(--brand-2);font-weight:700;font-size:13.5px}
 
 /* fun fact del día: tarjeta "nota" cálida, distinta de la actividad */
-.funfact{margin-top:18px;background:linear-gradient(160deg,#FFF7E6,#FCECCF);
-  border:1px solid rgba(229,154,46,.38);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.funfact{margin-top:14px;background:linear-gradient(160deg,#FFF7E6,#FCECCF);
+  border:1px solid rgba(229,154,46,.38);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .funfact__toggle{width:100%;display:flex;align-items:center;justify-content:space-between;
-  padding:12px 14px;gap:8px;background:none;cursor:pointer}
-.funfact__toggle-label{font-family:var(--font-d);font-weight:800;font-size:14px;color:var(--brand)}
-.funfact__toggle-chevron{font-size:13px;color:var(--brand);transition:transform .25s ease;line-height:1}
+  padding:10px 13px;gap:8px;background:none;cursor:pointer}
+.funfact__toggle-label{font-family:var(--font-d);font-weight:800;font-size:13px;color:var(--brand)}
+.funfact__toggle-chevron{font-size:11px;color:var(--brand);transition:transform .25s ease;line-height:1}
 .funfact--collapsed .funfact__toggle-chevron{transform:rotate(-90deg)}
-.funfact__body{padding:0 14px 14px;overflow:hidden;
-  display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s ease, opacity .25s ease;opacity:1}
-.funfact--collapsed .funfact__body{grid-template-rows:0fr;opacity:0;pointer-events:none}
-.funfact__body > *{min-height:0}
-.funfact__text{font-size:14.5px;line-height:1.5;color:var(--ink);margin:0 0 12px}
-.funfact__foot{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.funfact__src{font-size:12.5px;color:var(--ink-faint);text-decoration:underline}
-.funfact__more{font-size:13px;font-weight:700;color:var(--brand-2);background:rgba(229,154,46,.16);border-radius:999px;padding:6px 12px;transition:transform .15s}
+.funfact__body{padding:0 13px 12px;overflow:hidden;
+  display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s ease,opacity .22s ease;opacity:1}
+.funfact--collapsed .funfact__body{grid-template-rows:0fr;opacity:0;pointer-events:none;padding-bottom:0}
+.funfact__body-inner{min-height:0}
+.funfact__text{font-size:13.5px;line-height:1.5;color:var(--ink);margin:0 0 10px}
+.funfact__foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.funfact__src{font-size:12px;color:var(--ink-faint);text-decoration:underline}
+.funfact__foot-right{display:flex;align-items:center;gap:8px}
+.funfact__dots{display:flex;gap:4px;align-items:center}
+.funfact__dot{width:6px;height:6px;border-radius:50%;background:rgba(229,154,46,.3);transition:background .2s}
+.funfact__dot--active{background:var(--brand)}
+.funfact__more{font-size:12.5px;font-weight:700;color:var(--brand-2);background:rgba(229,154,46,.16);border-radius:999px;padding:5px 11px;transition:transform .15s;white-space:nowrap}
 .funfact__more:active{transform:translateY(1px)}
-.funfact__more:disabled{opacity:.55;cursor:default}
-@keyframes fact-slide-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-.funfact__text--anim{animation:fact-slide-in .3s ease}
+.funfact__reread{font-size:11.5px;color:var(--ink-faint);text-decoration:underline;cursor:pointer;white-space:nowrap}
+@keyframes fact-slide-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.funfact__text--anim{animation:fact-slide-in .25s ease}
 .feed{display:flex;flex-direction:column;gap:9px}
 .feed__item{
   display:flex;align-items:center;gap:12px;

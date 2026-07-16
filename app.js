@@ -164,9 +164,7 @@ function _renderFact(offset, animate=false){
   const tomorrow = $("funFactTomorrow");
   tomorrow.hidden = !exhausted;
   if(exhausted){
-    $("funFactTomorrowMsg").textContent = getLang()==="en"
-      ? "More tomorrow 💩"
-      : "Mañana habrá más datos de mierda 💩";
+    $("funFactTomorrowMsg").textContent = t('funfact.tomorrow');
   }
 }
 
@@ -1097,6 +1095,20 @@ $("miCancel").addEventListener("click",()=>$("menuSheet").hidden=true);
 $("miLate").addEventListener("click",()=>{ $("menuSheet").hidden=true; openLateSheet(); });
 $("miStats").addEventListener("click",()=>{ $("menuSheet").hidden=true; setView("perfil"); });
 $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(); });
+$("miBristol").addEventListener("click", async ()=>{
+  $("menuSheet").hidden = true;
+  if(busy||!uid) return; busy = true;
+  try{
+    await _graphPromise;
+    const loc = me?.locationMode==="always" ? await getGeo() : null;
+    const cacaIdPromise = addCaca(uid, loc, actMeta());
+    _openBristolSheet(cacaIdPromise);
+    await cacaIdPromise;
+    toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
+    bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop();
+  } catch(err){ toast(t('toast.caca.fail')); console.error(err); }
+  finally{ setTimeout(()=>busy=false,250); }
+});
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast(t('toast.geo.loading'));
@@ -1107,15 +1119,7 @@ $("miGeo").addEventListener("click", async ()=>{
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
 // ── Bristol sheet ────────────────────────────────────────────────
-const BRISTOL_INFO = [
-  { desc:"Trozos duros separados, con mucho esfuerzo" },
-  { desc:"Con forma de salchicha, compuesta de fragmentos" },
-  { desc:"Con grietas en la superficie, normal" },
-  { desc:"Como una salchicha, lisa y blanda, ideal" },
-  { desc:"Trozos blandos con bordes definidos" },
-  { desc:"Fragmentos esponjosos, bordes irregulares" },
-  { desc:"Acuosa, totalmente líquida" },
-];
+const BRISTOL_INFO = [0,1,2,3,4,5,6]; // índices — descripciones via t()
 let _bristolCacaId = null; // puede ser string o Promise<string>
 let _bristolSelected = null;
 
@@ -1142,7 +1146,7 @@ $("bristolTypes").addEventListener("click", e=>{
   const type = parseInt(btn.dataset.type);
   _bristolSelected = type;
   document.querySelectorAll(".bristol-type").forEach(b=>b.classList.toggle("selected", parseInt(b.dataset.type)===type));
-  $("bristolTypeDesc").textContent = `Tipo ${type}: ${BRISTOL_INFO[type-1].desc}`;
+  $("bristolTypeDesc").textContent = `${t('bristol.type.label',{n:type})}: ${t(`bristol.types.${type-1}`)}`;
   $("bristolSave").disabled = false;
 });
 
@@ -1156,14 +1160,14 @@ $("bristolSheet").addEventListener("click", e=>{ if(e.target===$("bristolSheet")
 
 $("bristolSave").addEventListener("click", async ()=>{
   if(!_bristolSelected || !_bristolCacaId) return;
-  const tags = [...document.querySelectorAll(".bristol-tag.selected")].map(b=>b.dataset.tag);
+  const tags = [...document.querySelectorAll(".bristol-tag.selected")].map(b=>t(b.dataset.tagKey||b.dataset.tag));
   const note = $("bristolNote").value;
   $("bristolSheet").hidden = true;
   try{
     const cacaId = await Promise.resolve(_bristolCacaId);
     await saveBristol(uid, cacaId, _bristolSelected, tags, note);
-    toast("✓ Registro guardado");
-  } catch(e){ console.error("bristol save:", e); toast("Error al guardar"); }
+    toast(t('bristol.toast.saved'));
+  } catch(e){ console.error("bristol save:", e); toast(t('bristol.toast.error')); }
 });
 
 // Marcar con sangre en rojo
@@ -1531,11 +1535,11 @@ function renderBristolStats(){
   const withBristol = statsCacas.filter(c=>c.bristol).slice(-30);
   if(withBristol.length < 1){ block.hidden=true; return; }
   block.hidden = false;
-  $("bristolStatsHint").textContent = `${withBristol.length} registros`;
+  $("bristolStatsHint").textContent = t('bristol.stats.hint',{n:withBristol.length});
   // Media
   const avg = withBristol.reduce((s,c)=>s+c.bristol,0) / withBristol.length;
   const avgRound = Math.round(avg);
-  const avgLabel = avg < 3 ? "Tendencia al estreñimiento" : avg > 5 ? "Tendencia a diarrea" : "Tránsito normal 👍";
+  const avgLabel = avg < 3 ? t('bristol.stats.constipation') : avg > 5 ? t('bristol.stats.diarrhea') : t('bristol.stats.normal');
   // Tendencia: comparar primera mitad vs segunda mitad
   const half = Math.floor(withBristol.length/2);
   let trendIcon = "➡️";
@@ -1549,7 +1553,7 @@ function renderBristolStats(){
     <img class="bristol-stats-avg__img" src="assets/bristol-${avgRound}.png" alt="Tipo ${avgRound}">
     <div class="bristol-stats-avg__info">
       <div class="bristol-stats-avg__num">${avg.toFixed(1)}</div>
-      <div class="bristol-stats-avg__label">Media · ${avgLabel}</div>
+      <div class="bristol-stats-avg__label">${t('bristol.stats.avg')} · ${avgLabel}</div>
     </div>
     <div class="bristol-stats-avg__trend">${trendIcon}</div>`;
   // Barras por tipo
@@ -1710,6 +1714,7 @@ function renderLocSel(mode){
   $("locSel").innerHTML=LOC_KEYS.map(k=>`<button class="ychip ${mode===k?'on':''}" data-loc="${k}">${locLabel(k)}</button>`).join("");
   // "Sumar con ubicación" en el menú solo tiene sentido cuando el usuario elige cada vez
   $("miGeo").hidden = mode==="always";
+  $("miBristol").hidden = !(me?.bristolMode===false && _bristolAccess()); // solo si Bristol está DESACTIVADO y tiene acceso
 }
 $("locSel").addEventListener("click", async e=>{
   const b=e.target.closest("[data-loc]"); if(!b||!uid)return;

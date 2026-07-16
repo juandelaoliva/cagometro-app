@@ -242,7 +242,7 @@
         <div class="block"><div class="block__head"><h2 data-i18n="perfil.chart.weekday">Por día de la semana</h2></div><div class="chart" id="chartWeek"></div></div>
 
         <div class="block" id="bristolStatsBlock" hidden>
-          <div class="block__head"><h2>🫀 Salud intestinal</h2><span class="block__hint" id="bristolStatsHint">últimas 30 cacas</span></div>
+          <div class="block__head"><h2 data-i18n="bristol.stats.title">🫀 Salud intestinal</h2><span class="block__hint" id="bristolStatsHint"></span></div>
           <div class="bristol-stats-avg" id="bristolStatsAvg"></div>
           <div class="bristol-stats-bars" id="bristolStatsBars"></div>
           <div class="bristol-stats-tags" id="bristolStatsTags"></div>
@@ -340,6 +340,7 @@
     <div class="sheet__panel sheet__panel--menu">
       <button class="menu-item" id="miLate"><span>💩</span> <b data-i18n="menu.late">Caca olvidada</b></button>
       <button class="menu-item" id="miGeo"><span>📍</span> <b data-i18n="menu.geo">Sumar con ubicación</b></button>
+      <button class="menu-item" id="miBristol" hidden><span>🫀</span> <b data-i18n="menu.bristol">Sumar con Bristol</b></button>
       <button class="menu-item" id="miStats"><span>📊</span> <b data-i18n="menu.stats">Ver estadísticas</b></button>
       <button class="menu-item" id="miUndo"><span>↩︎</span> <b data-i18n="menu.undo">Deshacer última (−1)</b></button>
       <button class="menu-item menu-item--cancel" id="miCancel" data-i18n="menu.cancel">Cancelar</button>
@@ -468,11 +469,11 @@
       <div class="yearsel" id="locSel"></div>
 
       <div id="bristolSettingRow" hidden>
-        <label class="set-label">Escala de Bristol <small>(privado, solo tú lo ves)</small></label>
+        <label class="set-label" data-i18n="bristol.settings.label">Escala de Bristol (privado, solo tú lo ves)</label>
         <label class="toggle">
           <input type="checkbox" id="setBristol" />
           <span class="toggle__track"><span class="toggle__thumb"></span></span>
-          <span class="toggle__txt">Preguntarme el tipo de caca al sumar</span>
+          <span class="toggle__txt" data-i18n="bristol.settings.toggle">Preguntarme el tipo de caca al sumar</span>
         </label>
       </div>
 
@@ -551,25 +552,25 @@
   <!-- ───────── Bristol sheet ───────── -->
   <div class="sheet" id="bristolSheet" hidden>
     <div class="sheet__panel">
-      <h3 class="sheet__title">¿Cómo ha ido? 💩</h3>
-      <p class="sheet__sub" style="margin-top:-8px;margin-bottom:14px">Solo tú puedes ver esto</p>
+      <h3 class="sheet__title" data-i18n="bristol.sheet.title">¿Cómo ha ido? 💩</h3>
+      <p class="sheet__sub" style="margin-top:-8px;margin-bottom:14px" data-i18n="bristol.sheet.private">Solo tú puedes ver esto</p>
       <div class="bristol-types" id="bristolTypes"></div>
       <div id="bristolTypeDesc" class="bristol-desc"></div>
-      <label class="set-label" style="margin-top:16px">Características <small>(opcional)</small></label>
+      <label class="set-label" style="margin-top:16px" data-i18n="bristol.tags.label">Características (opcional)</label>
       <div class="bristol-tags" id="bristolTags">
-        <button class="bristol-tag" data-tag="Con esfuerzo">Con esfuerzo</button>
-        <button class="bristol-tag" data-tag="Sin esfuerzo">Sin esfuerzo</button>
-        <button class="bristol-tag" data-tag="Urgente">Urgente</button>
-        <button class="bristol-tag" data-tag="Lenta">Lenta</button>
-        <button class="bristol-tag" data-tag="Incompleta">Incompleta</button>
-        <button class="bristol-tag" data-tag="Con dolor">Con dolor</button>
-        <button class="bristol-tag" data-tag="Con sangre">Con sangre</button>
-        <button class="bristol-tag" data-tag="Express">Express</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.effort" data-i18n="bristol.tags.effort">Con esfuerzo</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.noeffort" data-i18n="bristol.tags.noeffort">Sin esfuerzo</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.urgent" data-i18n="bristol.tags.urgent">Urgente</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.slow" data-i18n="bristol.tags.slow">Lenta</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.incomplete" data-i18n="bristol.tags.incomplete">Incompleta</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.pain" data-i18n="bristol.tags.pain">Con dolor</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.blood" data-i18n="bristol.tags.blood">Con sangre</button>
+        <button class="bristol-tag" data-tag-key="bristol.tags.express" data-i18n="bristol.tags.express">Express</button>
       </div>
-      <textarea class="field bristol-note" id="bristolNote" rows="2" placeholder="Nota libre (ej: después del café)…" maxlength="280"></textarea>
+      <textarea class="field bristol-note" id="bristolNote" rows="2" data-i18n="bristol.note.placeholder" data-i18n-attr="placeholder" maxlength="280"></textarea>
       <div style="display:flex;gap:10px;margin-top:16px">
-        <button class="btn-ghost" id="bristolSkip" style="flex:1">Saltar</button>
-        <button class="btn-solid" id="bristolSave" style="flex:2" disabled>Guardar</button>
+        <button class="btn-ghost" id="bristolSkip" style="flex:1" data-i18n="bristol.skip">Saltar</button>
+        <button class="btn-solid" id="bristolSave" style="flex:2" disabled data-i18n="bristol.save">Guardar</button>
       </div>
     </div>
   </div>

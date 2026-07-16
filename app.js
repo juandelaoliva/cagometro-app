@@ -1100,13 +1100,13 @@ $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
 // ── Bristol sheet ────────────────────────────────────────────────
 const BRISTOL_INFO = [
-  { emoji:"🪨", desc:"Trozos duros separados, con mucho esfuerzo" },
-  { emoji:"🌰", desc:"Con forma de salchicha, compuesta de fragmentos" },
-  { emoji:"🌭", desc:"Con grietas en la superficie, normal" },
-  { emoji:"💩", desc:"Como una salchicha, lisa y blanda, ideal" },
-  { emoji:"🫧", desc:"Trozos blandos con bordes definidos" },
-  { emoji:"💦", desc:"Fragmentos esponjosos, bordes irregulares" },
-  { emoji:"🌊", desc:"Acuosa, totalmente líquida" },
+  { desc:"Trozos duros separados, con mucho esfuerzo" },
+  { desc:"Con forma de salchicha, compuesta de fragmentos" },
+  { desc:"Con grietas en la superficie, normal" },
+  { desc:"Como una salchicha, lisa y blanda, ideal" },
+  { desc:"Trozos blandos con bordes definidos" },
+  { desc:"Fragmentos esponjosos, bordes irregulares" },
+  { desc:"Acuosa, totalmente líquida" },
 ];
 let _bristolCacaId = null;
 let _bristolSelected = null;
@@ -1119,8 +1119,8 @@ function _openBristolSheet(cacaId){
   // Renderizar tipos
   $("bristolTypes").innerHTML = BRISTOL_INFO.map((b,i)=>
     `<button class="bristol-type" data-type="${i+1}">
+      <img class="bristol-type__img" src="assets/bristol-${i+1}.png" alt="Tipo ${i+1}">
       <span class="bristol-type__num">${i+1}</span>
-      <span class="bristol-type__emoji">${b.emoji}</span>
     </button>`
   ).join("");
   $("bristolTypeDesc").textContent = "";
@@ -1508,6 +1508,58 @@ function renderStats(){
   const w=new Array(7).fill(0); for(const c of items) w[tzParts(c.ts,c.tz).weekday]++;
   const WD=["L","M","X","J","V","S","D"];
   $("chartWeek").innerHTML=barsHTML(w, WD);
+  renderBristolStats();
+}
+
+/* ---------- estadísticas Bristol ---------- */
+function renderBristolStats(){
+  const block = $("bristolStatsBlock");
+  if(!_bristolAccess() || !me?.bristolMode){ block.hidden=true; return; }
+  // Últimas 30 cacas con datos Bristol
+  const withBristol = statsCacas.filter(c=>c.bristol).slice(-30);
+  if(withBristol.length < 1){ block.hidden=true; return; }
+  block.hidden = false;
+  $("bristolStatsHint").textContent = `${withBristol.length} registros`;
+  // Media
+  const avg = withBristol.reduce((s,c)=>s+c.bristol,0) / withBristol.length;
+  const avgRound = Math.round(avg);
+  const avgLabel = avg < 3 ? "Tendencia al estreñimiento" : avg > 5 ? "Tendencia a diarrea" : "Tránsito normal 👍";
+  // Tendencia: comparar primera mitad vs segunda mitad
+  const half = Math.floor(withBristol.length/2);
+  let trendIcon = "➡️";
+  if(withBristol.length >= 4){
+    const older = withBristol.slice(0,half).reduce((s,c)=>s+c.bristol,0)/half;
+    const newer = withBristol.slice(half).reduce((s,c)=>s+c.bristol,0)/(withBristol.length-half);
+    const diff = newer - older;
+    if(Math.abs(diff) > 0.4) trendIcon = diff > 0 ? (older < 3 ? "📈 mejorando" : "📈") : (older > 5 ? "📉 mejorando" : "📉");
+  }
+  $("bristolStatsAvg").innerHTML = `
+    <img class="bristol-stats-avg__img" src="assets/bristol-${avgRound}.png" alt="Tipo ${avgRound}">
+    <div class="bristol-stats-avg__info">
+      <div class="bristol-stats-avg__num">${avg.toFixed(1)}</div>
+      <div class="bristol-stats-avg__label">Media · ${avgLabel}</div>
+    </div>
+    <div class="bristol-stats-avg__trend">${trendIcon}</div>`;
+  // Barras por tipo
+  const counts = new Array(7).fill(0);
+  withBristol.forEach(c=>counts[c.bristol-1]++);
+  const maxCount = Math.max(...counts, 1);
+  // Color por tipo: 1-2 malo (rojo), 3-4-5 normal (verde), 6-7 malo (naranja)
+  const fillClass = i => i<=1?"bristol-bar__fill--bad":i<=4?"bristol-bar__fill--ideal":"bristol-bar__fill--warn";
+  $("bristolStatsBars").innerHTML = counts.map((n,i)=>`
+    <div class="bristol-bar">
+      <img class="bristol-bar__img" src="assets/bristol-${i+1}.png" alt="${i+1}">
+      <span class="bristol-bar__num">${i+1}</span>
+      <div class="bristol-bar__track"><div class="bristol-bar__fill ${fillClass(i)}" style="width:${Math.round(n/maxCount*100)}%"></div></div>
+      <span class="bristol-bar__count">${n}</span>
+    </div>`).join("");
+  // Tags más frecuentes
+  const tagCount = {};
+  withBristol.forEach(c=>(c.bristolTags||[]).forEach(t=>{ tagCount[t]=(tagCount[t]||0)+1; }));
+  const topTags = Object.entries(tagCount).sort((a,b)=>b[1]-a[1]).slice(0,4);
+  $("bristolStatsTags").innerHTML = topTags.length
+    ? topTags.map(([tag,n])=>`<span class="bristol-stat-tag"><b>${tag}</b> ×${n}</span>`).join("")
+    : "";
 }
 
 /* ---------- refrescar al volver a primer plano ---------- */

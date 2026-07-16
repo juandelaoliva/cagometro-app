@@ -234,8 +234,8 @@ ol,ul{list-style:none}
 .bristol-types{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
 .bristol-type{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;
   border:2px solid transparent;background:var(--bg);transition:all .15s;cursor:pointer}
-.bristol-type__num{font-family:var(--font-d);font-weight:900;font-size:18px;line-height:1;color:var(--ink-soft)}
-.bristol-type__emoji{font-size:20px;line-height:1}
+.bristol-type__img{width:100%;aspect-ratio:1;object-fit:contain}
+.bristol-type__num{font-family:var(--font-d);font-weight:900;font-size:13px;line-height:1;color:var(--ink-soft)}
 .bristol-type.selected{border-color:var(--brand);background:rgba(139,90,43,.08)}
 .bristol-type.selected .bristol-type__num{color:var(--brand)}
 .bristol-desc{min-height:36px;font-size:13px;color:var(--ink-soft);text-align:center;padding:6px 0;line-height:1.4;transition:opacity .2s}
@@ -246,6 +246,26 @@ ol,ul{list-style:none}
 .bristol-tag--danger{border-color:rgba(220,38,38,.4);color:#dc2626}
 .bristol-tag--danger.selected{border-color:#dc2626;background:rgba(220,38,38,.08)}
 .bristol-note{margin-top:10px;width:100%;resize:none;font-size:14px}
+/* Bristol stats */
+.bristol-stats-avg{display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border-radius:14px;margin-bottom:12px}
+.bristol-stats-avg__img{width:52px;height:52px;object-fit:contain}
+.bristol-stats-avg__info{flex:1}
+.bristol-stats-avg__num{font-family:var(--font-d);font-weight:900;font-size:28px;color:var(--brand);line-height:1}
+.bristol-stats-avg__label{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.bristol-stats-avg__trend{font-size:20px;line-height:1}
+.bristol-stats-bars{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
+.bristol-bar{display:flex;align-items:center;gap:8px}
+.bristol-bar__img{width:28px;height:28px;object-fit:contain;flex-shrink:0}
+.bristol-bar__num{font-size:12px;font-weight:700;color:var(--ink-soft);width:14px;text-align:center;flex-shrink:0}
+.bristol-bar__track{flex:1;height:10px;background:var(--border);border-radius:999px;overflow:hidden}
+.bristol-bar__fill{height:100%;border-radius:999px;background:var(--brand);transition:width .4s ease}
+.bristol-bar__fill--ideal{background:#4ade80}
+.bristol-bar__fill--warn{background:#fb923c}
+.bristol-bar__fill--bad{background:#f87171}
+.bristol-bar__count{font-size:12px;color:var(--ink-soft);width:24px;text-align:right;flex-shrink:0}
+.bristol-stats-tags{display:flex;flex-wrap:wrap;gap:6px}
+.bristol-stat-tag{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--bg);border:1.5px solid var(--border);color:var(--ink-soft)}
+.bristol-stat-tag b{color:var(--ink)}
 /* ── Feed ────────────────────────────────────────────────────── */
 .feed{display:flex;flex-direction:column;gap:9px}
 .feed__item{

@@ -14,7 +14,7 @@ import {
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
   getGroup,
-  saveBristol, setBristolMode, setBristolBeta, STATS_V
+  saveBristol, setBristolMode, setBristolBeta, setBristolOnboarded, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
@@ -356,6 +356,7 @@ function showApp(){
   enablePush();                       // si ya hay permiso, refresca el token FCM
   startChatListener(uid, "");
   maybeShowFunFact();
+  setTimeout(maybeShowBristolTour, 1500);
 
 }
 
@@ -1172,6 +1173,43 @@ $("bristolSave").addEventListener("click", async ()=>{
 
 // Marcar con sangre en rojo
 document.querySelector(".bristol-tag[data-tag='Con sangre']")?.classList.add("bristol-tag--danger");
+
+/* ---------- Bristol onboarding tour ---------- */
+function maybeShowBristolTour(){
+  if(!_bristolAccess()) return;
+  if(me?.bristolOnboarded) return;
+  // Renderizar mini grid de tipos
+  const grid = $("bristolTourGrid");
+  if(grid && !grid.hasChildNodes()){
+    for(let i=1;i<=7;i++){
+      const item = document.createElement("div");
+      item.className = "bristol-tour-type";
+      item.innerHTML = `<img src="./assets/bristol-${i}.png" alt="${i}"><span>${i}</span>`;
+      grid.appendChild(item);
+    }
+  }
+  $("bristolTourSheet").hidden = false;
+}
+
+$("bristolTourActivate").addEventListener("click", async ()=>{
+  $("bristolTourSheet").hidden = true;
+  try{
+    await updateMe(uid, { bristolMode: true, bristolOnboarded: true });
+    if(me) { me.bristolMode = true; me.bristolOnboarded = true; }
+    toast(t('bristol.toast.saved'));
+    $("bristolSettingRow").hidden = false;
+    $("setBristol").checked = true;
+    $("miBristol").hidden = true;
+  }catch(e){ console.error("tour activate:", e); }
+});
+
+$("bristolTourSkip").addEventListener("click", async ()=>{
+  $("bristolTourSheet").hidden = true;
+  try{
+    await setBristolOnboarded(uid);
+    if(me) me.bristolOnboarded = true;
+  }catch(e){ console.error("tour skip:", e); }
+});
 
 $("lateConfirm").addEventListener("click",async()=>{
   const v=$("lateWhen").value; if(!v)return;

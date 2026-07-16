@@ -137,6 +137,7 @@ export const saveBristol = (uid, cacaId, bristol, tags, note) =>
   });
 
 export const setBristolMode = (uid, on) => updateDoc(doc(db,"users",uid), { bristolMode: on });
+export const setBristolOnboarded = (uid) => updateDoc(doc(db,"users",uid), { bristolOnboarded: true });
 
 export const setLocationMode = (uid, mode) => updateDoc(doc(db, "users", uid), { locationMode: mode });
 

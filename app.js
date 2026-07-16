@@ -144,19 +144,23 @@ function _renderFact(offset, animate=false){
   }
   textEl.textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;
-  // dots de posición
-  const dotsEl = $("funFactDots");
-  dotsEl.innerHTML = Array.from({length: FACTS_PER_DAY}, (_,i) =>
-    `<span class="funfact__dot${i===offset?" funfact__dot--active":""}"></span>`
-  ).join("");
-  // botón "otra" vs estado agotado
-  const shuffleBtn = $("funFactShuffle");
-  const rereadBtn = $("funFactReread");
   const exhausted = offset >= FACTS_PER_DAY - 1;
-  shuffleBtn.hidden = exhausted;
-  rereadBtn.hidden = !exhausted;
+  // dots: solo cuando no agotado
+  const dotsEl = $("funFactDots");
+  dotsEl.hidden = exhausted;
   if(!exhausted){
-    shuffleBtn.textContent = t("funfact.another");
+    dotsEl.innerHTML = Array.from({length: FACTS_PER_DAY}, (_,i) =>
+      `<span class="funfact__dot${i===offset?" funfact__dot--active":""}"></span>`
+    ).join("");
+  }
+  // botón "otra" vs bloque "mañana"
+  $("funFactShuffle").hidden = exhausted;
+  const tomorrow = $("funFactTomorrow");
+  tomorrow.hidden = !exhausted;
+  if(exhausted){
+    $("funFactTomorrowMsg").textContent = getLang()==="en"
+      ? "More tomorrow 💩"
+      : "Mañana habrá más datos de mierda 💩";
   }
 }
 

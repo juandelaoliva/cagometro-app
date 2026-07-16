@@ -225,7 +225,10 @@ ol,ul{list-style:none}
 .funfact__dot--active{background:var(--brand)}
 .funfact__more{font-size:12.5px;font-weight:700;color:var(--brand-2);background:rgba(229,154,46,.16);border-radius:999px;padding:5px 11px;transition:transform .15s;white-space:nowrap}
 .funfact__more:active{transform:translateY(1px)}
-.funfact__reread{font-size:11.5px;color:var(--ink-faint);text-decoration:underline;cursor:pointer;white-space:nowrap}
+.funfact__tomorrow{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:10px;padding-top:10px;border-top:1px solid rgba(229,154,46,.25);font-size:12.5px;color:var(--ink-soft);font-style:italic}
+.funfact__reset{font-size:18px;line-height:1;background:none;padding:2px;opacity:.7}
+.funfact__reset:active{transform:rotate(180deg);transition:transform .3s}
 @keyframes fact-slide-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 .funfact__text--anim{animation:fact-slide-in .25s ease}
 .feed{display:flex;flex-direction:column;gap:9px}

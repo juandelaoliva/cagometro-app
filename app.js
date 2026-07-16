@@ -1175,10 +1175,7 @@ $("bristolSave").addEventListener("click", async ()=>{
 document.querySelector(".bristol-tag[data-tag='Con sangre']")?.classList.add("bristol-tag--danger");
 
 /* ---------- Bristol onboarding tour ---------- */
-function maybeShowBristolTour(){
-  if(!_bristolAccess()) return;
-  if(me?.bristolOnboarded) return;
-  // Renderizar mini grid de tipos
+function _renderBristolTourGrid(){
   const grid = $("bristolTourGrid");
   if(grid && !grid.hasChildNodes()){
     for(let i=1;i<=7;i++){
@@ -1188,8 +1185,19 @@ function maybeShowBristolTour(){
       grid.appendChild(item);
     }
   }
+}
+function maybeShowBristolTour(){
+  if(!_bristolAccess()) return;
+  if(me?.bristolOnboarded) return;
+  _renderBristolTourGrid();
   $("bristolTourSheet").hidden = false;
 }
+
+$("bristolInfoBtn").addEventListener("click", ()=>{
+  $("settingsSheet").hidden = true;
+  _renderBristolTourGrid();
+  $("bristolTourSheet").hidden = false;
+});
 
 $("bristolTourGotIt").addEventListener("click", async ()=>{
   $("bristolTourSheet").hidden = true;

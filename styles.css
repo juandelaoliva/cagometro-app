@@ -835,3 +835,5 @@ body.chat-mode .tabbar{display:none}
 .bristol-tour-fact__icon{font-size:20px;flex-shrink:0;line-height:1.2}
 .bristol-tour-cta{width:100%;font-size:16px;padding:14px}
 .bristol-tour-hint{font-size:12px;color:var(--ink-soft);margin:14px 0 0;line-height:1.5}
+.bristol-info-btn{font-size:16px;line-height:1;padding:2px 4px;border-radius:6px;opacity:.6;transition:opacity .15s}
+.bristol-info-btn:active{opacity:1}

@@ -469,7 +469,10 @@
       <div class="yearsel" id="locSel"></div>
 
       <div id="bristolSettingRow" hidden>
-        <label class="set-label" data-i18n="bristol.settings.label">Escala de Bristol (privado, solo tú lo ves)</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <label class="set-label" data-i18n="bristol.settings.label" style="margin:0">Escala de Bristol (privado, solo tú lo ves)</label>
+          <button id="bristolInfoBtn" class="bristol-info-btn" aria-label="Más información">❓</button>
+        </div>
         <label class="toggle">
           <input type="checkbox" id="setBristol" />
           <span class="toggle__track"><span class="toggle__thumb"></span></span>

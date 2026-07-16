@@ -551,18 +551,23 @@
   <!-- ───────── Admin del grupo ───────── -->
   <!-- ───────── Bristol onboarding tour ───────── -->
   <div class="sheet" id="bristolTourSheet" hidden>
-    <div class="sheet__panel">
-      <h3 class="sheet__title" data-i18n="bristol.tour.title">🫀 Nuevo: Escala de Bristol</h3>
-      <p class="sheet__sub" data-i18n="bristol.tour.subtitle">Ahora puedes registrar cómo va cada caca. Aparece justo después del +1, es rápido.</p>
+    <div class="sheet__panel bristol-tour-panel">
+      <div class="bristol-tour-emoji">🫀</div>
+      <h3 class="bristol-tour-title" data-i18n="bristol.tour.title">Nuevo: Escala de Bristol</h3>
+      <p class="bristol-tour-sub" data-i18n="bristol.tour.subtitle">Ahora puedes registrar el tipo de cada caca justo después del +1. Se clasifica según la escala de Bristol, usada en medicina.</p>
       <div class="bristol-tour-grid" id="bristolTourGrid"></div>
-      <div class="bristol-tour-privacy">
-        <span class="bristol-tour-privacy__icon">🔒</span>
-        <span data-i18n="bristol.tour.privacy">100% privado — nadie más lo verá. Ni tus amigos, ni el grupo. Solo tú.</span>
+      <div class="bristol-tour-fact">
+        <div class="bristol-tour-fact__row">
+          <span class="bristol-tour-fact__icon">📊</span>
+          <span data-i18n="bristol.tour.stats">Los resultados aparecerán en tu sección de estadísticas — solo tú los ves.</span>
+        </div>
+        <div class="bristol-tour-fact__row">
+          <span class="bristol-tour-fact__icon">🔒</span>
+          <span data-i18n="bristol.tour.privacy">100% privado — ni tus amigos ni el grupo lo verán nunca.</span>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:10px;margin-top:20px">
-        <button class="btn-solid" id="bristolTourActivate" data-i18n="bristol.tour.activate">Activar y empezar</button>
-        <button class="btn-ghost" id="bristolTourSkip" data-i18n="bristol.tour.skip">Ahora no (puedes activarlo en Ajustes)</button>
-      </div>
+      <button class="btn-solid bristol-tour-cta" id="bristolTourGotIt" data-i18n="bristol.tour.gotit">¡Entendido!</button>
+      <p class="bristol-tour-hint" data-i18n="bristol.tour.hint">Si no quieres que se pregunte cada vez puedes desactivarlo en Ajustes.</p>
     </div>
   </div>
 

@@ -822,9 +822,16 @@ body.chat-mode .tabbar{display:none}
 @keyframes rpickerIn{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
 
 /* Bristol onboarding tour */
-.bristol-tour-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:16px 0}
-.bristol-tour-type{display:flex;flex-direction:column;align-items:center;gap:3px;width:40px}
-.bristol-tour-type img{width:40px;height:40px;object-fit:contain;border-radius:8px;background:var(--bg);padding:3px}
-.bristol-tour-type span{font-size:11px;color:var(--ink-soft);font-weight:600}
-.bristol-tour-privacy{display:flex;align-items:flex-start;gap:8px;padding:12px;background:var(--bg);border-radius:12px;font-size:13px;color:var(--ink-soft);line-height:1.4;margin-top:8px}
-.bristol-tour-privacy__icon{font-size:18px;flex-shrink:0}
+.bristol-tour-panel{text-align:center}
+.bristol-tour-emoji{font-size:48px;line-height:1;margin-bottom:10px}
+.bristol-tour-title{font-size:20px;font-weight:800;margin:0 0 10px}
+.bristol-tour-sub{font-size:14px;color:var(--ink-soft);line-height:1.55;margin:0 0 20px}
+.bristol-tour-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin:0 0 20px}
+.bristol-tour-type{display:flex;flex-direction:column;align-items:center;gap:5px;width:50px}
+.bristol-tour-type img{width:50px;height:50px;object-fit:contain;border-radius:10px;background:var(--bg);padding:4px}
+.bristol-tour-type span{font-size:12px;color:var(--ink-soft);font-weight:700}
+.bristol-tour-fact{display:flex;flex-direction:column;gap:10px;margin-bottom:24px;text-align:left}
+.bristol-tour-fact__row{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--bg);border-radius:14px;font-size:13px;color:var(--ink);line-height:1.5}
+.bristol-tour-fact__icon{font-size:20px;flex-shrink:0;line-height:1.2}
+.bristol-tour-cta{width:100%;font-size:16px;padding:14px}
+.bristol-tour-hint{font-size:12px;color:var(--ink-soft);margin:14px 0 0;line-height:1.5}

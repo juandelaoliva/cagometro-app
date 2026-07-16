@@ -1191,24 +1191,15 @@ function maybeShowBristolTour(){
   $("bristolTourSheet").hidden = false;
 }
 
-$("bristolTourActivate").addEventListener("click", async ()=>{
+$("bristolTourGotIt").addEventListener("click", async ()=>{
   $("bristolTourSheet").hidden = true;
   try{
     await updateMe(uid, { bristolMode: true, bristolOnboarded: true });
     if(me) { me.bristolMode = true; me.bristolOnboarded = true; }
-    toast(t('bristol.toast.saved'));
     $("bristolSettingRow").hidden = false;
     $("setBristol").checked = true;
     $("miBristol").hidden = true;
-  }catch(e){ console.error("tour activate:", e); }
-});
-
-$("bristolTourSkip").addEventListener("click", async ()=>{
-  $("bristolTourSheet").hidden = true;
-  try{
-    await setBristolOnboarded(uid);
-    if(me) me.bristolOnboarded = true;
-  }catch(e){ console.error("tour skip:", e); }
+  }catch(e){ console.error("tour gotit:", e); }
 });
 
 $("lateConfirm").addEventListener("click",async()=>{

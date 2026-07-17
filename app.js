@@ -1713,7 +1713,10 @@ if(_standalone){
   const ptr=$("ptr"), TH=72, DAMP=0.5;
   let sy=0, sx=0, active=false, dist=0;
   const atTop=()=> (window.scrollY||document.documentElement.scrollTop||0) <= 0;
-  const overlayOpen=()=> !!document.querySelector(".sheet:not([hidden]),.mapsheet:not([hidden]),.gate:not([hidden])");
+  // Incluye el chat (.chat-view): mientras esté abierto, el pull-to-refresh NO debe
+  // intervenir, porque su preventDefault() bloquearía el scroll interno de la lista
+  // de mensajes al intentar subir (dedo hacia abajo).
+  const overlayOpen=()=> !!document.querySelector(".sheet:not([hidden]),.mapsheet:not([hidden]),.gate:not([hidden]),.chat-view:not([hidden])");
   const reset=()=>{ ptr.classList.remove("refreshing"); ptr.style.transition="transform .25s,opacity .25s"; ptr.style.transform="translateY(-54px)"; ptr.style.opacity="0"; };
   document.addEventListener("touchstart", e=>{
     if(e.touches.length!==1 || !uid || !atTop() || overlayOpen()){ active=false; return; }
@@ -2297,7 +2300,8 @@ async function openConversation(chatId, chatData){
     _renderMessages(msgs);
     if(_activeChatId === chatId) markChatRead(chatId, uid).catch(()=>{});
   });
-  $("chatInput").focus();
+  // No enfocamos el input a propósito: el teclado solo debe abrirse cuando el
+  // usuario toca el campo de texto (no automáticamente al abrir la conversación).
 }
 
 // ── botón chat en topbar ─────────────────────────────────────────

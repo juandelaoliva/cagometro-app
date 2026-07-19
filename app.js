@@ -14,7 +14,7 @@ import {
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
   getGroup,
-  saveBristol, setBristolMode, setBristolBeta, setBristolOnboarded, STATS_V
+  saveBristol, setBristolMode, setBristolOnboarded, STATS_V
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
@@ -61,10 +61,7 @@ document.addEventListener("click", e=>{
   if(e.target.closest("button:not(#addBtn), .tab, .ychip, .rx, .swatch, .psg, .menu-item, .grouplist .ghead, .feed__item, .iconbtn, .brand, .profile, .addchip")) haptic(8);
 }, true);
 const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // admin único (la barrera real está en las reglas)
-let _bristolBeta = [ADMIN_UID];
-if(!MAINT_FORCE){ getAppConfig().then(c=>{
-  if(c && Array.isArray(c.bristolBeta)) _bristolBeta = [...new Set([ADMIN_UID, ...c.bristolBeta])];
-}).catch(()=>{}); }
+// Bristol está disponible para todos los usuarios (antes era beta por UID).
 const _bristolAccess = () => !!uid;
 // Hitos: pequeños al principio y, de 100 en adelante, SIEMPRE cada 50 (sin tope).
 const SMALL_MS = [10,25,50,75];
@@ -435,26 +432,10 @@ async function renderAdminUsers(){
       </div>`).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
   }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loadfail')}</p>`; console.error(err); }
 }
-function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); _renderBristolBetaList(); }
+function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
 
-function _renderBristolBetaList(){
-  $("bristolBetaList").textContent = _bristolBeta.filter(u=>u!==ADMIN_UID).join("\n") || "(solo admin)";
-}
-$("bristolBetaAdd").addEventListener("click", async ()=>{
-  const input = $("bristolBetaInput");
-  const newUid = input.value.trim();
-  if(!newUid) return;
-  const updated = [...new Set([..._bristolBeta.filter(u=>u!==ADMIN_UID), newUid])];
-  try{
-    await setBristolBeta(updated);
-    _bristolBeta = [ADMIN_UID, ...updated];
-    input.value = "";
-    _renderBristolBetaList();
-    toast("UID añadido al beta ✓");
-  } catch(e){ toast("Error al guardar"); }
-});
 $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
 $("maintToggle").addEventListener("change", async e=>{
   if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }

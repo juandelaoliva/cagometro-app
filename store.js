@@ -167,7 +167,6 @@ export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 export const getAppConfig = async () => { try{ const s = await getDoc(doc(db,"config","app")); return s.exists() ? s.data() : null; }catch(e){ return null; } };
 export const setMaintenance = (on, message) => setDoc(doc(db,"config","app"),
   { maintenance: !!on, ...(message != null ? { message } : {}), updatedAt: serverTimestamp() }, { merge:true });
-export const setBristolBeta = (uids) => setDoc(doc(db,"config","app"), { bristolBeta: uids }, { merge:true });
 
 // ── Push (FCM) ──────────────────────────────────────────────────────────
 // Tokens del dispositivo en una subcolección PRIVADA (solo el dueño / el emisor admin).

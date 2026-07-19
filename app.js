@@ -1257,7 +1257,8 @@ async function renderAmigos(){
   }));
   const outHtml=await Promise.all(outgoing.map(async f=>{
     const other=await getUser(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.pending')}</small></span></li>`;
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.pending')}</small></span>
+      <button class="btn-decline" data-cancel="${f.id}" aria-label="${t('amigos.req.cancel')}" title="${t('amigos.req.cancel')}">✕</button></li>`;
   }));
   $("reqList").innerHTML=[...incHtml,...outHtml].join("");
   setFriendForm(false);            // empezamos con el form oculto tras ＋
@@ -1274,6 +1275,8 @@ document.addEventListener("click",async e=>{
   const gi=e.target.closest("[data-ginvite]"); const gd=e.target.closest("[data-gdecline]");
   if(a){ await acceptFriend(a.dataset.accept, uid); _graphAt=0; toast(t('toast.friend.accepted')); renderAmigos(); loadActivity("force"); }
   if(d){ await removeFriend(d.dataset.decline); renderAmigos(); }
+  const c=e.target.closest("[data-cancel]");
+  if(c){ await removeFriend(c.dataset.cancel); toast(t('toast.friend.req.canceled')); renderAmigos(); }
   if(gi){ openGroupInviteSheet(notifGroupInvites.find(x=>x.id===gi.dataset.ginvite)); }
   if(gd){ try{ await declineGroupInvite(gd.dataset.gdecline); toast(t('notif.groupinvite.declined')); }catch(e){ console.error(e); } }
 });

@@ -455,15 +455,6 @@ $("bristolBetaAdd").addEventListener("click", async ()=>{
     toast("UID añadido al beta ✓");
   } catch(e){ toast("Error al guardar"); }
 });
-$("adminResetFunFact").addEventListener("click", ()=>{
-  localStorage.removeItem("cago_fact_idx");
-  localStorage.removeItem("cago_fact_idx_day");
-  localStorage.removeItem("cago_fact_collapsed");
-  $("adminSheet").hidden = true;
-  _setFactCollapsed(false);
-  _renderFact(0);
-  toast("Fun fact reseteado ✓");
-});
 $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $("adminSheet").hidden=true; });
 $("maintToggle").addEventListener("change", async e=>{
   if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }

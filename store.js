@@ -265,6 +265,16 @@ export async function adminListUsers(){
   const s = await getDocs(collection(db,"users"));
   return s.docs.map(d => ({ id:d.id, ...d.data() }));
 }
+// El admin puede leer TODOS los grupos y amistades de una vez (las reglas lo
+// permiten vía isAdmin), para cruzar en local sin leer por usuario.
+export async function adminListGroups(){
+  const s = await getDocs(collection(db,"groups"));
+  return s.docs.map(d => ({ id:d.id, ...d.data() }));
+}
+export async function adminListFriendships(){
+  const s = await getDocs(collection(db,"friendships"));
+  return s.docs.map(d => ({ id:d.id, ...d.data() }));
+}
 async function _delAll(q){   // borra en lotes los docs de una consulta
   for(;;){ const s = await getDocs(q); if(s.empty) break; const b=writeBatch(db); s.docs.forEach(d=>b.delete(d.ref)); await b.commit(); if(s.size<300) break; }
 }

@@ -6,7 +6,7 @@ import {
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
-  adminListUsers, adminWipeUser, getAppConfig, setMaintenance,
+  adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
@@ -420,17 +420,76 @@ $("langSel").addEventListener("click", _onLangClick);
 $("gateLangSel").addEventListener("click", _onLangClick);
 
 /* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */
+// ── Panel de administración (solo admin) ────────────────────────────────────
+let _adminData=null, _adminTab="users", _adminQuery="";
+const _aesc = s => String(s??"").replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+const _aName = id => _adminData?.usersById?.[id]?.displayName || (id||"?").slice(0,6);
+const _ayn = v => v ? "✅" : "❌";
+const _aDate = ts => { if(!ts) return "nunca"; try{ return fmtFull(ts); }catch{ return "—"; } };
+
 async function renderAdminUsers(){
   $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loading')}</p>`;
+  $("adminGroups").innerHTML="";
   try{
-    const users=(await adminListUsers()).sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
-    $("adminUsers").innerHTML = users.map(u=>`
-      <div class="adminrow">
-        <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
-        <div class="adminrow__txt"><b>${u.displayName||"?"}</b><small>${u.email||""} · ${u.totalCount||0} 💩</small></div>
-        ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`:`<button class="btn-decline" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}"> ${t('admin.users.wipe')}</button>`}
-      </div>`).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
+    // Una lectura por colección; grupos y amistades se cruzan en local (sin leer por usuario).
+    const [users, groups, fships] = await Promise.all([ adminListUsers(), adminListGroups(), adminListFriendships() ]);
+    const usersById={}; users.forEach(u=>{ usersById[u.id]=u; });
+    const friendsByUid={}, groupsByUid={};
+    fships.filter(f=>f.status==="accepted").forEach(f=>{ const [a,b]=f.uids||[]; if(!a||!b) return;
+      (friendsByUid[a]=friendsByUid[a]||[]).push(b); (friendsByUid[b]=friendsByUid[b]||[]).push(a); });
+    groups.forEach(g=>(g.members||[]).forEach(m=>{ (groupsByUid[m]=groupsByUid[m]||[]).push(g); }));
+    users.sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+    groups.sort((a,b)=>(b.members?.length||0)-(a.members?.length||0));
+    _adminData={ users, usersById, friendsByUid, groupsByUid, groups };
+    _renderAdminBody();
   }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loadfail')}</p>`; console.error(err); }
+}
+function _renderAdminBody(){
+  if(!_adminData) return;
+  const q=_adminQuery.trim().toLowerCase();
+  const isUsers=_adminTab==="users";
+  $("adminUsers").hidden=!isUsers; $("adminGroups").hidden=isUsers;
+  $("adminHint").hidden = !isUsers;
+  if(isUsers){
+    const list=_adminData.users.filter(u=>!q || (u.displayName||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q));
+    $("adminUsers").innerHTML = list.map(_adminUserCard).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
+  } else {
+    const list=_adminData.groups.filter(g=>!q || (g.name||"").toLowerCase().includes(q));
+    $("adminGroups").innerHTML = list.map(_adminGroupCard).join("") || `<p class="notif-empty">Sin grupos.</p>`;
+  }
+}
+function _adminUserCard(u){
+  const groups=_adminData.groupsByUid[u.id]||[], friends=_adminData.friendsByUid[u.id]||[];
+  const created=u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : "—";
+  const gChips=groups.map(g=>`<span class="admin-chip">🏆 ${_aesc(g.name)}</span>`).join("") || `<span class="admin-muted">—</span>`;
+  const fChips=friends.map(fu=>`<span class="admin-chip">${_aesc(_aName(fu))}</span>`).join("") || `<span class="admin-muted">—</span>`;
+  return `<div class="admin-user">
+    <div class="adminrow adminrow--head" data-atoggle="${u.id}">
+      <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
+      <div class="adminrow__txt"><b>${_aesc(u.displayName||"?")}</b><small>${_aesc(u.email||"—")} · ${u.totalCount||0} 💩</small></div>
+      <span class="admin-chevron">▾</span>
+    </div>
+    <div class="admin-detail" hidden>
+      <div class="admin-kv"><span>💩 Cacas</span><b>${u.totalCount||0} este año · ${u.lifetimeCount||0} histórico</b></div>
+      <div class="admin-kv"><span>🔥 Racha</span><b>${u.currentStreak||0} actual · récord ${u.longestStreak||0}</b></div>
+      <div class="admin-kv"><span>🕐 Última caca</span><b>${_aDate(u.lastCacaTs)}</b></div>
+      <div class="admin-kv"><span>📅 Alta</span><b>${created}</b></div>
+      <div class="admin-kv admin-kv--wrap"><span>⚙️ Ajustes</span><div class="admin-flags">
+        <span>🔔 Notif ${_ayn(u.notifications)}</span><span>🗺️ Mapa ${_ayn(u.shareMap!==false)}</span>
+        <span>📍 Ubicación: ${u.locationMode||"never"}</span><span>🧻 Bristol ${_ayn(u.bristolMode)}</span></div></div>
+      <div class="admin-kv admin-kv--wrap"><span>👥 Amigos (${friends.length})</span><div class="admin-chips">${fChips}</div></div>
+      <div class="admin-kv admin-kv--wrap"><span>🏆 Grupos (${groups.length})</span><div class="admin-chips">${gChips}</div></div>
+      ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`
+        :`<button class="btn-ghost btn-ghost--danger" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}">${t('admin.users.wipe')}</button>`}
+    </div>
+  </div>`;
+}
+function _adminGroupCard(g){
+  const members=(g.members||[]).map(m=>`<span class="admin-chip">${_aesc(_aName(m))}</span>`).join("") || `<span class="admin-muted">—</span>`;
+  return `<div class="admin-group">
+    <div class="adminrow__txt" style="margin-bottom:8px"><b>🏆 ${_aesc(g.name||"?")}</b><small>${(g.members||[]).length} miembros · código ${_aesc(g.inviteCode||"—")}</small></div>
+    <div class="admin-chips">${members}</div>
+  </div>`;
 }
 function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
 $("adminBtn").addEventListener("click", openAdmin);
@@ -445,6 +504,9 @@ $("maintToggle").addEventListener("change", async e=>{
   catch(err){ toast(t('toast.maint.fail')); console.error(err); }
 });
 $("adminUsers").addEventListener("click", async e=>{
+  const tog=e.target.closest("[data-atoggle]");
+  if(tog){ const d=tog.parentElement.querySelector(".admin-detail");
+    if(d){ d.hidden=!d.hidden; tog.querySelector(".admin-chevron")?.classList.toggle("open", !d.hidden); } return; }
   const b=e.target.closest("[data-wipe]"); if(!b)return;
   const tid=b.dataset.wipe, name=b.dataset.name||"ese usuario";
   if(tid===uid){ toast(t('toast.admin.self')); return; }
@@ -453,6 +515,9 @@ $("adminUsers").addEventListener("click", async e=>{
   try{ await adminWipeUser(tid); toast(t('toast.admin.wiped')); renderAdminUsers(); }
   catch(err){ toast(t('toast.admin.wipe.fail')); console.error(err); b.disabled=false; b.textContent=t('admin.users.wipe'); }
 });
+$("adminTabs").addEventListener("click", e=>{ const b=e.target.closest("[data-atab]"); if(!b)return;
+  _adminTab=b.dataset.atab; [...$("adminTabs").children].forEach(c=>c.classList.toggle("on", c===b)); _renderAdminBody(); });
+$("adminSearch").addEventListener("input", e=>{ _adminQuery=e.target.value; _renderAdminBody(); });
 $("settingsSheet").addEventListener("click", e=>{ if(e.target===$("settingsSheet")) $("settingsSheet").hidden=true; });
 $("setNameSave").addEventListener("click", async ()=>{
   const n=$("setName").value.trim(); if(!n) return toast(t('toast.name.empty'));

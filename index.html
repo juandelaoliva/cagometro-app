@@ -420,8 +420,14 @@
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
         <span class="toggle__txt" data-i18n="admin.maint.toggle">Modo mantenimiento (muestra el aviso y desactiva el +1)</span>
       </label>
-      <p class="sheet__sub" data-i18n="admin.users.desc">Gestión de usuarios. «Vaciar» borra todos sus datos. NO borra su cuenta de acceso.</p>
+      <div class="segctl" id="adminTabs">
+        <button type="button" class="on" data-atab="users">👤 Usuarios</button>
+        <button type="button" data-atab="groups">🏆 Grupos</button>
+      </div>
+      <input class="field" id="adminSearch" type="search" placeholder="Buscar usuario o grupo…" autocomplete="off" style="margin-bottom:10px" />
+      <p class="sheet__sub" id="adminHint" data-i18n="admin.users.desc">Toca un usuario para ver sus datos. «Vaciar» borra todos sus datos (no su cuenta).</p>
       <div id="adminUsers"></div>
+      <div id="adminGroups" hidden></div>
       <button class="btn-ghost" id="adminClose" data-i18n="admin.close">Cerrar</button>
     </div>
   </div>

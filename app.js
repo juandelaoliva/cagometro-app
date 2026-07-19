@@ -1049,18 +1049,13 @@ $("addBtn").addEventListener("click",async e=>{
   try{
     await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    // Si bristol está activo, abrir el sheet inmediatamente sin esperar la transacción
-    let cacaIdPromise = null;
-    if(me?.bristolMode && _bristolAccess()){
-      cacaIdPromise = addCaca(uid, loc, actMeta());
-      _openBristolSheet(cacaIdPromise);
-    } else {
-      cacaIdPromise = addCaca(uid, loc, actMeta());
-    }
-    const cacaId = await cacaIdPromise;
+    const prevTotal = me?.totalCount || 0;
+    const cacaId = await addCaca(uid, loc, actMeta());
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
-    checkSyncPoop();
+    // checkSyncPoop() SIEMPRE se ejecuta (tiene efectos); + hito → hay celebración
+    const celebrated = checkSyncPoop() || isMilestone(prevTotal+1);
+    _queueBristol(cacaId, celebrated);   // Bristol tras la celebración (o ya, si no hay)
   }
   catch(err){
     if(!navigator.onLine){
@@ -1102,11 +1097,12 @@ $("miBristol").addEventListener("click", async ()=>{
   try{
     await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    const cacaIdPromise = addCaca(uid, loc, actMeta());
-    _openBristolSheet(cacaIdPromise);
-    await cacaIdPromise;
+    const prevTotal = me?.totalCount || 0;
+    const cacaId = await addCaca(uid, loc, actMeta());
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
-    bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop();
+    bumpChipsLocal(); _statsLoadedAt=0;
+    const celebrated = checkSyncPoop() || isMilestone(prevTotal+1);
+    _queueBristol(cacaId, celebrated, true);   // force: este menú siempre pregunta Bristol
   } catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -1174,6 +1170,23 @@ $("bristolSave").addEventListener("click", async ()=>{
 // Marcar con sangre en rojo
 document.querySelector(".bristol-tag[data-tag='Con sangre']")?.classList.add("bristol-tag--danger");
 
+// ── Bristol DESPUÉS de las celebraciones ────────────────────────────────────
+// Si al registrar una caca hay una celebración (hito o "conexión de tuberías"),
+// el sheet de Bristol se abre CUANDO ESTA TERMINA; si no hay, se abre enseguida.
+let _pendingBristol = null;   // cacaId (o Promise) pendiente de preguntar Bristol
+let _bristolTimer = null;
+function _flushBristol(){ const id=_pendingBristol; _pendingBristol=null; clearTimeout(_bristolTimer); if(id!=null) _openBristolSheet(id); }
+function _scheduleBristol(delay){ if(_pendingBristol!=null){ clearTimeout(_bristolTimer); _bristolTimer=setTimeout(_flushBristol, delay); } }
+// Encola Bristol tras una caca. willCelebrate deja margen para la celebración;
+// force=true lo pide aunque bristolMode esté off (menú "registrar con Bristol").
+function _queueBristol(cacaIdOrPromise, willCelebrate, force){
+  if(!force && !(me?.bristolMode && _bristolAccess())) return;
+  _pendingBristol = cacaIdOrPromise;
+  _scheduleBristol(willCelebrate ? 3200 : 0);
+}
+// Lo llaman las celebraciones: reprograma el Bristol pendiente para justo después.
+function _bristolAfterCelebration(ms){ if(_pendingBristol!=null) _scheduleBristol(ms+250); }
+
 /* ---------- Bristol onboarding tour ---------- */
 function _renderBristolTourGrid(){
   const grid = $("bristolTourGrid");
@@ -1216,7 +1229,16 @@ $("lateConfirm").addEventListener("click",async()=>{
   if(isNaN(ts)) return toast(t('toast.caca.late.invalid'));
   if(ts>Date.now()+60000) return toast(t('toast.caca.late.future'));
   $("lateSheet").hidden=true;
-  try{ await _graphPromise; await addCacaAt(uid,ts, actMeta()); haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force"); }
+  try{
+    await _graphPromise;
+    const prevTotal = me?.totalCount || 0;
+    const thisYear = new Date(ts).getFullYear() === new Date().getFullYear();
+    const cacaId = await addCacaAt(uid, ts, actMeta());
+    haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force");
+    // Bristol también en la caca olvidada (solo si bristolMode); tras el hito si lo hay.
+    // Una caca de un año pasado no sube totalCount → no dispara hito.
+    _queueBristol(cacaId, thisYear && isMilestone(prevTotal+1));
+  }
   catch(err){ toast(t('toast.caca.late.fail')); console.error(err); }
 });
 
@@ -1872,7 +1894,8 @@ function floatPoo(cx,cy){ for(let i=0;i<3;i++){ const p=document.createElement("
 function celebrate(num){ $("celebrateNum").textContent=num;
   const hype=[t('celebrate.hype.0'),t('celebrate.hype.1'),t('celebrate.hype.2'),t('celebrate.hype.3'),t('celebrate.hype.4')];
   $("celebrateText").textContent=num>=200?t('celebrate.hype.3'):hype[Math.floor(Math.random()*hype.length)];
-  const c=$("celebrate");c.hidden=false;confetti();haptic([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600); }
+  const c=$("celebrate");c.hidden=false;confetti();haptic([30,40,30,40,60]);setTimeout(()=>c.hidden=true,2600);
+  _bristolAfterCelebration(2600); }
 // ── conexión de tuberías: tú + un amigo cagáis con < 5 min de diferencia ──
 const SYNC_WINDOW=5*60*1000;
 let _lastSyncEvt=null;   // id del evento de amigo con el que ya celebramos (evita repetir)
@@ -1880,6 +1903,7 @@ function syncCelebrate(name){
   $("syncSub").textContent=t('sync.sub',{name});
   const c=$("syncOverlay"); c.hidden=false; confetti(); haptic([20,40,20,40,20,40,80]);
   setTimeout(()=>c.hidden=true,2800);
+  _bristolAfterCelebration(2800);
 }
 function checkSyncPoop(){
   const now=Date.now();
@@ -1887,7 +1911,7 @@ function checkSyncPoop(){
   const evt=homeFeedData.find(c =>
     c.uid!==uid && (c.kind===undefined||c.kind==="add") && friendNames[c.uid]
     && (now-c.ts)>=0 && (now-c.ts)<=SYNC_WINDOW);
-  if(!evt || _lastSyncEvt===evt.id) return;
+  if(!evt || _lastSyncEvt===evt.id) return false;
   _lastSyncEvt=evt.id;
   const name=friendNames[evt.uid]||evt.name||"un amigo";
   syncCelebrate(name);
@@ -1899,6 +1923,7 @@ function checkSyncPoop(){
   }).catch(e=>console.error("sync:",e));
   // aviso al amigo
   enqueuePush(uid, evt.uid, "sync", t('push.sync.title'), t('push.sync.body',{name:me?.displayName||t('fallback.someone')})).catch(()=>{});
+  return true;
 }
 function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];
   for(let i=0;i<90;i++){ const d=document.createElement("div");d.className="confetti";d.style.left=Math.random()*100+"vw";

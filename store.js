@@ -167,7 +167,6 @@ export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 export const getAppConfig = async () => { try{ const s = await getDoc(doc(db,"config","app")); return s.exists() ? s.data() : null; }catch(e){ return null; } };
 export const setMaintenance = (on, message) => setDoc(doc(db,"config","app"),
   { maintenance: !!on, ...(message != null ? { message } : {}), updatedAt: serverTimestamp() }, { merge:true });
-export const setBristolBeta = (uids) => setDoc(doc(db,"config","app"), { bristolBeta: uids }, { merge:true });
 
 // ── Push (FCM) ──────────────────────────────────────────────────────────
 // Tokens del dispositivo en una subcolección PRIVADA (solo el dueño / el emisor admin).
@@ -182,13 +181,14 @@ export const enqueuePush = (fromUid, toUid, type, title, body) =>
 // of that timestamp; totalCount (current year) only bumps if it's this year.
 export async function addCacaAt(uid, ts, act){
   const y = new Date(ts).getFullYear();
+  const cacaRef = doc(collection(db,"users",uid,"cacas"));
   await runTransaction(db, async tx => {
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
     const data = us.data() || {};
     const cur = (y === yearNow()) ? (data.totalCount || 0) : (data.countsByYear?.[y] || 0);
     const n = cur + 1;
-    tx.set(doc(collection(db,"users",uid,"cacas")), { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
+    tx.set(cacaRef, { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
     const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1),
       [`byHour.${hourOf(ts)}`]:increment(1), [`byWeekday.${weekdayOf(ts)}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
@@ -203,6 +203,7 @@ export async function addCacaAt(uid, ts, act){
       audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[], reactions:{}, createdAt:serverTimestamp(),
     });
   });
+  return cacaRef.id;
 }
 
 // undo: borra la última caca, baja contadores y deja constancia en el feed (kind:"undo")

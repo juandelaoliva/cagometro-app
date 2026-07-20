@@ -345,6 +345,7 @@ function showApp(){
     paintProgress(total); renderLocSel(m.locationMode);
     if(lastTotal!==null && total>lastTotal){ if(isMilestone(total)){ celebrate(total); notifyFriendsMilestone(total); } checkGroupOvertakes(lastTotal); }
     lastTotal=total;
+    syncDeviceInfo();
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
@@ -428,6 +429,14 @@ const _aName = id => _adminData?.usersById?.[id]?.displayName || (id||"?").slice
 const _ayn = v => v ? "✅" : "❌";
 const _aDate = ts => { if(!ts) return "nunca"; try{ return fmtFull(ts); }catch{ return "—"; } };
 const _aPromptAction = a => ({enabled:"activó ✅", dismissed:"descartó", blocked:"bloqueado (navegador)"}[a] || "sin acción");
+// ¿puede recibir push? iOS necesita PWA instalada; Android/escritorio no.
+const _aCanNotify = u => {
+  if(!u.platform) return "— (sin datos)";
+  if(u.platform==="iOS" && !u.standalone) return "❌ necesita instalar la PWA";
+  if(u.notifPerm==="unsupported") return "❌ no soportado";
+  if(u.notifPerm==="denied") return "⚠️ bloqueado en el navegador";
+  return "✅ sí";
+};
 
 async function renderAdminUsers(){
   $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loading')}</p>`;
@@ -480,6 +489,8 @@ function _adminUserCard(u){
         <span>🔔 Notif ${_ayn(u.notifications)}</span><span>🗺️ Mapa ${_ayn(u.shareMap!==false)}</span>
         <span>📍 Ubicación: ${u.locationMode||"never"}</span><span>🧻 Bristol ${_ayn(u.bristolMode)}</span></div></div>
       <div class="admin-kv"><span>🔔 Popup notif</span><b>${u.notifPromptSeenCount ? `visto ${u.notifPromptSeenCount}× · ${_aPromptAction(u.notifPromptAction)}` : "no visto"}</b></div>
+      <div class="admin-kv"><span>📱 Dispositivo</span><b>${u.platform?`${u.platform} · ${u.browser||"?"} · ${u.standalone?"PWA":"navegador"}`:"—"}</b></div>
+      <div class="admin-kv"><span>🔔 ¿Puede recibir?</span><b>${_aCanNotify(u)}</b></div>
       <div class="admin-kv admin-kv--wrap"><span>👥 Amigos (${friends.length})</span><div class="admin-chips">${fChips}</div></div>
       <div class="admin-kv admin-kv--wrap"><span>🏆 Grupos (${groups.length})</span><div class="admin-chips">${gChips}</div></div>
       ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`
@@ -909,6 +920,33 @@ function showLocalNotif(title, body){
     if(navigator.serviceWorker?.ready) navigator.serviceWorker.ready.then(reg=>reg.showNotification(title,opts)).catch(()=>{ try{ new Notification(title,opts); }catch(_){} });
     else new Notification(title,opts);
   }catch(e){ /* sin soporte */ }
+}
+
+// ── Info de dispositivo (para el admin: plataforma/navegador/PWA/permiso) ────
+// Guarda en el doc el ÚLTIMO dispositivo visto, para saber quién puede recibir
+// notificaciones (en iOS hace falta la PWA instalada; en Android/escritorio no).
+let _deviceSynced=false;
+function _deviceInfo(){
+  const ua=navigator.userAgent||"";
+  const isIOS = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints||0)>1);
+  const platform = isIOS ? "iOS" : /Android/.test(ua) ? "Android" : "Desktop";
+  let browser="Otro";
+  if(/Edg\//.test(ua)) browser="Edge";
+  else if(/OPR\//.test(ua)) browser="Opera";
+  else if(/SamsungBrowser/.test(ua)) browser="Samsung";
+  else if(/Firefox\//.test(ua)) browser="Firefox";
+  else if(/CriOS|Chrome\//.test(ua)) browser="Chrome";
+  else if(/Safari\//.test(ua)) browser="Safari";
+  const standalone = !!(window.matchMedia?.("(display-mode: standalone)").matches || navigator.standalone===true);
+  const notifPerm = ("Notification" in window) ? Notification.permission : "unsupported";
+  return { platform, browser, standalone, notifPerm };
+}
+function syncDeviceInfo(){
+  if(!uid || !me || _deviceSynced) return;
+  _deviceSynced=true;
+  const d=_deviceInfo();
+  if(me.platform!==d.platform || me.browser!==d.browser || me.standalone!==d.standalone || me.notifPerm!==d.notifPerm)
+    updateMe(uid, d).catch(()=>{});
 }
 
 // ── Popup para animar a activar notificaciones ──────────────────────────────

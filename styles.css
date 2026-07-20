@@ -117,6 +117,10 @@ ol,ul{list-style:none}
 .admin-group{background:var(--card);border:1px solid var(--line-2);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);margin-bottom:8px}
 /* popup de activar notificaciones */
 .notifprompt__icon{font-size:44px;text-align:center;margin-bottom:6px}
+/* popup de instalar la PWA */
+.install-steps{margin:6px 0 16px;padding-left:22px;display:flex;flex-direction:column;gap:9px}
+.install-steps li{font-size:14px;line-height:1.45;color:var(--ink)}
+.ios-share{vertical-align:-3px;color:#2E7CF6;margin:0 1px}
 .notif-empty small{font-weight:500;color:var(--ink-faint)}
 .profile{display:flex;align-items:center;gap:8px}
 .profile__streak{

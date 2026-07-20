@@ -166,6 +166,8 @@ export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 // (cuántas veces se mostró + última acción) para poder verlo en el panel de admin.
 export const logNotifPromptShown = (uid) => updateDoc(doc(db,"users",uid), { notifPromptSeenCount: increment(1), notifPromptLastTs: Date.now() });
 export const setNotifPromptAction = (uid, action) => updateDoc(doc(db,"users",uid), { notifPromptAction: action, notifPromptActionTs: Date.now() });
+// Popup de instalación (iOS): cuántas veces se mostró (si instalan → standalone en device info).
+export const logInstallPromptShown = (uid) => updateDoc(doc(db,"users",uid), { installPromptSeenCount: increment(1), installPromptLastTs: Date.now() });
 
 // ── Config global de la app (banner de mantenimiento) ─────────────────────
 // Doc único `config/app`. Lo lee cualquiera autenticado; solo el admin lo escribe.

@@ -4,7 +4,7 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
-  logNotifPromptShown, setNotifPromptAction,
+  logNotifPromptShown, setNotifPromptAction, logInstallPromptShown,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
@@ -356,7 +356,7 @@ function showApp(){
   startChatListener(uid, "");
   maybeShowFunFact();
   setTimeout(maybeShowBristolTour, 1500);
-  setTimeout(maybeShowNotifPrompt, 3200);   // empujón para activar notificaciones (con topes)
+  setTimeout(maybeShowOnboardingPrompt, 3200);   // instalar (iOS) o activar notificaciones (con topes)
 }
 
 /* ---------- hoja: aceptar invitación de amigo ---------- */
@@ -491,6 +491,7 @@ function _adminUserCard(u){
       <div class="admin-kv"><span>🔔 Popup notif</span><b>${u.notifPromptSeenCount ? `visto ${u.notifPromptSeenCount}× · ${_aPromptAction(u.notifPromptAction)}` : "no visto"}</b></div>
       <div class="admin-kv"><span>📱 Dispositivo</span><b>${u.platform?`${u.platform} · ${u.browser||"?"} · ${u.standalone?"PWA":"navegador"}`:"—"}</b></div>
       <div class="admin-kv"><span>🔔 ¿Puede recibir?</span><b>${_aCanNotify(u)}</b></div>
+      ${u.installPromptSeenCount?`<div class="admin-kv"><span>📲 Popup instalar</span><b>visto ${u.installPromptSeenCount}×${u.standalone?" · instaló ✅":""}</b></div>`:""}
       <div class="admin-kv admin-kv--wrap"><span>👥 Amigos (${friends.length})</span><div class="admin-chips">${fChips}</div></div>
       <div class="admin-kv admin-kv--wrap"><span>🏆 Grupos (${groups.length})</span><div class="admin-chips">${gChips}</div></div>
       ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`
@@ -956,25 +957,49 @@ function syncDeviceInfo(){
 const NOTIFPROMPT_MAX=3, NOTIFPROMPT_COOLDOWN=7*DAY;
 function maybeShowNotifPrompt(){
   if(!uid || !me) return;
-  const canAsk = ("Notification" in window);
+  // iOS sin instalar (sin API de Notification) → lo cubre el popup de instalación
+  if(!("Notification" in window)) return;
   // ya activadas (interruptor on y permiso concedido) → nada
-  if(me.notifications && (!canAsk || Notification.permission==="granted")) return;
-  // saltar la primera sesión en este dispositivo (deja explorar antes de pedir)
-  if(!localStorage.getItem("cago_seen_once")){ localStorage.setItem("cago_seen_once","1"); return; }
-  // no pisar otra hoja/overlay abierto
-  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
+  if(me.notifications && Notification.permission==="granted") return;
   // permiso bloqueado por el navegador → re-pedir no haría nada; no insistir
-  if(canAsk && Notification.permission==="denied") return;
+  if(Notification.permission==="denied") return;
   // tope de frecuencia
   if((me.notifPromptSeenCount||0) >= NOTIFPROMPT_MAX) return;
   if(me.notifPromptLastTs && Date.now()-me.notifPromptLastTs < NOTIFPROMPT_COOLDOWN) return;
-  // iOS sin instalar (sin API de Notification) → variante "instala primero"
-  $("notifPromptBody").textContent = canAsk ? t('notifprompt.body') : t('notifprompt.install');
-  $("notifPromptEnable").hidden = !canAsk;
-  $("notifPromptLater").textContent = canAsk ? t('notifprompt.later') : t('notifprompt.ok');
+  $("notifPromptBody").textContent = t('notifprompt.body');
+  $("notifPromptEnable").hidden = false;
+  $("notifPromptLater").textContent = t('notifprompt.later');
   $("notifPromptSheet").hidden=false;
   logNotifPromptShown(uid).catch(()=>{});
 }
+// Coordinador de popups al abrir: salta la 1ª sesión y no pisa otra hoja. En iOS
+// sin instalar prioriza el popup de INSTALAR (requisito previo a las notis); si no,
+// el de notificaciones.
+function maybeShowOnboardingPrompt(){
+  if(!uid || !me) return;
+  if(!localStorage.getItem("cago_seen_once")){ localStorage.setItem("cago_seen_once","1"); return; }
+  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
+  const d=_deviceInfo();
+  if(d.platform==="iOS" && !d.standalone) maybeShowInstallPrompt(d);
+  else maybeShowNotifPrompt();
+}
+// ── Popup para instalar la PWA (iOS sin instalar) ───────────────────────────
+// En iOS solo se puede instalar desde Safari; Chrome/otros en iPhone no pueden,
+// así que a esos les decimos que abran en Safari. Mismos topes (3×, 7 días).
+const INSTALL_MAX=3, INSTALL_COOLDOWN=7*DAY;
+const SHARE_SVG='<svg class="ios-share" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M12 3l4 4-1.4 1.4L13 6.8V15h-2V6.8L9.4 8.4 8 7l4-4z"/><path fill="currentColor" d="M6 10h2v2H7v7h10v-7h-1v-2h2a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/></svg>';
+function maybeShowInstallPrompt(d){
+  if((me.installPromptSeenCount||0) >= INSTALL_MAX) return;
+  if(me.installPromptLastTs && Date.now()-me.installPromptLastTs < INSTALL_COOLDOWN) return;
+  const isSafari = d.browser==="Safari";
+  $("installSteps").innerHTML = isSafari
+    ? `<li>${t('install.safari.1',{share:SHARE_SVG})}</li><li>${t('install.safari.2')}</li><li>${t('install.safari.3')}</li>`
+    : `<li>${t('install.chrome.1')}</li><li>${t('install.chrome.2',{share:SHARE_SVG})}</li><li>${t('install.chrome.3')}</li>`;
+  $("installPromptSheet").hidden=false;
+  logInstallPromptShown(uid).catch(()=>{});
+}
+$("installPromptClose").addEventListener("click", ()=>$("installPromptSheet").hidden=true);
+$("installPromptSheet").addEventListener("click", e=>{ if(e.target===$("installPromptSheet")) $("installPromptSheet").hidden=true; });
 function _closeNotifPrompt(action){
   $("notifPromptSheet").hidden=true;
   if(action) setNotifPromptAction(uid, action).catch(()=>{});

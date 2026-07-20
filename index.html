@@ -454,6 +454,17 @@
     </div>
   </div>
 
+  <!-- ───────── Popup: instalar la PWA (iOS) ───────── -->
+  <div class="sheet" id="installPromptSheet" hidden>
+    <div class="sheet__panel">
+      <div class="notifprompt__icon">📲</div>
+      <h3 class="sheet__title" data-i18n="install.title">¿Sabías que puedes instalar El Cagómetro?</h3>
+      <p class="sheet__sub" data-i18n="install.sub">Añádelo a tu pantalla de inicio: se abre a pantalla completa y podrás activar las notificaciones.</p>
+      <ol class="install-steps" id="installSteps"></ol>
+      <button class="btn-ghost" id="installPromptClose" data-i18n="install.ok">Entendido</button>
+    </div>
+  </div>
+
   <!-- ───────── Ajustes (desde el avatar de la cabecera) ───────── -->
   <div class="sheet" id="settingsSheet" hidden>
     <div class="sheet__panel sheet__panel--profile">

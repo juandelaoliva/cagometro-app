@@ -115,6 +115,8 @@ ol,ul{list-style:none}
 .admin-muted{color:var(--ink-faint);font-size:12px}
 .admin-detail .btn-ghost--danger{margin-top:10px;padding:9px;font-size:13px}
 .admin-group{background:var(--card);border:1px solid var(--line-2);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);margin-bottom:8px}
+/* popup de activar notificaciones */
+.notifprompt__icon{font-size:44px;text-align:center;margin-bottom:6px}
 .notif-empty small{font-weight:500;color:var(--ink-faint)}
 .profile{display:flex;align-items:center;gap:8px}
 .profile__streak{

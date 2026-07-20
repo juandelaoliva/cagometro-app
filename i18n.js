@@ -389,6 +389,12 @@ const _es = {
 
   // ── Notificaciones ──
   'notif.title': 'Notificaciones',
+  'notifprompt.title': 'No te pierdas nada',
+  'notifprompt.body': 'Activa las notificaciones y entérate cuando tus amigos reaccionan, te adelantan en el ranking o hay conexión de tuberías 🔗.',
+  'notifprompt.later': 'Ahora no',
+  'notifprompt.enable': 'Activar 🔔',
+  'notifprompt.install': 'Instala El Cagómetro en tu pantalla de inicio para poder recibir avisos.',
+  'notifprompt.ok': 'Entendido',
   'notif.empty': 'Sin notificaciones todavía.',
   'notif.empty.sub': 'Aquí verás reacciones a tus cacas y solicitudes de amistad.',
   'notif.section.requests': 'Solicitudes',
@@ -820,6 +826,12 @@ const _en = {
 
   // ── Notificaciones ──
   'notif.title': 'Notifications',
+  'notifprompt.title': "Don't miss out",
+  'notifprompt.body': 'Turn on notifications and find out when friends react, overtake you in the ranking, or you get a pipe sync 🔗.',
+  'notifprompt.later': 'Not now',
+  'notifprompt.enable': 'Turn on 🔔',
+  'notifprompt.install': 'Install El Cagómetro on your home screen to receive notifications.',
+  'notifprompt.ok': 'Got it',
   'notif.empty': 'No notifications yet.',
   'notif.empty.sub': "Here you'll see reactions to your poops and friend requests.",
   'notif.section.requests': 'Requests',

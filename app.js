@@ -4,6 +4,7 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
+  logNotifPromptShown, setNotifPromptAction,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
@@ -354,7 +355,7 @@ function showApp(){
   startChatListener(uid, "");
   maybeShowFunFact();
   setTimeout(maybeShowBristolTour, 1500);
-
+  setTimeout(maybeShowNotifPrompt, 3200);   // empujón para activar notificaciones (con topes)
 }
 
 /* ---------- hoja: aceptar invitación de amigo ---------- */
@@ -426,6 +427,7 @@ const _aesc = s => String(s??"").replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','
 const _aName = id => _adminData?.usersById?.[id]?.displayName || (id||"?").slice(0,6);
 const _ayn = v => v ? "✅" : "❌";
 const _aDate = ts => { if(!ts) return "nunca"; try{ return fmtFull(ts); }catch{ return "—"; } };
+const _aPromptAction = a => ({enabled:"activó ✅", dismissed:"descartó", blocked:"bloqueado (navegador)"}[a] || "sin acción");
 
 async function renderAdminUsers(){
   $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loading')}</p>`;
@@ -477,6 +479,7 @@ function _adminUserCard(u){
       <div class="admin-kv admin-kv--wrap"><span>⚙️ Ajustes</span><div class="admin-flags">
         <span>🔔 Notif ${_ayn(u.notifications)}</span><span>🗺️ Mapa ${_ayn(u.shareMap!==false)}</span>
         <span>📍 Ubicación: ${u.locationMode||"never"}</span><span>🧻 Bristol ${_ayn(u.bristolMode)}</span></div></div>
+      <div class="admin-kv"><span>🔔 Popup notif</span><b>${u.notifPromptSeenCount ? `visto ${u.notifPromptSeenCount}× · ${_aPromptAction(u.notifPromptAction)}` : "no visto"}</b></div>
       <div class="admin-kv admin-kv--wrap"><span>👥 Amigos (${friends.length})</span><div class="admin-chips">${fChips}</div></div>
       <div class="admin-kv admin-kv--wrap"><span>🏆 Grupos (${groups.length})</span><div class="admin-chips">${gChips}</div></div>
       ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`
@@ -907,6 +910,49 @@ function showLocalNotif(title, body){
     else new Notification(title,opts);
   }catch(e){ /* sin soporte */ }
 }
+
+// ── Popup para animar a activar notificaciones ──────────────────────────────
+// Se muestra al abrir la app (saltando la 1ª sesión en este dispositivo) a quien
+// las tiene apagadas. Tope: máx 3 veces y nunca antes de 7 días desde la última.
+// Registra en el doc cuántas veces se vio y la última acción (para el panel admin).
+const NOTIFPROMPT_MAX=3, NOTIFPROMPT_COOLDOWN=7*DAY;
+function maybeShowNotifPrompt(){
+  if(!uid || !me) return;
+  const canAsk = ("Notification" in window);
+  // ya activadas (interruptor on y permiso concedido) → nada
+  if(me.notifications && (!canAsk || Notification.permission==="granted")) return;
+  // saltar la primera sesión en este dispositivo (deja explorar antes de pedir)
+  if(!localStorage.getItem("cago_seen_once")){ localStorage.setItem("cago_seen_once","1"); return; }
+  // no pisar otra hoja/overlay abierto
+  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
+  // permiso bloqueado por el navegador → re-pedir no haría nada; no insistir
+  if(canAsk && Notification.permission==="denied") return;
+  // tope de frecuencia
+  if((me.notifPromptSeenCount||0) >= NOTIFPROMPT_MAX) return;
+  if(me.notifPromptLastTs && Date.now()-me.notifPromptLastTs < NOTIFPROMPT_COOLDOWN) return;
+  // iOS sin instalar (sin API de Notification) → variante "instala primero"
+  $("notifPromptBody").textContent = canAsk ? t('notifprompt.body') : t('notifprompt.install');
+  $("notifPromptEnable").hidden = !canAsk;
+  $("notifPromptLater").textContent = canAsk ? t('notifprompt.later') : t('notifprompt.ok');
+  $("notifPromptSheet").hidden=false;
+  logNotifPromptShown(uid).catch(()=>{});
+}
+function _closeNotifPrompt(action){
+  $("notifPromptSheet").hidden=true;
+  if(action) setNotifPromptAction(uid, action).catch(()=>{});
+}
+$("notifPromptLater").addEventListener("click", ()=>_closeNotifPrompt("dismissed"));
+$("notifPromptSheet").addEventListener("click", e=>{ if(e.target===$("notifPromptSheet")) _closeNotifPrompt("dismissed"); });
+$("notifPromptEnable").addEventListener("click", async ()=>{
+  const perm=await requestNotifPermission();
+  if(perm!=="granted"){
+    toast(perm==="denied" ? t('toast.notif.blocked') : t('toast.notif.denied'));
+    _closeNotifPrompt("blocked"); return;
+  }
+  try{ await updateMe(uid,{notifications:true}); enablePush(); toast(t('toast.notif.on')); const sn=$("setNotif"); if(sn) sn.checked=true; }
+  catch(e){ console.error(e); }
+  _closeNotifPrompt("enabled");
+});
 function startNotifications(){
   stopNotifications();
   getFriends(uid).then(fr=>{ notifFriends={}; fr.forEach(f=>{ notifFriends[f.id]=f.displayName; }); }).catch(()=>{});

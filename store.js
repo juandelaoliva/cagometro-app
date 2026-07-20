@@ -162,6 +162,11 @@ export const watchActivity = (uid, cb, n = 60, onError) =>
 // Ajustes del perfil (nickname, color, notificaciones…)
 export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
 
+// Popup de activación de notificaciones: métricas mínimas en el doc del usuario
+// (cuántas veces se mostró + última acción) para poder verlo en el panel de admin.
+export const logNotifPromptShown = (uid) => updateDoc(doc(db,"users",uid), { notifPromptSeenCount: increment(1), notifPromptLastTs: Date.now() });
+export const setNotifPromptAction = (uid, action) => updateDoc(doc(db,"users",uid), { notifPromptAction: action, notifPromptActionTs: Date.now() });
+
 // ── Config global de la app (banner de mantenimiento) ─────────────────────
 // Doc único `config/app`. Lo lee cualquiera autenticado; solo el admin lo escribe.
 export const getAppConfig = async () => { try{ const s = await getDoc(doc(db,"config","app")); return s.exists() ? s.data() : null; }catch(e){ return null; } };

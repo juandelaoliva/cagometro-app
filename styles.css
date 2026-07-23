@@ -732,7 +732,7 @@ body.sheet-open{overflow:hidden}
   width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--shadow-lg);
   font-size:18px;font-weight:800;color:var(--ink);display:grid;place-items:center}
 /* botón heatmap: pastilla con icono + texto, arriba a la izquierda */
-.map-heat{position:absolute;top:calc(14px + env(safe-area-inset-top));left:14px;z-index:1000;
+.map-heat{position:absolute;top:calc(70px + env(safe-area-inset-top));right:14px;z-index:1000;
   height:44px;padding:0 16px;border-radius:22px;
   background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
   border:1px solid rgba(36,27,18,.08);box-shadow:0 4px 16px rgba(36,27,18,.16);

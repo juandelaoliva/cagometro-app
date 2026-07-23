@@ -356,6 +356,7 @@ function showApp(){
   startChatListener(uid, "");
   maybeShowFunFact();
   setTimeout(maybeShowBristolTour, 1500);
+  setTimeout(maybeShowHeatmapAnnounce, 1700);    // novedad: mapa de calor (aviso único)
   setTimeout(maybeShowOnboardingPrompt, 3200);   // instalar (iOS) o activar notificaciones (con topes)
 }
 
@@ -1000,6 +1001,29 @@ function maybeShowInstallPrompt(d){
 }
 $("installPromptClose").addEventListener("click", ()=>$("installPromptSheet").hidden=true);
 $("installPromptSheet").addEventListener("click", e=>{ if(e.target===$("installPromptSheet")) $("installPromptSheet").hidden=true; });
+
+// ── Popup de novedad: Mapa de calor ─────────────────────────────────────────
+// Aviso único (por dispositivo) de la función heatmap. A los amigos de Cacamu
+// (y a Cacamu) se les muestra una mención especial. Detección por nombre:
+// cualquier amigo cuyo displayName contenga "cacamu" (o el propio usuario).
+const CACAMU_RE=/cacamu/i;
+async function maybeShowHeatmapAnnounce(){
+  if(!uid || !me) return;
+  if(localStorage.getItem("cago_seen_heatannc")) return;
+  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
+  let showCacamu = CACAMU_RE.test(me.displayName||"");
+  if(!showCacamu){
+    try{ const fr=await getFriends(uid); showCacamu = fr.some(f=>CACAMU_RE.test(f.displayName||"")); }catch{}
+  }
+  $("heatAnncTry").textContent = "🔥 "+t('map.heat');
+  $("heatAnncCacamuTxt").innerHTML = t('heatannc.cacamu');
+  $("heatAnncCacamu").hidden = !showCacamu;
+  $("heatAnncSheet").hidden = false;
+  localStorage.setItem("cago_seen_heatannc","1");
+}
+$("heatAnncClose").addEventListener("click", ()=>$("heatAnncSheet").hidden=true);
+$("heatAnncSheet").addEventListener("click", e=>{ if(e.target===$("heatAnncSheet")) $("heatAnncSheet").hidden=true; });
+$("heatAnncTry").addEventListener("click", ()=>{ $("heatAnncSheet").hidden=true; openMap(); });
 function _closeNotifPrompt(action){
   $("notifPromptSheet").hidden=true;
   if(action) setNotifPromptAction(uid, action).catch(()=>{});

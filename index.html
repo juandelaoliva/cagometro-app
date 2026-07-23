@@ -35,6 +35,8 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- plugin de heatmap (opcional; si no carga, el botón 🔥 avisa y sigue habiendo pines) -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -665,6 +667,7 @@
     </div>
     <div class="map-title" id="mapTitle" hidden></div>
     <div class="map-legend" id="mapLegend" hidden></div>
+    <button class="map-heat" id="mapHeatBtn" aria-label="Mapa de calor" hidden>🔥</button>
     <button class="map-close" id="mapClose" aria-label="Cerrar">✕</button>
   </div>
 

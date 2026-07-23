@@ -1942,6 +1942,30 @@ function getGeo(){
   });
 }
 let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set();
+// heatmap (toggle): guardamos los puntos del mapa actual para poder alternar pines↔calor
+let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
+function _resetHeat(){
+  if(_heatLayer){ try{_map.removeLayer(_heatLayer);}catch(e){} _heatLayer=null; }
+  _heatOn=false; const b=$("mapHeatBtn"); if(b){ b.classList.remove("on"); b.textContent="🔥"; }
+}
+$("mapHeatBtn").addEventListener("click", ()=>{
+  if(typeof L?.heatLayer!=="function"){ toast(t('toast.map.fail')); return; }   // plugin no cargó
+  if(!_mapPoints.length) return;
+  _heatOn=!_heatOn; const b=$("mapHeatBtn");
+  if(_heatOn){
+    _markers.forEach(m=>_map.removeLayer(m));
+    if(_isGroupMap) $("mapLegend").hidden=true;
+    _heatLayer=L.heatLayer(_mapPoints, {radius:28, blur:20, maxZoom:16, minOpacity:.35}).addTo(_map);
+    b.classList.add("on"); b.textContent="📍";
+  } else {
+    if(_heatLayer){ _map.removeLayer(_heatLayer); _heatLayer=null; }
+    if(_isGroupMap){   // respeta el filtro de la leyenda al volver a pines
+      Object.entries(_groupMarkers).forEach(([u2,ms])=>{ if(!_legendHidden.has(u2)) ms.forEach(m=>m.addTo(_map)); });
+      $("mapLegend").hidden=false;
+    } else _markers.forEach(m=>m.addTo(_map));
+    b.classList.remove("on"); b.textContent="🔥";
+  }
+});
 $("openMapBtn").addEventListener("click", ()=>openMap());
 $("mapClose").addEventListener("click", ()=>{ $("mapSheet").hidden=true; hideMapLoading(); });
 function _ensureMap(){
@@ -1978,6 +2002,8 @@ async function openMap(friend){
   const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
   _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));
   hideMapLoading();
+  _isGroupMap=false; _mapPoints=pts.map(c=>[c.lat,c.lng]); _resetHeat();
+  $("mapHeatBtn").hidden = !pts.length;
   if(_markers.length) setTimeout(()=>_map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)),160);
   else { _map.setView([40.4168,-3.7038],5); $("mapEmpty").hidden=false; }
 }
@@ -2003,8 +2029,9 @@ async function openGroupMap(group){
   showMapLoadingDelayed();
   const pts = await groupLocatedCacas(group);
   hideMapLoading();
-  if(!pts.length){ $("mapLegend").hidden=true; _map.setView([40.4168,-3.7038],5);
+  if(!pts.length){ $("mapLegend").hidden=true; $("mapHeatBtn").hidden=true; _map.setView([40.4168,-3.7038],5);
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
+  _isGroupMap=true; _mapPoints=pts.map(p=>[p.lat,p.lng]); _resetHeat(); $("mapHeatBtn").hidden=false;
   // agrupar por persona
   const byUid={};
   for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,pts:[]}).pts.push(p); }

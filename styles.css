@@ -731,11 +731,12 @@ body.sheet-open{overflow:hidden}
 .map-close{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:1000;
   width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--shadow-lg);
   font-size:18px;font-weight:800;color:var(--ink);display:grid;place-items:center}
-/* botón heatmap: espejo del cerrar, arriba a la izquierda */
+/* botón heatmap: pastilla con icono + texto, arriba a la izquierda */
 .map-heat{position:absolute;top:calc(14px + env(safe-area-inset-top));left:14px;z-index:1000;
-  width:44px;height:44px;border-radius:50%;background:#fff;box-shadow:var(--shadow-lg);
-  font-size:20px;display:grid;place-items:center;line-height:1}
-.map-heat.on{background:var(--brand);filter:none;box-shadow:var(--shadow-lg)}
+  height:44px;padding:0 15px;border-radius:22px;background:#fff;box-shadow:var(--shadow-lg);
+  font-size:14px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:6px;
+  white-space:nowrap;max-width:calc(100vw - 76px);overflow:hidden}
+.map-heat.on{background:var(--brand);color:#fff}
 .map-empty{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:500;text-align:center;
   color:var(--ink-soft);background:rgba(255,255,255,.92);padding:18px 22px;border-radius:16px;box-shadow:var(--shadow);font-size:14px;line-height:1.5}
 .map-title{position:absolute;bottom:calc(28px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:1000;

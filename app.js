@@ -1946,7 +1946,7 @@ let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set();
 let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
 function _resetHeat(){
   if(_heatLayer){ try{_map.removeLayer(_heatLayer);}catch(e){} _heatLayer=null; }
-  _heatOn=false; const b=$("mapHeatBtn"); if(b){ b.classList.remove("on"); b.textContent="🔥"; }
+  _heatOn=false; const b=$("mapHeatBtn"); if(b){ b.classList.remove("on"); b.textContent="🔥 "+t('map.heat'); }
 }
 $("mapHeatBtn").addEventListener("click", ()=>{
   if(typeof L?.heatLayer!=="function"){ toast(t('toast.map.fail')); return; }   // plugin no cargó
@@ -1956,14 +1956,14 @@ $("mapHeatBtn").addEventListener("click", ()=>{
     _markers.forEach(m=>_map.removeLayer(m));
     if(_isGroupMap) $("mapLegend").hidden=true;
     _heatLayer=L.heatLayer(_mapPoints, {radius:28, blur:20, maxZoom:16, minOpacity:.35}).addTo(_map);
-    b.classList.add("on"); b.textContent="📍";
+    b.classList.add("on"); b.textContent="📍 "+t('map.pins');
   } else {
     if(_heatLayer){ _map.removeLayer(_heatLayer); _heatLayer=null; }
     if(_isGroupMap){   // respeta el filtro de la leyenda al volver a pines
       Object.entries(_groupMarkers).forEach(([u2,ms])=>{ if(!_legendHidden.has(u2)) ms.forEach(m=>m.addTo(_map)); });
       $("mapLegend").hidden=false;
     } else _markers.forEach(m=>m.addTo(_map));
-    b.classList.remove("on"); b.textContent="🔥";
+    b.classList.remove("on"); b.textContent="🔥 "+t('map.heat');
   }
 });
 $("openMapBtn").addEventListener("click", ()=>openMap());

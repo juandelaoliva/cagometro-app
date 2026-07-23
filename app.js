@@ -1970,8 +1970,9 @@ $("openMapBtn").addEventListener("click", ()=>openMap());
 $("mapClose").addEventListener("click", ()=>{ $("mapSheet").hidden=true; hideMapLoading(); });
 function _ensureMap(){
   if(!_map){
-    _map=L.map("map",{zoomControl:true});
+    _map=L.map("map",{zoomControl:false});
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_map);
+    L.control.zoom({position:"bottomleft"}).addTo(_map);
   }
   setTimeout(()=>_map.invalidateSize(),120);
 }

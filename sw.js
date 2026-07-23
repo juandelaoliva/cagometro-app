@@ -1,5 +1,5 @@
 /* Cagómetro service worker — app shell (network-first) + actualización controlada */
-const CACHE = "cagometro-20260723-192000";
+const CACHE = "cagometro-20260723-193500";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./store.js", "./firebase.js", "./i18n.js", "./funfacts.js",
@@ -7,7 +7,8 @@ const ASSETS = [
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./assets/bristol-1.png", "./assets/bristol-2.png", "./assets/bristol-3.png",
   "./assets/bristol-4.png", "./assets/bristol-5.png", "./assets/bristol-6.png",
-  "./assets/bristol-7.png"
+  "./assets/bristol-7.png",
+  "./assets/heatmap-promo.jpg"
 ];
 
 self.addEventListener("install", e => {

@@ -1189,7 +1189,7 @@ async function openPersonSheet(entry, opts={}){
   // Mapa + Chat: dos tarjetas lado a lado (como en grupos). El mapa se atenúa si el
   // amigo no comparte su mapa (shareMap off).
   const mapCard = u?.shareMap !== false
-    ? `<button class="gact" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
+    ? `<button class="gact" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}" data-color="${entry.color||u?.color||""}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
     : `<button class="gact gact--off" disabled><span class="gact__ico">🔒</span><span>${t('person.map.privshort')}</span></button>`;
   const chatCard = `<button class="gact" data-pschat="1"><span class="gact__ico">💬</span><span>${t('chat.open.short')}</span></button>`;
   $("psActions").innerHTML = mapCard + chatCard;
@@ -1210,7 +1210,7 @@ $("psSheet").addEventListener("click",e=>{ if(e.target===$("psSheet")) $("psShee
 let _psCurrentEntry = null;
 $("psActions").addEventListener("click", async e=>{
   const mb=e.target.closest("#psFriendMap");
-  if(mb){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name}); return; }
+  if(mb){ $("psSheet").hidden=true; openMap({uid:mb.dataset.uid, name:mb.dataset.name, color:mb.dataset.color}); return; }
   if(e.target.closest("[data-pschat]")){ if(!_psCurrentEntry) return; $("psSheet").hidden=true; await openDMChat(_psCurrentEntry.uid, _psCurrentEntry.name); return; }
 });
 $("psFriendMgmt").addEventListener("click", async e=>{
@@ -2042,8 +2042,11 @@ async function openMap(friend){
   const cacas = (!friend && statsCacas.length && Date.now()-_statsLoadedAt < 120000)
     ? statsCacas : await myActivity(targetUid, 2000);
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
-  const icon=L.divIcon({className:"",html:'<div style="font-size:24px;line-height:24px">💩</div>',iconSize:[24,24],iconAnchor:[12,12]});
-  _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).addTo(_map));
+  // pin del color de la persona (el suyo real) + globo con nombre y fecha al tocarlo, como en el mapa de grupo
+  const pName = friend ? friend.name : (me?.displayName||"");
+  const pColor = friend ? (friend.color||colorForUid(friend.uid)) : (me?.color||colorForUid(uid));
+  const icon=pinIcon(pColor);
+  _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).bindPopup(`<b>${pName}</b><br>${fmtFull(c.ts)}`).addTo(_map));
   hideMapLoading();
   _isGroupMap=false; _mapPoints=pts.map(c=>[c.lat,c.lng]); _resetHeat();
   $("mapHeatBtn").hidden = !pts.length;

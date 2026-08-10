@@ -670,7 +670,8 @@ function bumpChipsLocal(){
 }
 // reacciones a MIS eventos (desde el listener del feed) → campanita + banner local
 function detectReactionNotifs(acts){
-  const mineActs = acts.filter(a=>a.uid===uid);
+  // tus actividades + las conexiones de tuberías en las que eres el otro participante (son compartidas)
+  const mineActs = acts.filter(a=>a.uid===uid || (a.kind==="sync" && a.withUid===uid));
   const cur=new Map();
   for(const a of mineActs){ const r=a.reactions||{}; for(const ru in r){ if(ru===uid) continue; for(const e of asArr(r[ru])) cur.set(`${a.id}|${ru}|${e}`, {reactorUid:ru,emoji:e,ts:a.ts,cacaId:a.id}); } }
   if(rxBaseline===null){ rxBaseline=new Set(cur.keys()); }
@@ -736,7 +737,8 @@ function reactionsRow(c){
   for(const k in r) for(const e of asArr(r[k])) counts[e]=(counts[e]||0)+1;
   const mine=new Set(asArr(r[uid]));
   const chips=Object.keys(counts).map(e=>`<button class="rx ${mine.has(e)?'rx--mine':''}" data-rx="${e}">${e}&nbsp;${counts[e]}</button>`).join("");
-  const add = c.uid===uid ? "" : `<button class="rx rx--add" data-rxadd aria-label="Añadir reacción"><span class="rx-plus">+</span>🙂</button>`;
+  // una "conexión de tuberías" es compartida: el dueño (2º en cagar) también puede reaccionar
+  const add = (c.uid===uid && c.kind!=="sync") ? "" : `<button class="rx rx--add" data-rxadd aria-label="Añadir reacción"><span class="rx-plus">+</span>🙂</button>`;
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
 function _feedItem(c,i){
@@ -793,14 +795,14 @@ $("feed").addEventListener("click", e=>{
   const rx=e.target.closest("[data-rx]"), add=e.target.closest("[data-rxadd]");
   if(add){ openReactPicker(entry); return; }       // botón 🙂 → selector
   if(rx){ if(_lpFired){ _lpFired=false; return; }   // venía de un long-press → no alternar
-          if(entry.uid===uid){ showReactors(rx); return; }   // en TU actividad → muestra quién reaccionó
-          applyReaction(entry, rx.dataset.rx); return; }      // en la de otros → alterna mi reacción
+          if(entry.uid===uid && entry.kind!=="sync"){ showReactors(rx); return; }   // en TU actividad → muestra quién reaccionó (salvo conexiones, que son compartidas)
+          applyReaction(entry, rx.dataset.rx); return; }      // en la de otros (o tu conexión) → alterna mi reacción
   openPersonSheet(entry);
 });
 // reacciones (varias por persona)
 let _rxTarget=null;
 async function applyReaction(entry, emoji){
-  if(entry.uid===uid) return;                      // no reaccionas a tus propias cacas
+  if(entry.uid===uid && entry.kind!=="sync") return;   // no reaccionas a tus propias cacas (pero sí a tus conexiones, que son compartidas)
   const r=entry.reactions={...(entry.reactions||{})};
   const mine=asArr(r[uid]); const has=mine.includes(emoji);
   const next = has ? mine.filter(e=>e!==emoji) : [...mine, emoji];   // alterna ese emoji
@@ -808,7 +810,13 @@ async function applyReaction(entry, emoji){
   renderFeed();
   try{
     await setReaction(entry.id, uid, emoji, !has);
-    if(!has) enqueuePush(uid, entry.uid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{});
+    if(!has){
+      // avisa al/los participante(s) que no son quien reacciona (en una conexión hay dos)
+      const targets = entry.kind==="sync"
+        ? [...new Set([entry.uid, entry.withUid])].filter(u=>u && u!==uid)
+        : [entry.uid];
+      targets.forEach(tUid=> enqueuePush(uid, tUid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{}));
+    }
   }
   catch(err){ toast(t('toast.caca.react.fail')); console.error(err); loadActivity(); }
 }

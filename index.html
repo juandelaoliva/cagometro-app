@@ -365,7 +365,7 @@
 
   <!-- ───────── Hoja: ubicar cacas pasadas (asignar sitio a cacas ya existentes) ───────── -->
   <div class="sheet" id="locateSheet" hidden>
-    <div class="sheet__panel sheet__panel--tall">
+    <div class="sheet__panel">
       <div class="sheet__top"><h3 id="locateTitle" data-i18n="locate.title.place">🗺️ ¿Dónde fue?</h3></div>
 
       <!-- Paso 1: elegir el sitio (pin fijo en el centro) -->
@@ -384,7 +384,7 @@
       <!-- Paso 2: elegir qué cacas (sin ubicación) fueron ahí -->
       <div id="locateStep2" hidden>
         <p class="sheet__sub" data-i18n="locate.cacas.sub">¿Qué cacas sin ubicación fueron aquí? Marca una o varias.</p>
-        <ul class="reqlist sheet__scrolllist" id="locateCacaList"></ul>
+        <ul class="reqlist" id="locateCacaList"></ul>
         <div class="sheet__actions">
           <button class="btn-ghost" id="locateBack" data-i18n="locate.back">Atrás</button>
           <button class="btn-solid" id="locateSave"><span data-i18n="locate.save">Guardar</span> (<span id="locateCount">0</span>)</button>

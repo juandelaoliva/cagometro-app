@@ -266,6 +266,14 @@ export async function myActivity(uid, n = 200){
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(n)));
   return snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
+// Asigna una ubicación (lat/lng) a una o varias cacas YA existentes (sin crear
+// cacas nuevas → no altera el contador). Escribe en lote los docs indicados.
+export async function setCacaLocations(uid, cacaIds, loc){
+  if (!cacaIds?.length || !loc || !isFinite(loc.lat) || !isFinite(loc.lng)) return;
+  const batch = writeBatch(db);
+  for (const id of cacaIds) batch.update(doc(db,"users",uid,"cacas",id), { lat:loc.lat, lng:loc.lng });
+  await batch.commit();
+}
 
 /* ---------- admin (gateado por uid en reglas) ---------- */
 export async function adminListUsers(){

@@ -174,6 +174,7 @@ const _es = {
   // ── Menú ⋯ ──
   'menu.late': 'Caca olvidada',
   'menu.geo': 'Sumar con ubicación',
+  'menu.locate': 'Ubicar cacas pasadas',
   'menu.stats': 'Ver estadísticas',
   'menu.undo': 'Deshacer última (−1)',
   'menu.cancel': 'Cancelar',
@@ -183,6 +184,20 @@ const _es = {
   'late.sub': '¿Cuándo fue? Se sumará a esa fecha y hora.',
   'late.cancel': 'Cancelar',
   'late.confirm': 'Añadir 💩',
+
+  // ── Sheet: ubicar cacas pasadas ──
+  'locate.title.place': '🗺️ ¿Dónde fue?',
+  'locate.title.cacas': '💩 ¿Qué cacas?',
+  'locate.place.sub': 'Mueve el mapa hasta centrar el sitio. El pin marca el centro.',
+  'locate.usegps': '📡 Mi ubicación',
+  'locate.next': 'Siguiente',
+  'locate.back': 'Atrás',
+  'locate.cacas.sub': '¿Qué cacas sin ubicación fueron aquí? Marca una o varias.',
+  'locate.none': 'No tienes cacas recientes sin ubicación. 🎉',
+  'locate.save': 'Guardar',
+  'locate.saved': 'Ubicación añadida a {n} caca(s) 📍',
+  'locate.cancel': 'Cancelar',
+  'toast.geo.fail': 'No se pudo obtener tu ubicación',
 
   // ── Auth ──
   'gate.sub.signup': 'Crea tu cuenta y empieza a contar.',
@@ -633,6 +648,7 @@ const _en = {
   // ── Menú ⋯ ──
   'menu.late': 'Forgotten poop',
   'menu.geo': 'Log with location',
+  'menu.locate': 'Locate past poops',
   'menu.stats': 'View statistics',
   'menu.undo': 'Undo last (−1)',
   'menu.cancel': 'Cancel',
@@ -642,6 +658,20 @@ const _en = {
   'late.sub': 'When was it? It will be logged with that date and time.',
   'late.cancel': 'Cancel',
   'late.confirm': 'Add 💩',
+
+  // ── Sheet: locate past poops ──
+  'locate.title.place': '🗺️ Where was it?',
+  'locate.title.cacas': '💩 Which poops?',
+  'locate.place.sub': 'Move the map to center the spot. The pin marks the center.',
+  'locate.usegps': '📡 My location',
+  'locate.next': 'Next',
+  'locate.back': 'Back',
+  'locate.cacas.sub': 'Which poops without a location happened here? Pick one or several.',
+  'locate.none': 'You have no recent poops without a location. 🎉',
+  'locate.save': 'Save',
+  'locate.saved': 'Location added to {n} poop(s) 📍',
+  'locate.cancel': 'Cancel',
+  'toast.geo.fail': "Couldn't get your location",
 
   // ── Auth ──
   'gate.sub.signup': 'Create your account and start counting.',

@@ -342,6 +342,7 @@
     <div class="sheet__panel sheet__panel--menu">
       <button class="menu-item" id="miLate"><span>💩</span> <b data-i18n="menu.late">Caca olvidada</b></button>
       <button class="menu-item" id="miGeo"><span>📍</span> <b data-i18n="menu.geo">Sumar con ubicación</b></button>
+      <button class="menu-item" id="miLocate"><span>🗺️</span> <b data-i18n="menu.locate">Ubicar cacas pasadas</b></button>
       <button class="menu-item" id="miBristol" hidden><span>🫀</span> <b data-i18n="menu.bristol">Sumar con Bristol</b></button>
       <button class="menu-item" id="miStats"><span>📊</span> <b data-i18n="menu.stats">Ver estadísticas</b></button>
       <button class="menu-item" id="miUndo"><span>↩︎</span> <b data-i18n="menu.undo">Deshacer última (−1)</b></button>
@@ -359,6 +360,38 @@
         <button class="btn-ghost" id="lateCancel" data-i18n="late.cancel">Cancelar</button>
         <button class="btn-solid" id="lateConfirm" data-i18n="late.confirm">Añadir 💩</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ───────── Hoja: ubicar cacas pasadas (asignar sitio a cacas ya existentes) ───────── -->
+  <div class="sheet" id="locateSheet" hidden>
+    <div class="sheet__panel sheet__panel--tall">
+      <div class="sheet__top"><h3 id="locateTitle" data-i18n="locate.title.place">🗺️ ¿Dónde fue?</h3></div>
+
+      <!-- Paso 1: elegir el sitio (pin fijo en el centro) -->
+      <div id="locateStep1">
+        <p class="sheet__sub" data-i18n="locate.place.sub">Mueve el mapa hasta centrar el sitio. El pin marca el centro.</p>
+        <div class="locate-map-wrap">
+          <div id="locatePickMap" class="locate-map"></div>
+          <div class="locate-crosshair" aria-hidden="true">📍</div>
+        </div>
+        <div class="sheet__actions">
+          <button class="btn-ghost" id="locateGeo" data-i18n="locate.usegps">📡 Mi ubicación</button>
+          <button class="btn-solid" id="locateNext" data-i18n="locate.next">Siguiente</button>
+        </div>
+      </div>
+
+      <!-- Paso 2: elegir qué cacas (sin ubicación) fueron ahí -->
+      <div id="locateStep2" hidden>
+        <p class="sheet__sub" data-i18n="locate.cacas.sub">¿Qué cacas sin ubicación fueron aquí? Marca una o varias.</p>
+        <ul class="reqlist sheet__scrolllist" id="locateCacaList"></ul>
+        <div class="sheet__actions">
+          <button class="btn-ghost" id="locateBack" data-i18n="locate.back">Atrás</button>
+          <button class="btn-solid" id="locateSave"><span data-i18n="locate.save">Guardar</span> (<span id="locateCount">0</span>)</button>
+        </div>
+      </div>
+
+      <button class="btn-ghost" id="locateCancel" data-i18n="locate.cancel">Cancelar</button>
     </div>
   </div>
 

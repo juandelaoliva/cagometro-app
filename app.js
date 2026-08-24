@@ -3,7 +3,7 @@
    ============================================================ */
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
-  watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity,
+  watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity, setCacaLocations,
   logNotifPromptShown, setNotifPromptAction, logInstallPromptShown,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
@@ -1277,6 +1277,7 @@ $("menuBtn").addEventListener("click",()=>{ $("menuSheet").hidden=false; });
 $("menuSheet").addEventListener("click",e=>{ if(e.target===$("menuSheet")) $("menuSheet").hidden=true; });
 $("miCancel").addEventListener("click",()=>$("menuSheet").hidden=true);
 $("miLate").addEventListener("click",()=>{ $("menuSheet").hidden=true; openLateSheet(); });
+$("miLocate").addEventListener("click",()=>{ $("menuSheet").hidden=true; openLocate(); });
 $("miStats").addEventListener("click",()=>{ $("menuSheet").hidden=true; setView("perfil"); });
 $("miUndo").addEventListener("click",()=>{ $("menuSheet").hidden=true; undoCaca(); });
 $("miBristol").addEventListener("click", async ()=>{
@@ -1303,6 +1304,77 @@ $("miGeo").addEventListener("click", async ()=>{
 });
 $("lateCancel").addEventListener("click",()=>$("lateSheet").hidden=true);
 $("lateSheet").addEventListener("click",e=>{ if(e.target===$("lateSheet")) $("lateSheet").hidden=true; });
+
+/* ---------- ubicar cacas pasadas (asignar sitio a cacas ya existentes) ---------- */
+// Flujo: (1) centras el sitio en un mini-mapa con pin fijo en el centro →
+// (2) marcas qué cacas SIN ubicación fueron ahí → se les escribe lat/lng.
+// No crea cacas nuevas (no falsea el contador). El mapa las recoge solo.
+let _locateMap=null, _locateCacas=[], _locatePicked=new Set(), _locateCenter=null;
+function _ensureLocateMap(){
+  if(!_locateMap){
+    _locateMap=L.map("locatePickMap");
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_locateMap);
+    _locateMap.setView([40.4168,-3.7038],5);   // España por defecto hasta tener un centro mejor
+  }
+  setTimeout(()=>_locateMap.invalidateSize(),140);
+}
+async function openLocate(){
+  if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
+  _locatePicked=new Set(); _locateCenter=null; _locateCacas=[];
+  $("locateStep2").hidden=true; $("locateStep1").hidden=false;
+  $("locateTitle").textContent=t('locate.title.place');
+  $("locateSheet").hidden=false;
+  _ensureLocateMap();
+  // carga las cacas recientes: separa las que no tienen ubicación (paso 2) y usa
+  // una ya ubicada para centrar el mapa en un sitio familiar.
+  try{
+    const all = await myActivity(uid, 400);
+    _locateCacas = all.filter(c=>!(isFinite(c.lat)&&isFinite(c.lng)));
+    const known = all.find(c=>isFinite(c.lat)&&isFinite(c.lng));
+    if(known) _locateMap.setView([known.lat,known.lng],15);
+  }catch(e){ console.error("openLocate:",e); }
+}
+$("locateGeo").addEventListener("click", async ()=>{
+  toast(t('toast.geo.loading'));
+  const loc=await getGeo();
+  if(loc && isFinite(loc.lat) && isFinite(loc.lng)) _locateMap.setView([loc.lat,loc.lng],16);
+  else toast(t('toast.geo.fail'));
+});
+$("locateNext").addEventListener("click", ()=>{
+  const c=_locateMap.getCenter(); _locateCenter={lat:c.lat,lng:c.lng};
+  renderLocateCacas();
+  $("locateStep1").hidden=true; $("locateStep2").hidden=false;
+  $("locateTitle").textContent=t('locate.title.cacas');
+});
+$("locateBack").addEventListener("click", ()=>{
+  $("locateStep2").hidden=true; $("locateStep1").hidden=false;
+  $("locateTitle").textContent=t('locate.title.place');
+  setTimeout(()=>_locateMap.invalidateSize(),140);
+});
+function _locateCount(){ $("locateCount").textContent=String(_locatePicked.size); $("locateSave").disabled=_locatePicked.size===0; }
+function renderLocateCacas(){
+  if(!_locateCacas.length){ $("locateCacaList").innerHTML=`<li class="locate-empty">${t('locate.none')}</li>`; _locateCount(); return; }
+  $("locateCacaList").innerHTML=_locateCacas.map(c=>
+    `<li class="locate-caca"><label><input type="checkbox" data-cid="${c.id}" ${_locatePicked.has(c.id)?"checked":""}><span>💩 ${fmtFull(c.ts)}</span></label></li>`).join("");
+  _locateCount();
+}
+$("locateCacaList").addEventListener("change", e=>{
+  const cb=e.target.closest("input[data-cid]"); if(!cb) return;
+  if(cb.checked) _locatePicked.add(cb.dataset.cid); else _locatePicked.delete(cb.dataset.cid);
+  _locateCount();
+});
+$("locateSave").addEventListener("click", async ()=>{
+  if(!_locatePicked.size || !_locateCenter) return;
+  $("locateSave").disabled=true;
+  try{
+    await setCacaLocations(uid, [..._locatePicked], _locateCenter);
+    _statsLoadedAt=0;   // invalida la caché para que el mapa relea las ubicaciones nuevas
+    toast(t('locate.saved',{n:_locatePicked.size}));
+    $("locateSheet").hidden=true;
+  }catch(e){ console.error("locateSave:",e); toast(t('toast.map.fail')); $("locateSave").disabled=false; }
+});
+$("locateCancel").addEventListener("click", ()=>$("locateSheet").hidden=true);
+$("locateSheet").addEventListener("click", e=>{ if(e.target===$("locateSheet")) $("locateSheet").hidden=true; });
 // ── Bristol sheet ────────────────────────────────────────────────
 const BRISTOL_INFO = [0,1,2,3,4,5,6]; // índices — descripciones via t()
 let _bristolCacaId = null; // puede ser string o Promise<string>
@@ -1847,7 +1919,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 window.addEventListener("focus", refreshActiveView);
 
 /* ---------- botón atrás (Android/web): cierra capas → va a Inicio ---------- */
-const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","menuSheet","mapSheet","friendInviteSheet"];
+const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","menuSheet","mapSheet","friendInviteSheet"];
 function closeOverlays(){ let any=false; for(const id of OVERLAY_IDS){ const e=$(id); if(e && !e.hidden){ e.hidden=true; any=true; } } return any; }
 const curView = () => document.querySelector(".view.is-active")?.dataset.view;
 // "trap": una entrada extra en el historial para capturar el back y no salir de la PWA

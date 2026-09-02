@@ -27,7 +27,10 @@
  * Idempotente: puedes correrlo las veces que quieras; el resultado es el mismo.
  */
 "use strict";
-const admin = require("firebase-admin");
+// API modular de firebase-admin (v10+; estable en v13).
+const { initializeApp, applicationDefault, cert } = require("firebase-admin/app");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+const { getAuth } = require("firebase-admin/auth");
 const path = require("path");
 
 const EMAIL   = "lorenaiish.lt@gmail.com";
@@ -51,7 +54,7 @@ const saPath = args.find(a => !a.startsWith("--"));
 
 if (saPath) {
   // Opción A: fichero de clave de cuenta de servicio.
-  admin.initializeApp({ credential: admin.credential.cert(require(path.resolve(saPath))) });
+  initializeApp({ credential: cert(require(path.resolve(saPath))) });
 } else {
   // Opción B: Application Default Credentials (p.ej. Google Cloud Shell) — sin clave.
   const projectId = projectArg || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
@@ -61,9 +64,9 @@ if (saPath) {
       "  node tools/import-lorena.cjs --project=<projectId> [--uid=<uid>] [--dry-run]   (Cloud Shell)");
     process.exit(1);
   }
-  admin.initializeApp({ credential: admin.credential.applicationDefault(), projectId });
+  initializeApp({ credential: applicationDefault(), projectId });
 }
-const db = admin.firestore();
+const db = getFirestore();
 
 // ── fecha en Europe/Madrid (equivale a lo que graba su móvil: getHours/getDay locales) ──
 const _fmt = new Intl.DateTimeFormat("en-GB", {
@@ -82,7 +85,7 @@ const yearNow = () => new Date().getFullYear();
   // 1) uid: por --uid=... (del panel de admin) o buscándolo por email
   let uid = uidArg;
   if (!uid) {
-    try { uid = (await admin.auth().getUserByEmail(EMAIL)).uid; }
+    try { uid = (await getAuth().getUserByEmail(EMAIL)).uid; }
     catch (e) { console.error("No pude resolver el uid por email (" + EMAIL + "):", e.message,
       "\nPásalo a mano con --uid=<uid> (lo tienes en el panel de admin de la app)."); process.exit(1); }
   }
@@ -106,7 +109,7 @@ const yearNow = () => new Date().getFullYear();
       for (const ts of TS.slice(i, i + CHUNK)) {
         batch.set(cacasCol.doc("import_" + ts), {
           uid, ts, tz: TZ, source: "import", imported: true, year: parts(ts).year,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
       await batch.commit();

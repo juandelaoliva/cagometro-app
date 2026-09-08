@@ -149,6 +149,7 @@ export async function syncComboUpsert(sessionId, base, meP, audience){
       kind: "sync", uid: meP.uid, name: meP.name, color: meP.color,
       ts: base.ts, startedTs: base.ts, lastTs: Date.now(), year: base.year,
       participants: base.participants, participantUids: base.participantUids,
+      ...(base.km!=null ? { km: base.km } : {}),
       audience, reactions: {}, createdAt: serverTimestamp(),
     });
   } catch (e) {

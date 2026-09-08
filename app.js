@@ -772,6 +772,7 @@ function _feedItem(c,i){
       } else {
         head = iAmIn ? t('feed.sync.mine',{name:`<b>${others[0]||t('fallback.someone')}</b>`})
                      : t('feed.sync.other',{name:`<b>${others[0]||'?'}</b>`, other:`<b>${others[1]||'?'}</b>`});
+        if(isFinite(c.km)) head += ` · ${distShort(c.km)}`;
       }
     } else {                                              // modelo viejo (withUid)
       head = mine ? t('feed.sync.mine',{name:_wn})
@@ -1266,7 +1267,7 @@ $("addBtn").addEventListener("click",async e=>{
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
     // checkSyncPoop() SIEMPRE se ejecuta (tiene efectos); + hito → hay celebración
-    const celebrated = checkSyncPoop() || isMilestone(prevTotal+1);
+    const celebrated = checkSyncPoop(loc) || isMilestone(prevTotal+1);
     _queueBristol(cacaId, celebrated);   // Bristol tras la celebración (o ya, si no hay)
   }
   catch(err){
@@ -1314,7 +1315,7 @@ $("miBristol").addEventListener("click", async ()=>{
     const cacaId = await addCaca(uid, loc, actMeta());
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
-    const celebrated = checkSyncPoop() || isMilestone(prevTotal+1);
+    const celebrated = checkSyncPoop(loc) || isMilestone(prevTotal+1);
     _queueBristol(cacaId, celebrated, true);   // force: este menú siempre pregunta Bristol
   } catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
@@ -1322,7 +1323,7 @@ $("miBristol").addEventListener("click", async ()=>{
 $("miGeo").addEventListener("click", async ()=>{
   $("menuSheet").hidden=true;
   if(busy||!uid)return; busy=true; toast(t('toast.geo.loading'));
-  try{ await _graphPromise; const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.nogeo')); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(); }
+  try{ await _graphPromise; const loc=await getGeo(); await addCaca(uid,loc, actMeta()); toast(loc?t('toast.caca.geo'):t('toast.caca.nogeo')); bumpChipsLocal(); _statsLoadedAt=0; checkSyncPoop(loc); }
   catch(err){ toast(t('toast.caca.fail')); console.error(err); }
   finally{ setTimeout(()=>busy=false,250); }
 });
@@ -2219,9 +2220,10 @@ const SYNC_WINDOW=5*60*1000;
 let _lastSyncSession=null;   // id de la sesión con la que ya celebramos (evita repetir)
 // nombre épico del combo según el nº de participantes
 function comboName(n){ return n>=5 ? t('combo.name.colector') : n>=4 ? t('combo.name.alcantarillado') : t('combo.name.combo'); }
-function syncCelebrate(name){
+function syncCelebrate(name, km){
   $("syncTitle").textContent=t('sync.title');
-  $("syncSub").textContent=t('sync.sub',{name});
+  const dist = km==null ? "" : " · " + (km<0.075 ? t('sync.dist.same') : distShort(km));
+  $("syncSub").textContent=t('sync.sub',{name}) + dist;
   const c=$("syncOverlay"); c.hidden=false; confetti(); haptic([20,40,20,40,20,40,80]);
   setTimeout(()=>c.hidden=true,2800);
   _bristolAfterCelebration(2800);
@@ -2233,10 +2235,23 @@ function comboCelebrate(count){
   setTimeout(()=>c.hidden=true,3100);
   _bristolAfterCelebration(3100);
 }
+// distancia en km entre dos {lat,lng} (haversine)
+function haversineKm(a,b){
+  const R=6371, toR=x=>x*Math.PI/180;
+  const dLat=toR(b.lat-a.lat), dLng=toR(b.lng-a.lng);
+  const s=Math.sin(dLat/2)**2 + Math.cos(toR(a.lat))*Math.cos(toR(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.min(1,Math.sqrt(s)));
+}
+// etiqueta corta de distancia: "450 m" / "3,2 km" (unidades neutras al idioma)
+function distShort(km){
+  if(km<1) return `${Math.round(km*1000)} m`;
+  return `${km.toLocaleString(getLang()==="es"?"es-ES":"en-US",{maximumFractionDigits:1})} km`;
+}
 // Conexión de tuberías, ahora multi-persona ("combo"). Al cagar, buscamos amigos
 // con caca en ventana; si hay un combo abierto nos unimos (rolling: cada quien
 // reinicia los 5 min), y si no, fundamos uno. Doc compartido, id determinista.
-function checkSyncPoop(){
+// `loc` = tu ubicación (si la tienes) para calcular los km que os separan en un 1:1.
+function checkSyncPoop(loc){
   const now=Date.now();
   // amigos con caca en los últimos 5 min (no tú, no eventos de sistema/sync)
   const nearby=homeFeedData.filter(c =>
@@ -2256,18 +2271,24 @@ function checkSyncPoop(){
   const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid) };
   const prevParts = open ? (open.participants||[]) : nearby.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid)}));
   const prevUids  = open ? open.participantUids.slice() : nearby.map(c=>c.uid);
+  // distancia solo en conexiones de 2 (fundando, no combo) y si AMBAS cacas tienen ubicación
+  let km=null;
+  if(!open && nearby.length===1 && loc && isFinite(loc.lat) && isFinite(loc.lng) && isFinite(earliest.lat) && isFinite(earliest.lng)){
+    km = haversineKm(loc, earliest);
+  }
   const base={
     ts: open ? open.ts : earliest.ts,
     year: new Date().getFullYear(),
     participants: [meP, ...prevParts],
     participantUids: [uid, ...prevUids],
+    ...(km!=null ? { km } : {}),
   };
   const audience=[...new Set([...(_graph.audience||[uid]), ...prevUids])];
   syncComboUpsert(sessionId, base, meP, audience).catch(e=>console.error("combo:",e));
   // celebración y aviso según el total de participantes (incluyéndome)
   const count=new Set([uid, ...prevUids]).size;
   if(count>=3) comboCelebrate(count);
-  else syncCelebrate(prevParts[0]?.name || t('fallback.someone'));
+  else syncCelebrate(prevParts[0]?.name || t('fallback.someone'), km);
   prevUids.filter(u2=>u2!==uid).forEach(u2=>
     enqueuePush(uid, u2, "sync",
       count>=3 ? t('push.combo.title',{n:count}) : t('push.sync.title'),

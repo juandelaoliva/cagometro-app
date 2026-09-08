@@ -2884,12 +2884,31 @@ $("msgList").addEventListener("touchstart", e=>{
 $("msgList").addEventListener("touchend",  ()=>clearTimeout(_chatLpTimer), {passive:true});
 $("msgList").addEventListener("touchmove", ()=>clearTimeout(_chatLpTimer), {passive:true});
 
-$("msgList").addEventListener("click", async e=>{
+// nombre de quien reacciona en el chat (grupo: miembro; DM: el otro; yo: "Tú")
+function _chatReactorName(u){
+  if(u===uid) return t('rx.me');
+  if(_activeChatData?.type==="group") return _chatMembers[u]?.name || t('fallback.someone');
+  return _activeChatData?.otherName || t('fallback.someone');
+}
+// tap en una reacción del chat → tooltip con quién ha reaccionado (reusa el del feed)
+function showChatReactors(chip){
+  hideReactors();
+  const msgId=chip.dataset.msgReact, emoji=chip.dataset.emoji;
+  const m=_lastMsgs.find(x=>x.id===msgId); if(!m) return;
+  const ruids=(m.reactions?.[emoji])||[]; if(!ruids.length) return;
+  const tip=document.createElement("div"); tip.className="rxtip";
+  tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${ruids.map(_chatReactorName).join(", ")}`;
+  document.body.appendChild(tip);
+  const rect=chip.getBoundingClientRect();
+  tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, rect.left)) + "px";
+  tip.style.top  = Math.max(8, rect.top - tip.offsetHeight - 8) + "px";
+  _rxTip=tip; haptic(12);
+}
+$("msgList").addEventListener("click", e=>{
   const reactBtn = e.target.closest("[data-msg-react]");
   const addBtn   = e.target.closest("[data-msg-react-add]");
   if(reactBtn){
-    const msgId=reactBtn.dataset.msgReact, emoji=reactBtn.dataset.emoji;
-    try{ await reactToMessage(_activeChatId, msgId, uid, emoji); } catch(err){ console.error(err); }
+    showChatReactors(reactBtn);          // tap = ver quién reaccionó (añadir/quitar va por el selector)
   } else if(addBtn){
     _showReactionPicker(addBtn.dataset.msgReactAdd, addBtn);
   }

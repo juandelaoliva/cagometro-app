@@ -2588,7 +2588,7 @@ function _renderChatList(chats){
         <div class="chat-item__preview">${preview}</div>
       </div>
       <div class="chat-item__meta">
-        <span class="chat-item__time">${_chatTime(c.lastTs)}</span>
+        <span class="chat-item__time">${_chatTime(c.lastTs || c.lastMessage?.ts)}</span>
         ${hasUnread ? `<span class="chat-item__unread">•</span>` : ""}
       </div>
     </li>`;

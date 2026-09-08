@@ -1,5 +1,5 @@
 /* Cagómetro service worker — app shell (network-first) + actualización controlada */
-const CACHE = "cagometro-20260908-210000";
+const CACHE = "cagometro-20260908-220000";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
   "./app.js", "./store.js", "./firebase.js", "./i18n.js", "./funfacts.js",

@@ -279,6 +279,7 @@
           <div class="chat-header__info">
             <span class="chat-header__name" id="convName">—</span>
           </div>
+          <button class="chat-gear" id="convGear" aria-label="Ajustes del chat">⚙️</button>
         </div>
         <button class="load-older" id="loadOlderBtn" hidden data-i18n="chat.loadolder">↑ Cargar anteriores</button>
         <ul class="msg-list" id="msgList"></ul>
@@ -514,6 +515,20 @@
         <p class="heatannc__cacamu-txt" id="heatAnncCacamuTxt">Mención especial para <b>Cacamu</b>, que justo hoy se convierte en padre. Esta idea del mapa de calor… nos la cagó él. ¡Enhorabuena, papá! 🚼</p>
       </div>
       <button class="btn-ghost" id="heatAnncClose" data-i18n="heatannc.ok">Entendido</button>
+    </div>
+  </div>
+
+  <!-- ───────── Ajustes del chat (engranaje en la conversación) ───────── -->
+  <div class="sheet" id="chatSettingsSheet" hidden>
+    <div class="sheet__panel">
+      <h3 class="sheet__title" data-i18n="chat.settings.title">Ajustes del chat</h3>
+      <label class="toggle">
+        <input type="checkbox" id="chatMuteToggle" />
+        <span class="toggle__track"><span class="toggle__thumb"></span></span>
+        <span class="toggle__txt" data-i18n="chat.settings.mute">🔕 Silenciar chat</span>
+      </label>
+      <p class="set-hint" data-i18n="chat.settings.mute.hint">No recibirás notificaciones de este chat. Los mensajes siguen llegando.</p>
+      <button class="btn-ghost" id="chatSettingsClose" data-i18n="chat.settings.close">Cerrar</button>
     </div>
   </div>
 

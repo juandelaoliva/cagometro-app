@@ -846,7 +846,9 @@ body.chat-mode .tabbar{display:none}
 .chat-header h2{font-size:18px;font-weight:800;margin:0}
 .chat-back{font-size:22px;font-weight:700;color:var(--ink);padding:4px 8px;border-radius:8px;flex-shrink:0}
 .chat-back:active{background:var(--paper)}
-.chat-header__info{display:flex;flex-direction:column;min-width:0}
+.chat-header__info{display:flex;flex-direction:column;min-width:0;flex:1}
+.chat-gear{font-size:19px;padding:4px 8px;border-radius:8px;flex-shrink:0}
+.chat-gear:active{background:var(--paper)}
 .chat-header__name{font-size:17px;font-weight:800;truncate:ellipsis;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* lista de chats */

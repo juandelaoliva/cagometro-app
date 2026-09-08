@@ -10,6 +10,13 @@ service cloud.firestore {
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
     // admin único (Juan). Es la barrera real del panel de administración.
     function isAdmin() { return signedIn() && request.auth.uid == "OQxbpTTQqBbWsykiU7JKcUdZ7z32"; }
+    // El chat de grupo usa el id del grupo como id del chat: el acceso debe seguir a
+    // los miembros DEL GRUPO (no a la lista interna del chat, que puede quedar desfasada
+    // cuando entra alguien nuevo). exists() protege el caso de los DMs.
+    function isGroupMember(gid) {
+      return exists(/databases/$(database)/documents/groups/$(gid))
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(gid)).data.members;
+    }
 
     // --- users: profile + denormalized totalCount ---
     match /users/{uid} {
@@ -84,16 +91,18 @@ service cloud.firestore {
 
     // --- chat: DMs y grupos ---
     match /chats/{chatId} {
-      allow read, update: if signedIn() && request.auth.uid in resource.data.members;
+      allow read, update: if signedIn() && (request.auth.uid in resource.data.members || isGroupMember(chatId));
       allow create:       if signedIn() && request.auth.uid in request.resource.data.members;
 
       match /messages/{msgId} {
-        allow read:   if signedIn() && request.auth.uid in
-                         get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow read:   if signedIn() && (request.auth.uid in
+                         get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                         || isGroupMember(chatId));
         allow create: if signedIn()
                          && request.auth.uid == request.resource.data.senderUid
-                         && request.auth.uid in
-                            get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+                         && (request.auth.uid in
+                            get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                            || isGroupMember(chatId));
         allow update: if signedIn()
                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
         allow delete: if false;

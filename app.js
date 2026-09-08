@@ -2578,17 +2578,18 @@ function _msgHtml(m, myUid, prev, next){
       ${emoji}<span>${uids.length}</span></button>`;
   }).join("");
   const addBtn = `<button class="msg__reaction-add" data-msg-react-add="${m.id}" title="Reaccionar">＋</button>`;
-  const rx = reactions||addBtn ? `<div class="msg__reactions">${reactions}${addBtn}</div>` : "";
+  // las reacciones (si las hay) siguen debajo; el "+" va al lado del bocadillo para no gastar una fila
+  const chips = reactions ? `<div class="msg__reactions">${reactions}</div>` : "";
   const cont = firstOfBlock ? "" : " msg--cont";
   const tail = lastOfBlock ? " msg--tail" : "";
   const safe = m.text.replace(/</g,"&lt;");
 
-  if(isMe){
+  if(isMe){   // el "+" a la IZQUIERDA del bocadillo
     return `<li class="msg msg--me${cont}${tail}" data-msg-id="${m.id}">
-      <div class="msg__bubble">${safe}</div><div class="msg__time">${timeStr}</div>${rx}
+      <div class="msg__row">${addBtn}<div class="msg__bubble">${safe}</div></div><div class="msg__time">${timeStr}</div>${chips}
     </li>`;
   }
-  if(isGroup){
+  if(isGroup){   // el "+" a la DERECHA del bocadillo
     const mem = _chatMembers[m.senderUid];
     const col = mem?.color || colorForUid(m.senderUid);
     const nm  = mem?.name || m.senderName || "";
@@ -2596,12 +2597,12 @@ function _msgHtml(m, myUid, prev, next){
     const av   = lastOfBlock ? `<span class="msg__av" style="background:${col}">${initial(nm)}</span>` : "";
     return `<li class="msg msg--them msg--group${cont}${tail}" data-msg-id="${m.id}">
       <div class="msg__gutter">${av}</div>
-      <div class="msg__content"><div class="msg__bubble">${name}${safe}</div><div class="msg__time">${timeStr}</div>${rx}</div>
+      <div class="msg__content"><div class="msg__row"><div class="msg__bubble">${name}${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}</div>
     </li>`;
   }
-  // DM 1:1: sin nombre ni avatar (igual que antes)
+  // DM 1:1: sin nombre ni avatar; "+" a la derecha
   return `<li class="msg msg--them${cont}${tail}" data-msg-id="${m.id}">
-    <div class="msg__bubble">${safe}</div><div class="msg__time">${timeStr}</div>${rx}
+    <div class="msg__row"><div class="msg__bubble">${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}
   </li>`;
 }
 

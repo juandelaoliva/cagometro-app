@@ -614,7 +614,9 @@ export const declineGroupInvite = (inviteId) =>
 
 // Garantiza que el doc /chats/{chatId} existe. Idempotente (merge:true).
 async function ensureChatDoc(chatId, type, members){
-  await setDoc(doc(db,"chats",chatId), { type, members, lastTs: null }, { merge: true });
+  // OJO: no tocar `lastTs` aquí — lo gestiona sendMessage. Ponerlo a null en cada
+  // apertura borraba la fecha del chat y lo mandaba al fondo de la lista.
+  await setDoc(doc(db,"chats",chatId), { type, members }, { merge: true });
 }
 
 // DM: chatId = pairId. Crea el doc si no existe.
@@ -656,7 +658,10 @@ export const watchChats = (uid, cb) =>
     query(collection(db,"chats"), where("members","array-contains",uid)),
     snap => {
       const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a,b) => (b.lastTs?.toMillis?.()??0) - (a.lastTs?.toMillis?.()??0));
+      // orden por última actividad; si a un chat le falta lastTs (dato antiguo/dañado)
+      // usamos la hora del último mensaje como respaldo para que no caiga al fondo.
+      const ms = c => c.lastTs?.toMillis?.() ?? c.lastMessage?.ts ?? 0;
+      docs.sort((a,b) => ms(b) - ms(a));
       cb(docs);
     }
   );

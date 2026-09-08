@@ -13,7 +13,7 @@ import {
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
-  watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage,
+  watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage, setChatMuted,
   getGroup,
   saveBristol, setBristolMode, setBristolOnboarded, STATS_V
 } from "./store.js";
@@ -1950,7 +1950,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 window.addEventListener("focus", refreshActiveView);
 
 /* ---------- botón atrás (Android/web): cierra capas → va a Inicio ---------- */
-const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","menuSheet","mapSheet","friendInviteSheet"];
+const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","chatSettingsSheet","menuSheet","mapSheet","friendInviteSheet"];
 function closeOverlays(){ let any=false; for(const id of OVERLAY_IDS){ const e=$(id); if(e && !e.hidden){ e.hidden=true; any=true; } } return any; }
 const curView = () => document.querySelector(".view.is-active")?.dataset.view;
 // "trap": una entrada extra en el historial para capturar el back y no salir de la PWA
@@ -2815,6 +2815,24 @@ $("chatNewSheet").addEventListener("click", e=>{
 });
 
 $("convBack").addEventListener("click", ()=> history.back()); // conv → lista
+
+// ── ajustes del chat (engranaje): silenciar ──────────────────────
+const _isChatMuted = chatId => ((_lastChats.find(c=>c.id===chatId)?.mutedBy)||[]).includes(uid);
+$("convGear").addEventListener("click", ()=>{
+  if(!_activeChatId) return;
+  $("chatMuteToggle").checked = _isChatMuted(_activeChatId);
+  $("chatSettingsSheet").hidden=false;
+});
+$("chatSettingsClose").addEventListener("click", ()=>$("chatSettingsSheet").hidden=true);
+$("chatSettingsSheet").addEventListener("click", e=>{ if(e.target===$("chatSettingsSheet")) $("chatSettingsSheet").hidden=true; });
+$("chatMuteToggle").addEventListener("change", async e=>{
+  const on=e.target.checked, chatId=_activeChatId; if(!chatId) return;
+  try{
+    await setChatMuted(chatId, uid, on);
+    const c=_lastChats.find(x=>x.id===chatId); if(c){ const s=new Set(c.mutedBy||[]); on?s.add(uid):s.delete(uid); c.mutedBy=[...s]; }
+    toast(on ? t('toast.chat.muted') : t('toast.chat.unmuted'));
+  }catch(err){ console.error("mute:",err); e.target.checked=!on; }
+});
 
 // ── tap en item de lista ─────────────────────────────────────────
 $("chatList").addEventListener("click", async e=>{

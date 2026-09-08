@@ -688,8 +688,16 @@ export async function reactToMessage(chatId, msgId, uid, emoji){
 }
 
 // Push de nuevo mensaje a todos los miembros excepto el sender.
+// Silenciar/reactivar un chat: cada usuario se guarda a sí mismo en `mutedBy`.
+export const setChatMuted = (chatId, uid, muted) =>
+  updateDoc(doc(db,"chats",chatId), { mutedBy: muted ? arrayUnion(uid) : arrayRemove(uid) });
+
 export async function notifyNewMessage(chatId, senderUid, senderName, text, members){
-  const targets = members.filter(m => m !== senderUid);
+  // no avises a quien tenga el chat silenciado
+  let muted = [];
+  try { muted = (await getDoc(doc(db,"chats",chatId))).data()?.mutedBy || []; } catch {}
+  const mutedSet = new Set(muted);
+  const targets = members.filter(m => m !== senderUid && !mutedSet.has(m));
   await Promise.all(targets.map(toUid =>
     enqueuePush(senderUid, toUid, "chat_message",
       senderName,

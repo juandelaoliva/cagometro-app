@@ -490,6 +490,12 @@ const _es = {
   'chat.nomessages': 'Sin mensajes',
   'chat.loading': 'Cargando mensajes…',
   'chat.loadolder': '↑ Cargar anteriores',
+  'chat.settings.title': 'Ajustes del chat',
+  'chat.settings.mute': '🔕 Silenciar chat',
+  'chat.settings.mute.hint': 'No recibirás notificaciones de este chat. Los mensajes siguen llegando.',
+  'chat.settings.close': 'Cerrar',
+  'toast.chat.muted': '🔕 Chat silenciado',
+  'toast.chat.unmuted': '🔔 Notificaciones reactivadas',
   'chat.open.dm': '💬 Enviar mensaje',
   'chat.open.group': '💬 Chat del grupo',
 };

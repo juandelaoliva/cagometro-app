@@ -872,7 +872,12 @@ body.chat-mode .tabbar{display:none}
   font-size:13px;padding:2px 7px;cursor:pointer;display:flex;align-items:center;gap:3px}
 .msg__reaction.mine{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,transparent)}
 .msg__reaction span{font-size:11px;font-weight:700;color:var(--ink-soft)}
-.msg__reaction-add{background:none;font-size:16px;padding:2px 4px;color:var(--ink-soft)}
+/* fila del bocadillo + botón "+" al lado (derecha en ajenos, izquierda en los tuyos) */
+.msg__row{display:flex;align-items:flex-end;gap:4px;max-width:100%}
+.msg__row .msg__bubble{min-width:0}
+.msg__reaction-add{flex:none;background:none;font-size:19px;line-height:1;width:22px;height:22px;
+  display:grid;place-items:center;color:var(--ink-faint);align-self:flex-end;margin-bottom:1px}
+.msg__reaction-add:active{transform:scale(1.25)}
 
 /* input */
 .chat-input-area{display:flex;align-items:flex-end;gap:8px;padding:10px 16px;

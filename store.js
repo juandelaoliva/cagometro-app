@@ -129,6 +129,34 @@ export async function addCaca(uid, loc, act){
   return cacaRef.id;
 }
 
+// ── Conexión de tuberías / "combo" (multi-persona) ──────────────────────────
+// Un único doc en `activity` (id determinista) al que cada participante se AÑADE
+// a sí mismo. El fundador crea el doc; el resto hace update añadiéndose (requiere
+// la regla que permite a un usuario sumarse a `participants`/`participantUids`).
+// `meP` = {uid,name,color} de quien entra. `base` = datos para crearlo si no existe.
+export async function syncComboUpsert(sessionId, base, meP, audience){
+  const ref = doc(db, "activity", sessionId);
+  const joinFields = {
+    participants: arrayUnion(meP),
+    participantUids: arrayUnion(meP.uid),
+    audience: arrayUnion(...audience),
+    lastTs: Date.now(),
+  };
+  const snap = await getDoc(ref);
+  if (snap.exists()) return updateDoc(ref, joinFields);
+  try {
+    return await setDoc(ref, {
+      kind: "sync", uid: meP.uid, name: meP.name, color: meP.color,
+      ts: base.ts, startedTs: base.ts, lastTs: Date.now(), year: base.year,
+      participants: base.participants, participantUids: base.participantUids,
+      audience, reactions: {}, createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    // carrera: alguien lo creó a la vez → únete en vez de sobrescribir
+    return updateDoc(ref, joinFields);
+  }
+}
+
 export const saveBristol = (uid, cacaId, bristol, tags, note) =>
   updateDoc(doc(db,"users",uid,"cacas",cacaId), {
     bristol,

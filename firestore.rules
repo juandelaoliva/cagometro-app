@@ -49,12 +49,19 @@ service cloud.firestore {
     }
 
     // --- feed de actividad: lo lee quien está en la audiencia; lo crea el autor.
-    //     Cualquier autenticado puede tocar SOLO `reactions` (reaccionar). ---
+    //     Cualquier autenticado puede tocar SOLO `reactions` (reaccionar).
+    //     Una "conexión de tuberías/combo" es compartida: un usuario puede AÑADIRSE
+    //     a sí mismo (solo sumar, nunca quitar a otro). ---
     match /activity/{id} {
       allow read:   if signedIn() && (request.auth.uid in resource.data.audience || resource.data.uid == request.auth.uid || isAdmin());
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if (signedIn() && resource.data.uid == request.auth.uid)
-                     || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+                     || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))
+                     || (signedIn()
+                         && request.auth.uid in request.resource.data.participantUids
+                         && request.resource.data.participantUids.hasAll(resource.data.participantUids)
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['participants','participantUids','lastTs','audience']));
       allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
     }
 

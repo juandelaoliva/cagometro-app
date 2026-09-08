@@ -2492,6 +2492,8 @@ let _chatsUnsub = null;
 let _chatMsgUnsub = null;
 let _activeChatId = null;
 let _activeChatData = null;
+let _chatMembers = {};   // uid -> {name,color} de los miembros del grupo activo (para pintar nombre+avatar)
+let _lastMsgs = [];      // últimos mensajes renderizados (re-render al terminar de cargar perfiles)
 let _oldestMsgClientTs = null;
 
 // ── helpers de tiempo ────────────────────────────────────────────
@@ -2550,7 +2552,7 @@ function _renderMessages(msgs, prepend=false){
   const prevScrollTop = list.scrollTop;
   const prevScrollHeight = list.scrollHeight;
   const isAtBottom = prevScrollHeight - prevScrollTop - list.clientHeight < 60;
-  const html = msgs.map(m => _msgHtml(m, uid)).join("");
+  const html = msgs.map((m,i) => _msgHtml(m, uid, msgs[i-1], msgs[i+1])).join("");
   if(prepend){
     list.insertAdjacentHTML("afterbegin", html);
     list.scrollTop = prevScrollTop + (list.scrollHeight - prevScrollHeight);
@@ -2562,8 +2564,12 @@ function _renderMessages(msgs, prepend=false){
   }
 }
 
-function _msgHtml(m, myUid){
+function _msgHtml(m, myUid, prev, next){
   const isMe = m.senderUid === myUid;
+  const isGroup = _activeChatData?.type==="group";
+  // bloques: mensajes seguidos del mismo remitente. Nombre en el 1º, avatar en el último.
+  const firstOfBlock = !(prev && prev.senderUid===m.senderUid);
+  const lastOfBlock  = !(next && next.senderUid===m.senderUid);
   const ts = m.ts?.toDate ? m.ts.toDate() : (m.clientTs ? new Date(m.clientTs) : null);
   const timeStr = ts ? `${ts.getHours().toString().padStart(2,"0")}:${ts.getMinutes().toString().padStart(2,"0")}` : "";
   const reactions = Object.entries(m.reactions||{}).filter(([,uids])=>uids.length>0).map(([emoji,uids])=>{
@@ -2572,11 +2578,30 @@ function _msgHtml(m, myUid){
       ${emoji}<span>${uids.length}</span></button>`;
   }).join("");
   const addBtn = `<button class="msg__reaction-add" data-msg-react-add="${m.id}" title="Reaccionar">＋</button>`;
-  return `<li class="msg ${isMe?"msg--me":"msg--them"}" data-msg-id="${m.id}">
-    ${!isMe && _activeChatData?.type==="group" ? `<div class="msg__sender">${m.senderName||""}</div>` : ""}
-    <div class="msg__bubble">${m.text.replace(/</g,"&lt;")}</div>
-    <div class="msg__time">${timeStr}</div>
-    ${reactions||addBtn ? `<div class="msg__reactions">${reactions}${addBtn}</div>` : ""}
+  const rx = reactions||addBtn ? `<div class="msg__reactions">${reactions}${addBtn}</div>` : "";
+  const cont = firstOfBlock ? "" : " msg--cont";
+  const tail = lastOfBlock ? " msg--tail" : "";
+  const safe = m.text.replace(/</g,"&lt;");
+
+  if(isMe){
+    return `<li class="msg msg--me${cont}${tail}" data-msg-id="${m.id}">
+      <div class="msg__bubble">${safe}</div><div class="msg__time">${timeStr}</div>${rx}
+    </li>`;
+  }
+  if(isGroup){
+    const mem = _chatMembers[m.senderUid];
+    const col = mem?.color || colorForUid(m.senderUid);
+    const nm  = mem?.name || m.senderName || "";
+    const name = firstOfBlock ? `<div class="msg__name" style="color:${col}">${nm.replace(/</g,"&lt;")}</div>` : "";
+    const av   = lastOfBlock ? `<span class="msg__av" style="background:${col}">${initial(nm)}</span>` : "";
+    return `<li class="msg msg--them msg--group${cont}${tail}" data-msg-id="${m.id}">
+      <div class="msg__gutter">${av}</div>
+      <div class="msg__content"><div class="msg__bubble">${name}${safe}</div><div class="msg__time">${timeStr}</div>${rx}</div>
+    </li>`;
+  }
+  // DM 1:1: sin nombre ni avatar (igual que antes)
+  return `<li class="msg msg--them${cont}${tail}" data-msg-id="${m.id}">
+    <div class="msg__bubble">${safe}</div><div class="msg__time">${timeStr}</div>${rx}
   </li>`;
 }
 
@@ -2669,9 +2694,17 @@ async function openConversation(chatId, chatData){
   else if(_chatNavDepth === 2){ history.replaceState({_c:2}, ""); }
   _oldestMsgClientTs = null;
   markChatRead(chatId, uid).catch(()=>{});
+  // Carga los perfiles de los miembros (nombre + color real) para pintar el chat de grupo.
+  _chatMembers = {};
+  if(chatData.type==="group" && Array.isArray(chatData.members)){
+    Promise.all(chatData.members.map(async m=>{
+      try{ const u=await getUser(m); if(u) _chatMembers[m]={ name:u.displayName||"", color:u.color||colorForUid(m) }; }catch{}
+    })).then(()=>{ if(_activeChatId===chatId) _renderMessages(_lastMsgs); });
+  }
   _chatMsgUnsub = watchMessages(chatId, msgs => {
     if(msgs.length) _oldestMsgClientTs = msgs[0].clientTs;
     $("loadOlderBtn").hidden = msgs.length < 30;
+    _lastMsgs = msgs;
     _renderMessages(msgs);
     if(_activeChatId === chatId) markChatRead(chatId, uid).catch(()=>{});
   });

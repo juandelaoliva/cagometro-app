@@ -6,7 +6,7 @@ import {
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity, setCacaLocations,
   logNotifPromptShown, setNotifPromptAction, logInstallPromptShown,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
-  setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity,
+  setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
@@ -671,7 +671,7 @@ function bumpChipsLocal(){
 // reacciones a MIS eventos (desde el listener del feed) → campanita + banner local
 function detectReactionNotifs(acts){
   // tus actividades + las conexiones de tuberías en las que eres el otro participante (son compartidas)
-  const mineActs = acts.filter(a=>a.uid===uid || (a.kind==="sync" && a.withUid===uid));
+  const mineActs = acts.filter(a=>a.uid===uid || (a.kind==="sync" && (a.withUid===uid || (Array.isArray(a.participantUids)&&a.participantUids.includes(uid)))));
   const cur=new Map();
   for(const a of mineActs){ const r=a.reactions||{}; for(const ru in r){ if(ru===uid) continue; for(const e of asArr(r[ru])) cur.set(`${a.id}|${ru}|${e}`, {reactorUid:ru,emoji:e,ts:a.ts,cacaId:a.id}); } }
   if(rxBaseline===null){ rxBaseline=new Set(cur.keys()); }
@@ -704,10 +704,14 @@ function renderFeedChips(){
     .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${g.gid}">🏆 ${g.name}</button>`));
   $("feedChips").innerHTML=chips.join("");
 }
-// una "conexión de tuberías" solo la ves si eres uno de los dos o amigo de AMBOS
+// una conexión/combo solo la ves si eres participante o amigo de TODOS los participantes
 function canSeeSync(c){
   if(c.kind!=="sync") return true;
-  if(c.uid===uid || c.withUid===uid) return true;
+  if(Array.isArray(c.participantUids)){                 // modelo nuevo (multi-persona)
+    if(c.participantUids.includes(uid)) return true;    // soy participante
+    return c.participantUids.every(u=> u===uid || friendNames[u]);   // amigo de todos
+  }
+  if(c.uid===uid || c.withUid===uid) return true;       // modelo viejo (1:1)
   return !!(friendNames[c.uid] && friendNames[c.withUid]);
 }
 function filteredFeed(){
@@ -741,6 +745,13 @@ function reactionsRow(c){
   const add = (c.uid===uid && c.kind!=="sync") ? "" : `<button class="rx rx--add" data-rxadd aria-label="Añadir reacción"><span class="rx-plus">+</span>🙂</button>`;
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
+// une nombres en negrita: "A", "A y B", "A, B y C", "A, B y N más"
+function _joinNames(names){
+  const b=names.map(x=>`<b>${x}</b>`);
+  if(b.length<=1) return b[0]||"";
+  if(b.length<=3) return b.slice(0,-1).join(", ")+" "+t('and')+" "+b[b.length-1];
+  return b.slice(0,2).join(", ")+" "+t('combo.andmore',{n:b.length-2});
+}
 function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
@@ -751,9 +762,22 @@ function _feedItem(c,i){
   } else if(c.kind==="reset"){
     head = mine ? t('feed.reset.mine') : t('feed.reset.other',{name:_n}); sys=true; reactable=false;
   } else if(c.kind==="sync"){
-    head = mine ? t('feed.sync.mine',{name:_wn})
-         : c.withUid===uid ? t('feed.sync.withme',{name:_n})
-         : t('feed.sync.other',{name:_n,other:_wn});
+    if(Array.isArray(c.participantUids)){                 // modelo nuevo (participants)
+      const n=c.participantUids.length;
+      const others=(c.participants||[]).filter(p=>p.uid!==uid).map(p=>friendNames[p.uid]||p.name||t('fallback.someone'));
+      const iAmIn=c.participantUids.includes(uid);
+      if(n>=3){
+        const who=_joinNames(iAmIn ? [t('rx.me'), ...others] : others);
+        head=t('feed.combo',{name:comboName(n), n, who});
+      } else {
+        head = iAmIn ? t('feed.sync.mine',{name:`<b>${others[0]||t('fallback.someone')}</b>`})
+                     : t('feed.sync.other',{name:`<b>${others[0]||'?'}</b>`, other:`<b>${others[1]||'?'}</b>`});
+      }
+    } else {                                              // modelo viejo (withUid)
+      head = mine ? t('feed.sync.mine',{name:_wn})
+           : c.withUid===uid ? t('feed.sync.withme',{name:_n})
+           : t('feed.sync.other',{name:_n,other:_wn});
+    }
     syncHi=true;
   } else if(c.late){
     head = mine ? t('feed.late.mine') : t('feed.late.other',{name:_n});
@@ -813,7 +837,7 @@ async function applyReaction(entry, emoji){
     if(!has){
       // avisa al/los participante(s) que no son quien reacciona (en una conexión hay dos)
       const targets = entry.kind==="sync"
-        ? [...new Set([entry.uid, entry.withUid])].filter(u=>u && u!==uid)
+        ? [...new Set([entry.uid, entry.withUid, ...(entry.participantUids||[])])].filter(u=>u && u!==uid)
         : [entry.uid];
       targets.forEach(tUid=> enqueuePush(uid, tUid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{}));
     }
@@ -2192,31 +2216,63 @@ function celebrate(num){ $("celebrateNum").textContent=num;
   _bristolAfterCelebration(2600); }
 // ── conexión de tuberías: tú + un amigo cagáis con < 5 min de diferencia ──
 const SYNC_WINDOW=5*60*1000;
-let _lastSyncEvt=null;   // id del evento de amigo con el que ya celebramos (evita repetir)
+let _lastSyncSession=null;   // id de la sesión con la que ya celebramos (evita repetir)
+// nombre épico del combo según el nº de participantes
+function comboName(n){ return n>=5 ? t('combo.name.colector') : n>=4 ? t('combo.name.alcantarillado') : t('combo.name.combo'); }
 function syncCelebrate(name){
+  $("syncTitle").textContent=t('sync.title');
   $("syncSub").textContent=t('sync.sub',{name});
   const c=$("syncOverlay"); c.hidden=false; confetti(); haptic([20,40,20,40,20,40,80]);
   setTimeout(()=>c.hidden=true,2800);
   _bristolAfterCelebration(2800);
 }
+function comboCelebrate(count){
+  $("syncTitle").textContent=t('combo.title',{n:count});
+  $("syncSub").textContent=t('combo.sub',{name:comboName(count),n:count});
+  const c=$("syncOverlay"); c.hidden=false; confetti(); confetti(); haptic([20,40,20,40,20,40,20,40,120]);
+  setTimeout(()=>c.hidden=true,3100);
+  _bristolAfterCelebration(3100);
+}
+// Conexión de tuberías, ahora multi-persona ("combo"). Al cagar, buscamos amigos
+// con caca en ventana; si hay un combo abierto nos unimos (rolling: cada quien
+// reinicia los 5 min), y si no, fundamos uno. Doc compartido, id determinista.
 function checkSyncPoop(){
   const now=Date.now();
-  // evento de caca de un AMIGO en los últimos 5 min (no tú, no eventos de sistema/sync)
-  const evt=homeFeedData.find(c =>
+  // amigos con caca en los últimos 5 min (no tú, no eventos de sistema/sync)
+  const nearby=homeFeedData.filter(c =>
     c.uid!==uid && (c.kind===undefined||c.kind==="add") && friendNames[c.uid]
     && (now-c.ts)>=0 && (now-c.ts)<=SYNC_WINDOW);
-  if(!evt || _lastSyncEvt===evt.id) return false;
-  _lastSyncEvt=evt.id;
-  const name=friendNames[evt.uid]||evt.name||"un amigo";
-  syncCelebrate(name);
-  // evento en el feed (visible a tu círculo + el amigo), reaccionable
-  writeActivity(uid, {
-    kind:"sync", name:me?.displayName||"", color:me?.color||colorForUid(uid),
-    withUid:evt.uid, withName:name, ts:now, year:new Date().getFullYear(),
-    audience:[...new Set([...(_graph.audience||[uid]), evt.uid])], groups:_graph.groups||[], reactions:{},
-  }).catch(e=>console.error("sync:",e));
-  // aviso al amigo
-  enqueuePush(uid, evt.uid, "sync", t('push.sync.title'), t('push.sync.body',{name:me?.displayName||t('fallback.someone')})).catch(()=>{});
+  if(!nearby.length) return false;
+  const nearbyUids=new Set(nearby.map(c=>c.uid));
+  // ¿combo ABIERTO en mi feed (con algún amigo cercano) al que unirme?
+  const open=homeFeedData.find(c => c.kind==="sync" && Array.isArray(c.participantUids)
+    && !c.participantUids.includes(uid)
+    && (now-(c.lastTs||c.ts))<=SYNC_WINDOW
+    && c.participantUids.some(u=>nearbyUids.has(u)));
+  const earliest=nearby.reduce((a,b)=>a.ts<=b.ts?a:b);
+  const sessionId=open ? open.id : ("sync_"+earliest.id);
+  if(_lastSyncSession===sessionId) return false;
+  _lastSyncSession=sessionId;
+  const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid) };
+  const prevParts = open ? (open.participants||[]) : nearby.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid)}));
+  const prevUids  = open ? open.participantUids.slice() : nearby.map(c=>c.uid);
+  const base={
+    ts: open ? open.ts : earliest.ts,
+    year: new Date().getFullYear(),
+    participants: [meP, ...prevParts],
+    participantUids: [uid, ...prevUids],
+  };
+  const audience=[...new Set([...(_graph.audience||[uid]), ...prevUids])];
+  syncComboUpsert(sessionId, base, meP, audience).catch(e=>console.error("combo:",e));
+  // celebración y aviso según el total de participantes (incluyéndome)
+  const count=new Set([uid, ...prevUids]).size;
+  if(count>=3) comboCelebrate(count);
+  else syncCelebrate(prevParts[0]?.name || t('fallback.someone'));
+  prevUids.filter(u2=>u2!==uid).forEach(u2=>
+    enqueuePush(uid, u2, "sync",
+      count>=3 ? t('push.combo.title',{n:count}) : t('push.sync.title'),
+      count>=3 ? t('push.combo.body',{name:me?.displayName||t('fallback.someone'),n:count}) : t('push.sync.body',{name:me?.displayName||t('fallback.someone')})
+    ).catch(()=>{}));
   return true;
 }
 function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];

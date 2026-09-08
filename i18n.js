@@ -467,6 +467,7 @@ const _es = {
   'celebrate.hype.4': '¡A por más!',
   'sync.title': '¡Conexión de tuberías!',
   'sync.sub': 'Tú y {name} cagando en sincronía 🚽',
+  'sync.dist.same': '¡prácticamente en el mismo váter! 🚽',
 
   // ── Mapa ──
   'map.empty': '📍 Sin ubicaciones registradas.',
@@ -946,6 +947,7 @@ const _en = {
   'celebrate.hype.4': 'Keep it up!',
   'sync.title': 'Pipe connection!',
   'sync.sub': 'You and {name} pooping in sync 🚽',
+  'sync.dist.same': 'practically the same toilet! 🚽',
 
   // ── Mapa ──
   'map.empty': '📍 No locations recorded.',

@@ -2080,7 +2080,7 @@ function getGeo(){
       {enableHighAccuracy:false,timeout:8000,maximumAge:60000});
   });
 }
-let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set();
+let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set(),_legendData={};
 // heatmap (toggle): guardamos los puntos del mapa actual para poder alternar pines↔calor
 let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
 function _resetHeat(){
@@ -2093,14 +2093,14 @@ $("mapHeatBtn").addEventListener("click", ()=>{
   _heatOn=!_heatOn; const b=$("mapHeatBtn");
   if(_heatOn){
     _markers.forEach(m=>_map.removeLayer(m));
-    if(_isGroupMap) $("mapLegend").hidden=true;
+    if(_isGroupMap){ $("mapLegendBtn").hidden=true; $("mapLegendSheet").hidden=true; }
     _heatLayer=L.heatLayer(_mapPoints, {radius:28, blur:20, maxZoom:16, minOpacity:.35}).addTo(_map);
     b.classList.add("on"); b.textContent="📍 "+t('map.pins');
   } else {
     if(_heatLayer){ _map.removeLayer(_heatLayer); _heatLayer=null; }
     if(_isGroupMap){   // respeta el filtro de la leyenda al volver a pines
       Object.entries(_groupMarkers).forEach(([u2,ms])=>{ if(!_legendHidden.has(u2)) ms.forEach(m=>m.addTo(_map)); });
-      $("mapLegend").hidden=false;
+      $("mapLegendBtn").hidden=false;
     } else _markers.forEach(m=>m.addTo(_map));
     b.classList.remove("on"); b.textContent="🔥 "+t('map.heat');
   }
@@ -2125,7 +2125,7 @@ function showMapLoadingDelayed(delay=450){
 function hideMapLoading(){ clearTimeout(_mapLoadTimer); $("mapLoading").hidden=true; }
 // friend = { uid, name } para ver el mapa de un amigo; omitir para el propio.
 async function openMap(friend){
-  $("mapSheet").hidden=false; $("mapEmpty").hidden=true; $("mapLegend").hidden=true;
+  $("mapSheet").hidden=false; $("mapEmpty").hidden=true; _hideLegend();
   $("mapEmpty").textContent=t('map.empty');
   const titleEl=$("mapTitle");
   titleEl.classList.remove("map-title--top");
@@ -2172,7 +2172,7 @@ async function openGroupMap(group){
   showMapLoadingDelayed();
   const pts = await groupLocatedCacas(group);
   hideMapLoading();
-  if(!pts.length){ $("mapLegend").hidden=true; $("mapHeatBtn").hidden=true; _map.setView([40.4168,-3.7038],5);
+  if(!pts.length){ _hideLegend(); $("mapHeatBtn").hidden=true; _map.setView([40.4168,-3.7038],5);
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
   _isGroupMap=true; _mapPoints=pts.map(p=>[p.lat,p.lng]); _resetHeat(); $("mapHeatBtn").hidden=false;
   // agrupar por persona
@@ -2191,19 +2191,41 @@ async function openGroupMap(group){
   setTimeout(()=>{ if(_markers.length) _map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)); },160);
   renderMapLegend(byUid);
 }
+function _hideLegend(){ $("mapLegendBtn").hidden=true; $("mapLegendSheet").hidden=true; }
+// Pinta la pill (colapsada) + la lista de la hoja (desplegada). La leyenda es también
+// filtro: tocar una persona muestra/oculta sus pines.
 function renderMapLegend(byUid){
-  const el=$("mapLegend");
+  _legendData=byUid;
   const members=Object.entries(byUid).sort((a,b)=>b[1].pts.length-a[1].pts.length);
-  el.innerHTML=members.map(([u,info])=>
-    `<span class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${u}"><span class="leg-chip__dot" style="background:${info.color}"></span>${info.name} · ${info.pts.length}</span>`
+  const dots=members.slice(0,5).map(([,i])=>`<span class="mlb__dot" style="background:${i.color}"></span>`).join("");
+  $("mapLegendBtn").innerHTML=`👥 <span class="mlb__dots">${dots}</span><span>${t('map.legend.short')} · ${members.length}</span>`;
+  $("mapLegendBtn").hidden=false;
+  $("mapLegendList").innerHTML=members.map(([u,info])=>
+    `<button class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${u}"><span class="leg-chip__dot" style="background:${info.color}"></span>${info.name} · ${info.pts.length}</button>`
   ).join("");
-  el.hidden=false;
 }
-$("mapLegend").addEventListener("click", e=>{
+// Aplica el filtro actual a los pines (solo en modo pines) y actualiza los chips.
+function _applyLegend(){
+  if(!_heatOn) Object.entries(_groupMarkers).forEach(([u,ms])=>{
+    if(_legendHidden.has(u)) ms.forEach(m=>_map.removeLayer(m)); else ms.forEach(m=>m.addTo(_map));
+  });
+  $("mapLegendList").querySelectorAll("[data-leguid]").forEach(c=>c.classList.toggle("off", _legendHidden.has(c.dataset.leguid)));
+}
+$("mapLegendBtn").addEventListener("click", ()=>{ const s=$("mapLegendSheet"); s.hidden=!s.hidden; });
+$("mapLegendClose").addEventListener("click", ()=>$("mapLegendSheet").hidden=true);
+$("mapLegendList").addEventListener("click", e=>{
   const chip=e.target.closest("[data-leguid]"); if(!chip) return;
-  const u=chip.dataset.leguid, markers=_groupMarkers[u]||[];
-  if(_legendHidden.has(u)){ _legendHidden.delete(u); markers.forEach(m=>m.addTo(_map)); chip.classList.remove("off"); }
-  else { _legendHidden.add(u); markers.forEach(m=>_map.removeLayer(m)); chip.classList.add("off"); }
+  const u=chip.dataset.leguid;
+  if(_legendHidden.has(u)) _legendHidden.delete(u); else _legendHidden.add(u);
+  _applyLegend();
+});
+$("mapLegendSheet").querySelector(".mls__actions").addEventListener("click", e=>{
+  const b=e.target.closest("[data-legfilter]"); if(!b) return;
+  const uids=Object.keys(_legendData);
+  if(b.dataset.legfilter==="all") _legendHidden=new Set();
+  else if(b.dataset.legfilter==="none") _legendHidden=new Set(uids);
+  else if(b.dataset.legfilter==="me") _legendHidden=new Set(uids.filter(u=>u!==uid));
+  _applyLegend();
 });
 
 /* ---------- delight ---------- */

@@ -795,9 +795,28 @@ body.sheet-open{overflow:hidden}
   border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 3px 6px rgba(0,0,0,.35)}
 .mappin__emo{position:absolute;inset:0;display:grid;place-items:center;font-size:17px;line-height:1}
 /* leyenda del mapa de grupo: chips con color + nombre, se atenúan al filtrar */
-.map-legend{position:absolute;left:50%;transform:translateX(-50%);z-index:1000;
-  bottom:calc(24px + env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap;justify-content:center;
-  max-width:92vw;background:rgba(255,255,255,.94);box-shadow:var(--shadow-lg);border-radius:16px;padding:8px 10px}
+/* pill de leyenda/filtros (colapsado), estilo frosted como la del mapa de calor, abajo-centro */
+.map-legend-btn{position:absolute;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:1000;
+  height:40px;padding:0 16px;border-radius:20px;
+  background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid rgba(36,27,18,.08);box-shadow:0 4px 16px rgba(36,27,18,.18);
+  font-size:13.5px;font-weight:700;color:var(--ink);display:inline-flex;align-items:center;gap:8px;white-space:nowrap;cursor:pointer}
+.map-legend-btn:active{transform:translateX(-50%) scale(.97)}
+.mlb__dots{display:inline-flex}
+.mlb__dot{width:12px;height:12px;border-radius:50%;border:2px solid #fff;margin-left:-6px;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+.mlb__dots .mlb__dot:first-child{margin-left:0}
+/* hoja inferior de leyenda/filtros (desplegado): mapa encima, box hasta abajo */
+.map-legend-sheet{position:absolute;left:0;right:0;bottom:0;z-index:1002;background:var(--card);
+  border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.18);display:flex;flex-direction:column;
+  max-height:58%;padding-bottom:calc(10px + env(safe-area-inset-bottom));animation:sheetUp .25s cubic-bezier(.2,.7,.2,1) both}
+.mls__grab{width:40px;height:4px;border-radius:999px;background:var(--line);margin:9px auto 4px;flex:none}
+.mls__head{display:flex;align-items:center;justify-content:space-between;padding:2px 16px 6px;font-size:16px;flex:none}
+.mls__close{width:30px;height:30px;border-radius:50%;background:var(--paper-2);color:var(--ink-soft);font-size:14px;font-weight:700;display:grid;place-items:center;flex:none}
+.mls__actions{display:flex;gap:8px;padding:4px 16px 10px;flex:none}
+.mls__act{flex:1;padding:9px;border-radius:12px;background:var(--paper);border:1px solid var(--line-2);font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;font-family:inherit}
+.mls__act:active{transform:scale(.97)}
+.mls__list{overflow-y:auto;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;padding:6px 12px 4px;-webkit-overflow-scrolling:touch}
+.leg-chip{font-family:inherit}
 .leg-chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--ink);
   background:var(--card);border:1px solid var(--line-2);border-radius:999px;padding:5px 11px 5px 8px;cursor:pointer;user-select:none}
 .leg-chip__dot{width:13px;height:13px;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.3);flex:none}

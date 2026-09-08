@@ -716,7 +716,21 @@
       <div class="map-loading__txt" id="mapLoadingTxt">Cargando…</div>
     </div>
     <div class="map-title" id="mapTitle" hidden></div>
-    <div class="map-legend" id="mapLegend" hidden></div>
+    <!-- leyenda/filtros del mapa de grupo: pill (colapsado) + hoja inferior (desplegado) -->
+    <button class="map-legend-btn" id="mapLegendBtn" hidden></button>
+    <div class="map-legend-sheet" id="mapLegendSheet" hidden>
+      <div class="mls__grab"></div>
+      <div class="mls__head">
+        <b data-i18n="map.legend.title">Leyenda y filtros</b>
+        <button class="mls__close" id="mapLegendClose" aria-label="Cerrar">✕</button>
+      </div>
+      <div class="mls__actions">
+        <button class="mls__act" data-legfilter="all" data-i18n="map.legend.all">Todos</button>
+        <button class="mls__act" data-legfilter="none" data-i18n="map.legend.none">Ninguno</button>
+        <button class="mls__act" data-legfilter="me" data-i18n="map.legend.me">Solo yo</button>
+      </div>
+      <div class="mls__list" id="mapLegendList"></div>
+    </div>
     <button class="map-heat" id="mapHeatBtn" aria-label="Mapa de calor" hidden>🔥 Mapa de calor</button>
     <button class="map-close" id="mapClose" aria-label="Cerrar">✕</button>
   </div>

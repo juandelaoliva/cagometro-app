@@ -2585,6 +2585,8 @@ function _renderMessages(msgs, prepend=false){
   }
 }
 
+// icono de reaccionar (carita + "+"), inline para heredar el color con currentColor
+const REACT_SVG = '<svg viewBox="0 0 16 16" width="18" height="18" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 7.5c0 .169-.01.336-.027.5h1.005A5.5 5.5 0 1 0 8 12.978v-1.005A4.5 4.5 0 1 1 12 7.5zM5.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm2 2.5c.712 0 1.355-.298 1.81-.776l.707.708A3.49 3.49 0 0 1 7.5 10.5a3.49 3.49 0 0 1-2.555-1.108l.707-.708A2.494 2.494 0 0 0 7.5 9.5zm2-2.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm2.5 3h1v2h2v1h-2v2h-1v-2h-2v-1h2v-2z"/></svg>';
 function _msgHtml(m, myUid, prev, next){
   const isMe = m.senderUid === myUid;
   const isGroup = _activeChatData?.type==="group";
@@ -2598,7 +2600,7 @@ function _msgHtml(m, myUid, prev, next){
     return `<button class="msg__reaction${mine?" mine":""}" data-msg-react="${m.id}" data-emoji="${emoji}">
       ${emoji}<span>${uids.length}</span></button>`;
   }).join("");
-  const addBtn = `<button class="msg__reaction-add" data-msg-react-add="${m.id}" title="Reaccionar">＋</button>`;
+  const addBtn = `<button class="msg__reaction-add" data-msg-react-add="${m.id}" title="Reaccionar">${REACT_SVG}</button>`;
   // las reacciones (si las hay) siguen debajo; el "+" va al lado del bocadillo para no gastar una fila
   const chips = reactions ? `<div class="msg__reactions">${reactions}</div>` : "";
   const cont = firstOfBlock ? "" : " msg--cont";

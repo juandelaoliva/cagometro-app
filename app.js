@@ -1484,11 +1484,17 @@ function _renderBristolTourGrid(){
     }
   }
 }
+function _markBristolSeen(){
+  if(me) me.bristolOnboarded = true;
+  updateMe(uid, { bristolOnboarded: true }).catch(()=>{});
+}
 function maybeShowBristolTour(){
   if(!_bristolAccess()) return;
   if(me?.bristolOnboarded) return;
+  if(me?.bristolMode){ _markBristolSeen(); return; }   // ya usa Bristol → no hace falta el tour
   _renderBristolTourGrid();
   $("bristolTourSheet").hidden = false;
+  _markBristolSeen();   // marcado "visto" al mostrarlo: cerrarlo deslizando/atrás ya no lo repite
 }
 
 $("bristolInfoBtn").addEventListener("click", ()=>{

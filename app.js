@@ -2581,6 +2581,7 @@ function _renderChatList(chats){
     const hasUnread = lastTs > myLastRead && c.lastMessage?.senderUid !== uid;
     const name = c.type === "group" ? (c.name || "Grupo") : (c.otherName || "Chat");
     const preview = c.lastMessage ? `${c.lastMessage.senderUid===uid?"Tú: ":""}${c.lastMessage.text}` : t('chat.nomessages');
+    const muted = (c.mutedBy||[]).includes(uid);
     return `<li class="chat-item" data-chat="${c.id}">
       ${av(name, c.color||"#888")}
       <div class="chat-item__body">
@@ -2591,6 +2592,7 @@ function _renderChatList(chats){
         <span class="chat-item__time">${_chatTime(c.lastTs || c.lastMessage?.ts)}</span>
         ${hasUnread ? `<span class="chat-item__unread">•</span>` : ""}
       </div>
+      ${muted ? `<span class="chat-item__mute" title="${t('chat.settings.mute')}">🔕</span>` : ""}
     </li>`;
   }).join("");
 }

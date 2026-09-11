@@ -142,8 +142,15 @@ export async function syncComboUpsert(sessionId, base, meP, audience){
     audience: arrayUnion(...audience),
     lastTs: Date.now(),
   };
-  const snap = await getDoc(ref);
-  if (snap.exists()) return updateDoc(ref, joinFields);
+  // Este get() puede venir DENEGADO por reglas cuando el doc aún NO existe (con
+  // `resource` nulo, una regla que mire `resource.data...` revienta). Eso no es
+  // motivo para abortar la conexión: asumimos que no existe y tiramos por el
+  // create, que ya cae en el join si resultaba que sí estaba. Así la funcionalidad
+  // degrada en vez de morir en silencio.
+  let exists = false;
+  try { exists = (await getDoc(ref)).exists(); }
+  catch (e) { exists = false; }
+  if (exists) return updateDoc(ref, joinFields);
   try {
     return await setDoc(ref, {
       kind: "sync", uid: meP.uid, name: meP.name, color: meP.color,

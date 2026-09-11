@@ -2288,10 +2288,14 @@ function checkSyncPoop(loc){
   if(!nearby.length) return false;
   const nearbyUids=new Set(nearby.map(c=>c.uid));
   // ¿combo ABIERTO en mi feed (con algún amigo cercano) al que unirme?
+  // Solo me uno si soy amigo de TODOS los que ya están dentro (misma regla que
+  // canSeeSync). Si no, no me cuelo en el combo de un desconocido: fundo mi propia
+  // conexión con mi(s) amigo(s) cercano(s).
   const open=homeFeedData.find(c => c.kind==="sync" && Array.isArray(c.participantUids)
     && !c.participantUids.includes(uid)
     && (now-(c.lastTs||c.ts))<=SYNC_WINDOW
-    && c.participantUids.some(u=>nearbyUids.has(u)));
+    && c.participantUids.some(u=>nearbyUids.has(u))
+    && c.participantUids.every(u=> u===uid || friendNames[u]));
   const earliest=nearby.reduce((a,b)=>a.ts<=b.ts?a:b);
   const sessionId=open ? open.id : ("sync_"+earliest.id);
   if(_lastSyncSession===sessionId) return false;

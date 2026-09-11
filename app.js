@@ -745,12 +745,12 @@ function reactionsRow(c){
   const add = (c.uid===uid && c.kind!=="sync") ? "" : `<button class="rx rx--add" data-rxadd aria-label="Añadir reacción"><span class="rx-plus">+</span>🙂</button>`;
   return (chips||add) ? `<div class="feed__rx">${chips}${add}</div>` : "";
 }
-// une nombres en negrita: "A", "A y B", "A, B y C", "A, B y N más"
+// une nombres en negrita: "A", "A y B", "A, B y C", "A, B, C y D"…
+// SIEMPRE lista a todos: en un combo queremos ver quién estaba, sin "y N más".
 function _joinNames(names){
   const b=names.map(x=>`<b>${x}</b>`);
   if(b.length<=1) return b[0]||"";
-  if(b.length<=3) return b.slice(0,-1).join(", ")+" "+t('and')+" "+b[b.length-1];
-  return b.slice(0,2).join(", ")+" "+t('combo.andmore',{n:b.length-2});
+  return b.slice(0,-1).join(", ")+" "+t('and')+" "+b[b.length-1];
 }
 function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");

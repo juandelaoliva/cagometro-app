@@ -2315,18 +2315,38 @@ function checkSyncPoop(loc){
     participantUids: [uid, ...prevUids],
     ...(km!=null ? { km } : {}),
   };
-  const audience=[...new Set([...(_graph.audience||[uid]), ...prevUids])];
-  syncComboUpsert(sessionId, base, meP, audience).catch(e=>console.error("combo:",e));
-  // celebración y aviso según el total de participantes (incluyéndome)
+  // audiencia del doc: yo (fundador) + mi grafo + los participantes. `.length` en vez
+  // de `|| [uid]` porque `[]` es truthy y el fallback nunca saltaba (dejaba al fundador
+  // fuera de su propio combo si el grafo aún no había cargado).
+  const audience=[...new Set([uid, ...(_graph.audience.length?_graph.audience:[]), ...prevUids])];
+  // celebración local del fundador (overlay efímero) — inmediata para no meter latencia
   const count=new Set([uid, ...prevUids]).size;
   if(count>=3) comboCelebrate(count);
   else syncCelebrate(prevParts[0]?.name || t('fallback.someone'), km);
-  prevUids.filter(u2=>u2!==uid).forEach(u2=>
+  // Doc compartido y aviso a los demás ACOPLADOS y CONSISTENTES: el push solo sale si
+  // el doc se guarda de verdad (con reintentos ante cortes de red tras cagar). Así nunca
+  // hay "notificación fantasma" sin entrada en el feed. Si tras los reintentos falla del
+  // todo, liberamos la sesión para poder reintentar en el siguiente evento.
+  const notifyOthers = () => prevUids.filter(u2=>u2!==uid).forEach(u2=>
     enqueuePush(uid, u2, "sync",
       count>=3 ? t('push.combo.title',{n:count}) : t('push.sync.title'),
       count>=3 ? t('push.combo.body',{name:me?.displayName||t('fallback.someone'),n:count}) : t('push.sync.body',{name:me?.displayName||t('fallback.someone')})
     ).catch(()=>{}));
+  _persistSync(sessionId, base, meP, audience)
+    .then(notifyOthers)
+    .catch(e=>{ console.error("combo:",e); if(_lastSyncSession===sessionId) _lastSyncSession=null; });
   return true;
+}
+// Escribe/actualiza el doc compartido de la conexión con reintentos (fallos de red
+// transitorios justo tras cagar). El push a los demás depende de que esta promesa
+// resuelva, de modo que aviso ⟺ conexión guardada en el feed.
+async function _persistSync(sessionId, base, meP, audience){
+  let lastErr;
+  for(let i=0;i<3;i++){
+    try{ return await syncComboUpsert(sessionId, base, meP, audience); }
+    catch(e){ lastErr=e; await new Promise(r=>setTimeout(r, 400*(i+1))); }
+  }
+  throw lastErr;
 }
 function confetti(){ const cols=["#E59A2E","#6E3F1C","#2E9E68","#9A5A2A","#F7DCA8","#D8573F"];
   for(let i=0;i<90;i++){ const d=document.createElement("div");d.className="confetti";d.style.left=Math.random()*100+"vw";

@@ -58,9 +58,15 @@ service cloud.firestore {
     // --- feed de actividad: lo lee quien está en la audiencia; lo crea el autor.
     //     Cualquier autenticado puede tocar SOLO `reactions` (reaccionar).
     //     Una "conexión de tuberías/combo" es compartida: un usuario puede AÑADIRSE
-    //     a sí mismo (solo sumar, nunca quitar a otro). ---
+    //     a sí mismo (solo sumar, nunca quitar a otro).
+    //     `resource == null` es IMPRESCINDIBLE: al fundar una conexión, el cliente hace
+    //     un get() de `activity/sync_<id>` que TODAVÍA NO EXISTE para ver si la sesión ya
+    //     está abierta. Sin esta cláusula, `resource.data.audience` revienta con resource
+    //     nulo y el get se deniega a todo el mundo salvo al admin (isAdmin() era lo único
+    //     que lo salvaba), dejando la funcionalidad de combos muerta para el resto.
+    //     Permitirlo no filtra nada: si el doc no existe, la lectura devuelve 404. ---
     match /activity/{id} {
-      allow read:   if signedIn() && (request.auth.uid in resource.data.audience || resource.data.uid == request.auth.uid || isAdmin());
+      allow read:   if signedIn() && (resource == null || request.auth.uid in resource.data.audience || resource.data.uid == request.auth.uid || isAdmin());
       allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if (signedIn() && resource.data.uid == request.auth.uid)
                      || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']))

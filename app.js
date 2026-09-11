@@ -714,13 +714,19 @@ function canSeeSync(c){
   if(c.uid===uid || c.withUid===uid) return true;       // modelo viejo (1:1)
   return !!(friendNames[c.uid] && friendNames[c.withUid]);
 }
+// El "cuándo" de una entrada del feed. Una conexión/combo sigue vivo mientras la gente
+// se une, así que su hora y su posición salen de `lastTs` (última incorporación): si no,
+// un combo que acaba de crecer se queda sepultado bajo cacas más nuevas y nadie lo ve.
+// El resto de entradas usan su `ts` de siempre.
+const feedSortTs = c => (c.kind==="sync" ? (c.lastTs || c.ts) : c.ts);
 function filteredFeed(){
   let arr=homeFeedData.filter(canSeeSync);     // oculta syncs en los que no eres amigo de los dos
   if(feedScope==="me") arr=arr.filter(c=>c.uid===uid);
   else if(feedScope==="friends") arr=arr.filter(c=>c.uid!==uid);
   else if(feedScope!=="all") arr=arr.filter(c=>(c.groups||[]).some(g=>g.gid===feedScope));
   if(feedQ){ const q=feedQ.toLowerCase(); arr=arr.filter(c=>(c.name||"").toLowerCase().includes(q)); }
-  return arr;
+  // el listener ya viene ordenado por `ts`; reordenamos para que los combos que crecen suban
+  return arr.sort((a,b)=>feedSortTs(b)-feedSortTs(a));
 }
 $("feedChips").addEventListener("click", e=>{ const b=e.target.closest("[data-fscope]"); if(!b)return;
   feedScope=b.dataset.fscope; feedShown=FEED_PAGE; renderFeedChips(); renderFeed(); });
@@ -755,7 +761,7 @@ function _joinNames(names){
 function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
-  let head, nBadge="", sys=false, reactable=true, syncHi=false;
+  let head, nBadge="", sys=false, reactable=true, syncHi=false, syncTrail="";
   const _n=`<b>${c.name}</b>`, _wn=`<b>${c.withName}</b>`;
   if(c.kind==="undo"){
     head = mine ? t('feed.undo.mine') : t('feed.undo.other',{name:_n}); sys=true; reactable=false;
@@ -765,14 +771,28 @@ function _feedItem(c,i){
     if(Array.isArray(c.participantUids)){                 // modelo nuevo (participants)
       // dedupe por persona al PINTAR: hay docs guardados con el mismo uid repetido
       // (una conexión de 2 llegó a guardarse con 5 uids y salía como "COMBO x5").
+      // Se ordena por `joinedTs` para poder contar cómo fue creciendo el combo; los
+      // docs antiguos no lo traen y conservan el orden del array (sort estable).
       const n=new Set(c.participantUids).size;
-      const others=(c.participants||[])
-        .filter((p,i,a)=>p.uid!==uid && a.findIndex(q=>q.uid===p.uid)===i)
-        .map(p=>friendNames[p.uid]||p.name||t('fallback.someone'));
+      const byU=new Map();
+      for(const p of (c.participants||[])){
+        const prev=byU.get(p.uid);
+        if(!prev || (p.joinedTs||0) < (prev.joinedTs||0)) byU.set(p.uid, p);
+      }
+      const ordered=[...byU.values()].sort((a,b)=>(a.joinedTs||0)-(b.joinedTs||0));
+      const pName=p=> p.uid===uid ? t('rx.me') : (friendNames[p.uid]||p.name||t('fallback.someone'));
+      const others=ordered.filter(p=>p.uid!==uid).map(pName);
       const iAmIn=c.participantUids.includes(uid);
       if(n>=3){
         const who=_joinNames(iAmIn ? [t('rx.me'), ...others] : others);
         head=t('feed.combo',{name:comboName(n), n, who});
+        // cómo fue creciendo: un solo evento, pero con quién entró y cuándo
+        if(ordered.some(p=>p.joinedTs)){
+          const hhmm=ts=>{ const d=new Date(ts);
+            return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; };
+          syncTrail=t('combo.grew',{ trail: ordered
+            .map(p=>`${pName(p)}${p.joinedTs?` ${hhmm(p.joinedTs)}`:""}`).join(" → ") });
+        }
       } else {
         head = iAmIn ? t('feed.sync.mine',{name:`<b>${others[0]||t('fallback.someone')}</b>`})
                      : t('feed.sync.other',{name:`<b>${others[0]||'?'}</b>`, other:`<b>${others[1]||'?'}</b>`});
@@ -799,11 +819,12 @@ function _feedItem(c,i){
     <span class="av" style="background:${c.color}">${initial(c.name)}</span>
     <div class="feed__body">
       <div class="feed__line">${head} ${nBadge}</div>
+      ${syncTrail?`<div class="feed__sub">${syncTrail}</div>`:""}
       ${c.late?`<div class="feed__sub">📅 ${fmtFull(c.forTs ?? c.ts)}</div>`:""}
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
       ${reactable?reactionsRow(c):""}
     </div>
-    <span class="feed__time">${fmtWhen(c.ts)}</span>
+    <span class="feed__time">${fmtWhen(feedSortTs(c))}</span>
   </li>`;
 }
 function renderFeed(){
@@ -2304,7 +2325,11 @@ function checkSyncPoop(loc){
   const sessionId=open ? open.id : ("sync_"+earliest.id);
   if(_lastSyncSession===sessionId) return false;
   _lastSyncSession=sessionId;
-  const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid) };
+  // `joinedTs` = cuándo entró cada uno. Va DENTRO del objeto del participante, que ya
+  // es un campo permitido por las reglas (`participants`), así que no hace falta tocarlas.
+  // Con esto el feed puede contar cómo fue creciendo el combo. Yo entro ahora (acabo de
+  // cagar); los demás, en el momento de su caca.
+  const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid), joinedTs: Date.now() };
   // `nearby` son CACAS, no personas: un mismo amigo puede tener varias en la ventana.
   // Nos quedamos con UNA entrada por persona (la más antigua) para no meterlo repetido
   // en participants/participantUids — si no, una conexión de 2 se guardaba con 5 uids y
@@ -2312,7 +2337,7 @@ function checkSyncPoop(loc){
   const byUid=new Map();
   for(const c of nearby) if(!byUid.has(c.uid) || c.ts < byUid.get(c.uid).ts) byUid.set(c.uid, c);
   const people=[...byUid.values()];
-  const prevParts = open ? (open.participants||[]) : people.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid)}));
+  const prevParts = open ? (open.participants||[]) : people.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid), joinedTs:c.ts}));
   const prevUids  = open ? open.participantUids.slice() : people.map(c=>c.uid);
   // distancia solo en conexiones de 2 PERSONAS (fundando, no combo) y si AMBAS cacas
   // tienen ubicación. Se cuenta por personas, no por cacas: antes, si el amigo había

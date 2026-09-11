@@ -763,8 +763,12 @@ function _feedItem(c,i){
     head = mine ? t('feed.reset.mine') : t('feed.reset.other',{name:_n}); sys=true; reactable=false;
   } else if(c.kind==="sync"){
     if(Array.isArray(c.participantUids)){                 // modelo nuevo (participants)
-      const n=c.participantUids.length;
-      const others=(c.participants||[]).filter(p=>p.uid!==uid).map(p=>friendNames[p.uid]||p.name||t('fallback.someone'));
+      // dedupe por persona al PINTAR: hay docs guardados con el mismo uid repetido
+      // (una conexión de 2 llegó a guardarse con 5 uids y salía como "COMBO x5").
+      const n=new Set(c.participantUids).size;
+      const others=(c.participants||[])
+        .filter((p,i,a)=>p.uid!==uid && a.findIndex(q=>q.uid===p.uid)===i)
+        .map(p=>friendNames[p.uid]||p.name||t('fallback.someone'));
       const iAmIn=c.participantUids.includes(uid);
       if(n>=3){
         const who=_joinNames(iAmIn ? [t('rx.me'), ...others] : others);
@@ -2301,18 +2305,29 @@ function checkSyncPoop(loc){
   if(_lastSyncSession===sessionId) return false;
   _lastSyncSession=sessionId;
   const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid) };
-  const prevParts = open ? (open.participants||[]) : nearby.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid)}));
-  const prevUids  = open ? open.participantUids.slice() : nearby.map(c=>c.uid);
-  // distancia solo en conexiones de 2 (fundando, no combo) y si AMBAS cacas tienen ubicación
+  // `nearby` son CACAS, no personas: un mismo amigo puede tener varias en la ventana.
+  // Nos quedamos con UNA entrada por persona (la más antigua) para no meterlo repetido
+  // en participants/participantUids — si no, una conexión de 2 se guardaba con 5 uids y
+  // el feed la pintaba como "COMBO x5 · Colector".
+  const byUid=new Map();
+  for(const c of nearby) if(!byUid.has(c.uid) || c.ts < byUid.get(c.uid).ts) byUid.set(c.uid, c);
+  const people=[...byUid.values()];
+  const prevParts = open ? (open.participants||[]) : people.map(c=>({uid:c.uid, name:friendNames[c.uid]||c.name||t('fallback.someone'), color:c.color||colorForUid(c.uid)}));
+  const prevUids  = open ? open.participantUids.slice() : people.map(c=>c.uid);
+  // distancia solo en conexiones de 2 PERSONAS (fundando, no combo) y si AMBAS cacas
+  // tienen ubicación. Se cuenta por personas, no por cacas: antes, si el amigo había
+  // cagado 2+ veces en la ventana, los km se saltaban aunque fuese un 1:1.
   let km=null;
-  if(!open && nearby.length===1 && loc && isFinite(loc.lat) && isFinite(loc.lng) && isFinite(earliest.lat) && isFinite(earliest.lng)){
+  if(!open && people.length===1 && loc && isFinite(loc.lat) && isFinite(loc.lng) && isFinite(earliest.lat) && isFinite(earliest.lng)){
     km = haversineKm(loc, earliest);
   }
   const base={
     ts: open ? open.ts : earliest.ts,
     year: new Date().getFullYear(),
-    participants: [meP, ...prevParts],
-    participantUids: [uid, ...prevUids],
+    // dedupe por uid también aquí: cubre la rama `open` y los docs ya guardados con
+    // repetidos (arrayUnion solo deduplica objetos idénticos, no "la misma persona").
+    participants: [meP, ...prevParts].filter((p,i,a)=>a.findIndex(q=>q.uid===p.uid)===i),
+    participantUids: [...new Set([uid, ...prevUids])],
     ...(km!=null ? { km } : {}),
   };
   // audiencia del doc: yo (fundador) + mi grafo + los participantes. `.length` en vez

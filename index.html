@@ -639,6 +639,18 @@
 
   <!-- ───────── Admin del grupo ───────── -->
   <!-- ───────── Bristol onboarding tour ───────── -->
+  <!-- Aviso de cambio de año: se muestra una sola vez al entrar ya en el año nuevo,
+       con un recap rápido del que cierra. Reutiliza los estilos del tour de Bristol. -->
+  <div class="sheet" id="yearRecapSheet" hidden>
+    <div class="sheet__panel bristol-tour-panel">
+      <div class="bristol-tour-emoji">🎉</div>
+      <h3 class="bristol-tour-title" id="yearRecapTitle">¡Feliz año nuevo!</h3>
+      <p class="bristol-tour-sub" id="yearRecapSub">Tu contador vuelve a empezar.</p>
+      <div class="bristol-tour-fact" id="yearRecapStats"></div>
+      <button class="btn-solid bristol-tour-cta" id="yearRecapGotIt" data-i18n="yearrecap.cta">¡A por el año nuevo!</button>
+    </div>
+  </div>
+
   <div class="sheet" id="bristolTourSheet" hidden>
     <div class="sheet__panel bristol-tour-panel">
       <div class="bristol-tour-emoji">🫀</div>

@@ -9,7 +9,7 @@ import {
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
-  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush,
+  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
@@ -335,7 +335,7 @@ function showApp(){
   $("verifBar").hidden = !needsVerif;
   if(unsub)unsub();
   unsub=watchMe(uid, m=>{
-    if(!m)return; me=m; const total=m.totalCount||0;
+    if(!m)return; me=m; const total=yearCountOf(m);
     _myDisplayName = m.displayName||"";
     $("meCount").textContent=total; $("meName").textContent=m.displayName||"";
     $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
@@ -346,6 +346,7 @@ function showApp(){
     if(lastTotal!==null && total>lastTotal){ if(isMilestone(total)){ celebrate(total); notifyFriendsMilestone(total); } checkGroupOvertakes(lastTotal); }
     lastTotal=total;
     syncDeviceInfo();
+    maybeShowYearRecap();
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
@@ -450,7 +451,7 @@ async function renderAdminUsers(){
     fships.filter(f=>f.status==="accepted").forEach(f=>{ const [a,b]=f.uids||[]; if(!a||!b) return;
       (friendsByUid[a]=friendsByUid[a]||[]).push(b); (friendsByUid[b]=friendsByUid[b]||[]).push(a); });
     groups.forEach(g=>(g.members||[]).forEach(m=>{ (groupsByUid[m]=groupsByUid[m]||[]).push(g); }));
-    users.sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+    users.sort((a,b)=>yearCountOf(b)-yearCountOf(a));
     groups.sort((a,b)=>(b.members?.length||0)-(a.members?.length||0));
     _adminData={ users, usersById, friendsByUid, groupsByUid, groups };
     _renderAdminBody();
@@ -478,11 +479,11 @@ function _adminUserCard(u){
   return `<div class="admin-user">
     <div class="adminrow adminrow--head" data-atoggle="${u.id}">
       <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
-      <div class="adminrow__txt"><b>${_aesc(u.displayName||"?")}</b><small>${_aesc(u.email||"—")} · ${u.totalCount||0} 💩</small></div>
+      <div class="adminrow__txt"><b>${_aesc(u.displayName||"?")}</b><small>${_aesc(u.email||"—")} · ${yearCountOf(u)} 💩</small></div>
       <span class="admin-chevron">▾</span>
     </div>
     <div class="admin-detail" hidden>
-      <div class="admin-kv"><span>💩 Cacas</span><b>${u.totalCount||0} este año · ${u.lifetimeCount||0} histórico</b></div>
+      <div class="admin-kv"><span>💩 Cacas</span><b>${yearCountOf(u)} este año · ${u.lifetimeCount||0} histórico</b></div>
       <div class="admin-kv"><span>🔥 Racha</span><b>${u.currentStreak||0} actual · récord ${u.longestStreak||0}</b></div>
       <div class="admin-kv"><span>🕐 Última caca</span><b>${_aDate(u.lastCacaTs)}</b></div>
       <div class="admin-kv"><span>📅 Alta</span><b>${created}</b></div>
@@ -579,6 +580,43 @@ $("setNotif").addEventListener("change", async e=>{
   }
   catch(err){ e.target.checked=!on; toast(t('toast.notif.fail')); console.error(err); }
 });
+/* ---------- aviso de cambio de año ---------- */
+// Se muestra UNA sola vez: la primera vez que abres la app ya entrado el año nuevo.
+// Todos los datos salen del doc de usuario que watchMe ya tiene en memoria, así que
+// no cuesta ni una lectura extra. El recap "en condiciones" queda para más adelante.
+let _yearRecapDone = false;
+function maybeShowYearRecap(){
+  if(_yearRecapDone || !me || !uid) return;
+  const cy = new Date().getFullYear();
+  // Primera vez que la app mira esto: solo marcamos el año, SIN popup. Si no, a quien
+  // tenga historial importado de años anteriores le saltaría un recap de un año en el
+  // que la app ni siquiera existía.
+  if(me.yearRecapSeen == null){
+    _yearRecapDone = true;
+    updateMe(uid, { yearRecapSeen: cy }).catch(()=>{});
+    return;
+  }
+  if(me.yearRecapSeen >= cy) return;
+  _yearRecapDone = true;
+  updateMe(uid, { yearRecapSeen: cy }).catch(()=>{});
+  const prev = cy - 1, total = me.countsByYear?.[prev] || 0;
+  if(!total) return;                       // sin cacas el año pasado: nada que contar
+  const cbm = me.countsByMonth || {};
+  const meses = Array.from({length:12}, (_,i)=> cbm[`${prev}_${i}`] || 0);
+  const best = meses.indexOf(Math.max(...meses));
+  $("yearRecapTitle").textContent = t('yearrecap.title',{year:cy});
+  $("yearRecapSub").textContent   = t('yearrecap.sub',{year:prev, n:total});
+  $("yearRecapStats").innerHTML = [
+    ['💩', t('yearrecap.total',{n:total, year:prev})],
+    ['📅', t('yearrecap.bestmonth',{month:MONTHS_FULL[best], n:meses[best]})],
+    ['🔥', t('yearrecap.streak',{n:me.longestStreak||0})],
+    ['🏆', t('yearrecap.lifetime',{n:me.lifetimeCount||total})],
+  ].map(([ic,txt])=>`<div class="bristol-tour-fact__row"><span class="bristol-tour-fact__icon">${ic}</span><span>${txt}</span></div>`).join("");
+  $("yearRecapSheet").hidden = false;
+  confetti();
+}
+$("yearRecapGotIt").addEventListener("click", ()=>{ $("yearRecapSheet").hidden = true; });
+
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=t('progress.label',{n:hi-total,milestone:hi}); }
@@ -944,7 +982,7 @@ async function checkGroupOvertakes(oldTotal){
       const board=await groupLeaderboard(g);
       for(const r of board){
         if(r.id===uid || sentTo.has(r.id)) continue;
-        if((r.totalCount||0)===oldTotal){          // estábamos empatados → ahora le supero
+        if(yearCountOf(r)===oldTotal){          // estábamos empatados → ahora le supero
           sentTo.add(r.id);
           enqueuePush(uid, r.id, "overtake", t('push.overtake.title'), t('push.overtake.body',{name,group:g.name})).catch(()=>{});
         }
@@ -1180,7 +1218,7 @@ async function openPersonSheet(entry, opts={}){
   $("psSheet").hidden=false;
   // solo el doc del usuario (1 lectura). Stats desde contadores denormalizados, sin leer sus cacas.
   const u = await getUser(entry.uid);
-  const year = u?.totalCount||0, life = u?.lifetimeCount||0;
+  const year = yearCountOf(u), life = u?.lifetimeCount||0;
   const cy=new Date().getFullYear(), cm=new Date().getMonth(), cbm=u?.countsByMonth||{};
   const monthly=new Array(12).fill(0); for(let i=0;i<12;i++) monthly[i]=cbm[`${cy}_${i}`]||0;
   const bestIdx = monthly.indexOf(Math.max(...monthly,0));
@@ -1194,7 +1232,7 @@ async function openPersonSheet(entry, opts={}){
   const cmpEl = $("psCompare");
   if(me && cmpEl){
     const myMon = (me.countsByMonth||{})[`${cy}_${cm}`]||0;
-    const myYear = me.totalCount||0;
+    const myYear = yearCountOf(me);
     const myStreak = liveStreak(me.currentStreak, me.lastCacaTs);
     const theirStreak = liveStreak(u?.currentStreak, u?.lastCacaTs);
     // media/día: días naturales (medianoche a medianoche) desde la primera caca hasta hoy, ambos inclusive
@@ -1287,7 +1325,7 @@ $("addBtn").addEventListener("click",async e=>{
   try{
     await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    const prevTotal = me?.totalCount || 0;
+    const prevTotal = yearCountOf(me);
     const cacaId = await addCaca(uid, loc, actMeta());
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
@@ -1336,7 +1374,7 @@ $("miBristol").addEventListener("click", async ()=>{
   try{
     await _graphPromise;
     const loc = me?.locationMode==="always" ? await getGeo() : null;
-    const prevTotal = me?.totalCount || 0;
+    const prevTotal = yearCountOf(me);
     const cacaId = await addCaca(uid, loc, actMeta());
     toast(loc?t('toast.caca.geo'):t('toast.caca.ok'));
     bumpChipsLocal(); _statsLoadedAt=0;
@@ -1547,12 +1585,12 @@ $("lateConfirm").addEventListener("click",async()=>{
   $("lateSheet").hidden=true;
   try{
     await _graphPromise;
-    const prevTotal = me?.totalCount || 0;
+    const prevTotal = yearCountOf(me);
     const thisYear = new Date(ts).getFullYear() === new Date().getFullYear();
     const cacaId = await addCacaAt(uid, ts, actMeta());
     haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force");
     // Bristol también en la caca olvidada (solo si bristolMode); tras el hito si lo hay.
-    // Una caca de un año pasado no sube totalCount → no dispara hito.
+    // Una caca de un año pasado no sube el contador del año → no dispara hito.
     _queueBristol(cacaId, thisYear && isMilestone(prevTotal+1));
   }
   catch(err){ toast(t('toast.caca.late.fail')); console.error(err); }
@@ -1580,10 +1618,10 @@ document.querySelector(".sortbar").addEventListener("click", e=>{
   renderFriendsList();
 });
 function renderFriendsList(){
-  const board=[{id:uid,displayName:me?.displayName,color:me?.color,totalCount:me?.totalCount||0}, ..._friends];
+  const board=[{id:uid,displayName:me?.displayName,color:me?.color,countsByYear:me?.countsByYear}, ..._friends];
   if(friendSort==="alpha") board.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"","es",{sensitivity:"base"}));
-  else board.sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
-  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${r.totalCount||0}</span></li>`).join("")
+  else board.sort((a,b)=>yearCountOf(b)-yearCountOf(a));
+  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${yearCountOf(r)}</span></li>`).join("")
     : `<li class="gempty">${t('amigos.empty')}</li>`;
 }
 async function renderAmigos(){
@@ -1723,12 +1761,12 @@ async function openGroup(group){
 
   // ranking por periodo. Mes/Año salen de perU/board (cero lecturas extra). Semana se carga bajo demanda.
   let weekByU=null;
-  const metricOf=p => p==='year'?(r=>r.totalCount||0) : p==='month'?(r=>perU[r.id]?.months[curMonth]||0) : (r=>weekByU?.[r.id]||0);
+  const metricOf=p => p==='year'?(r=>yearCountOf(r)) : p==='month'?(r=>perU[r.id]?.months[curMonth]||0) : (r=>weekByU?.[r.id]||0);
   function renderRank(period){
     const m=metricOf(period);
     const ranked=[...board].sort((a,b)=>m(b)-m(a));
     const yr=period!=='year';
-    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${r.totalCount||0} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
+    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${yearCountOf(r)} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
       || `<p class="notif-empty">${t('grupos.rank.empty')}</p>`;
   }
   const seg=$("rankPeriod");
@@ -2002,7 +2040,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 window.addEventListener("focus", refreshActiveView);
 
 /* ---------- botón atrás (Android/web): cierra capas → va a Inicio ---------- */
-const OVERLAY_IDS=["settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","chatSettingsSheet","menuSheet","mapSheet","friendInviteSheet"];
+const OVERLAY_IDS=["yearRecapSheet","settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","chatSettingsSheet","menuSheet","mapSheet","friendInviteSheet"];
 function closeOverlays(){ let any=false; for(const id of OVERLAY_IDS){ const e=$(id); if(e && !e.hidden){ e.hidden=true; any=true; } } return any; }
 const curView = () => document.querySelector(".view.is-active")?.dataset.view;
 // "trap": una entrada extra en el historial para capturar el back y no salir de la PWA
@@ -2447,7 +2485,7 @@ function applyLang(){
   const _l=getLang();
   document.querySelectorAll("#langSel button,#gateLangSel button").forEach(x=>x.classList.toggle("on",x.dataset.lang===_l));
   // re-run dynamic painters if already mounted
-  if(uid){ paintProgress(me?.totalCount||0); renderFeedChips(); renderFeed(); renderLocSel(me?.locationMode); }
+  if(uid){ paintProgress(yearCountOf(me)); renderFeedChips(); renderFeed(); renderLocSel(me?.locationMode); }
 }
 
 applyMode();

@@ -17,6 +17,12 @@ import {
 
 const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid";
 const yearNow = () => new Date().getFullYear();
+// Cacas del AÑO EN CURSO. Se derivan de countsByYear, que lleva el año en la clave y por
+// tanto vuelve a empezar solo el 1 de enero. `totalCount` era un contador aparte que NADIE
+// reseteaba nunca: el 1 de enero habría seguido sumando sobre el total del año anterior,
+// mientras countsByYear/countsByMonth sí arrancaban bien. Se sigue escribiendo por
+// compatibilidad (revertir el despliegue no rompe nada), pero ya no se lee en ningún sitio.
+export const yearCountOf = u => (u?.countsByYear?.[yearNow()]) || 0;
 // clave del contador mensual denormalizado: "AÑO_MESINDEX" (mes 0–11), p.ej. "2026_5" = junio 2026.
 // Permite pintar la gráfica/ranking del grupo SIN leer las cacas de cada miembro (ahorro de cuota).
 const monthKey = ts => { const d = new Date(ts); return `${d.getFullYear()}_${d.getMonth()}`; };
@@ -140,7 +146,7 @@ export async function addCaca(uid, loc, act){
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
     const data = us.data() || {};
-    const n = (data.totalCount || 0) + 1;
+    const n = yearCountOf(data) + 1;
     const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
     tx.set(cacaRef, cdata);
@@ -275,7 +281,7 @@ export async function addCacaAt(uid, ts, act){
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
     const data = us.data() || {};
-    const cur = (y === yearNow()) ? (data.totalCount || 0) : (data.countsByYear?.[y] || 0);
+    const cur = data.countsByYear?.[y] || 0;
     const n = cur + 1;
     tx.set(cacaRef, { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
     const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1),
@@ -322,7 +328,7 @@ export async function removeCaca(uid, act){
     const cs = await tx.get(cacaRef);
     if (!cs.exists()) return false;                  // ya no está → no toques los contadores
     const me = (await tx.get(uref)).data();
-    if (!me || (me.totalCount||0) <= 0) return false;
+    if (!me || (me.lifetimeCount||0) <= 0) return false;
     const lastTs = cs.data().ts;
     const y = new Date(lastTs).getFullYear();
     const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(lastTs)}`]:increment(-1) };
@@ -524,7 +530,7 @@ export async function myGroups(uid){
 // leaderboard (members' current-year totals, desc)
 export async function groupLeaderboard(group){
   const users = await Promise.all((group.members||[]).map(getUser));
-  return users.filter(Boolean).sort((a,b)=>(b.totalCount||0)-(a.totalCount||0));
+  return users.filter(Boolean).sort((a,b)=>yearCountOf(b)-yearCountOf(a));
 }
 // merged recent activity of group members
 export async function groupFeed(group, perMember = 4){
@@ -567,7 +573,7 @@ export async function homeFeed(uid, perPerson = 12, pre){
   const chunks = await Promise.all(Object.keys(ctx).map(async p => {
     const u = usersMap[p]; if (!u) return [];
     const snap = await getDocs(query(collection(db,"users",p,"cacas"), orderBy("ts","desc"), limit(perPerson)));
-    const total = u.totalCount || 0;
+    const total = yearCountOf(u);
     return snap.docs.map((d, i) => ({
       ...d.data(), id: d.id, uid: p, name: u.displayName, color: u.color || colorForUid(p),
       contexts: ctx[p], n: Math.max(1, total - i),

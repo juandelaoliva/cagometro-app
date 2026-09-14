@@ -27,6 +27,45 @@ const monthKey = ts => { const d = new Date(ts); return `${d.getFullYear()}_${d.
 export const STATS_V = 2;
 const hourOf = ts => new Date(ts).getHours();
 const weekdayOf = ts => (new Date(ts).getDay()+6)%7;
+
+// ── Rachas ───────────────────────────────────────────────────────────────────
+// La racha son "días seguidos con al menos una caca". addCaca la lleva de forma
+// incremental (+1 cada día nuevo), pero hay dos caminos que el incremento NO puede
+// resolver solo: una caca PASADA puede rellenar un hueco y unir dos tramos, y un
+// borrado puede dejar un día a cero. En esos dos casos se recalcula desde las cacas,
+// que son la verdad.
+const DAY = 86400000;
+const dayKey = ts => { const d = new Date(ts); d.setHours(0,0,0,0); return d.getTime(); };
+// Días naturales entre dos medianoches. Con Math.round en vez de una resta exacta,
+// porque el día del cambio de hora dura 23 o 25 h: comparar contra 86400000 clavado
+// hacía que la racha se rompiera sola dos veces al año aunque no fallaras ningún día.
+const dayGap = (a, b) => Math.round((b - a) / DAY);
+export function streaksFrom(tsList){
+  const days = [...new Set(tsList.map(dayKey))].sort((a,b)=>a-b);
+  if (!days.length) return { currentStreak: 0, longestStreak: 0 };
+  let best = 0, run = 0;
+  for (let i = 0; i < days.length; i++){
+    run = (i && dayGap(days[i-1], days[i]) === 1) ? run + 1 : 1;
+    if (run > best) best = run;
+  }
+  // la racha actual solo sigue viva si el último día con caca es hoy o ayer
+  let cur = 0;
+  if (dayGap(days[days.length-1], dayKey(Date.now())) <= 1){
+    cur = 1;
+    for (let i = days.length-1; i > 0; i--){
+      if (dayGap(days[i-1], days[i]) === 1) cur++; else break;
+    }
+  }
+  return { currentStreak: cur, longestStreak: best };
+}
+// Ventana de cacas que se lee para recalcular. La racha ACTUAL solo necesita los días
+// recientes, así que sobra de largo; para el récord se combina con Math.max sobre el
+// valor guardado, de modo que una ventana corta nunca puede bajarlo por error.
+const STREAK_WINDOW = 400;
+const recentTs = async uid => {
+  const s = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(STREAK_WINDOW)));
+  return s.docs.map(d => ({ id: d.id, ts: d.data().ts }));
+};
 export const colorForUid = uid => `hsl(${[...(uid||"x")].reduce((a,c)=>a+c.charCodeAt(0),0)*47 % 360} 45% 38%)`;
 
 /* ---------- auth ---------- */
@@ -110,7 +149,9 @@ export async function addCaca(uid, loc, act){
     const d0 = new Date(ts); d0.setHours(0,0,0,0); const today0 = d0.getTime();
     const lastDay = new Date(lastTs); lastDay.setHours(0,0,0,0); const lastDay0 = lastDay.getTime();
     const cur = data.currentStreak || 0;
-    const newStreak = lastTs === 0 ? 1 : lastDay0 === today0 ? cur : lastDay0 === today0 - 86400000 ? cur + 1 : 1;
+    // gap en días naturales (ver dayGap): 0 = ya cagaste hoy, 1 = fue ayer → sigue la racha.
+    const gap = dayGap(lastDay0, today0);
+    const newStreak = lastTs === 0 ? 1 : gap === 0 ? Math.max(cur, 1) : gap === 1 ? cur + 1 : 1;
     tx.update(uref, {
       totalCount: increment(1), lifetimeCount: increment(1),
       [`countsByYear.${y}`]: increment(1), [`countsByMonth.${monthKey(ts)}`]: increment(1),
@@ -225,6 +266,11 @@ export const enqueuePush = (fromUid, toUid, type, title, body) =>
 export async function addCacaAt(uid, ts, act){
   const y = new Date(ts).getFullYear();
   const cacaRef = doc(collection(db,"users",uid,"cacas"));
+  // Una caca pasada puede RELLENAR un hueco y unir dos tramos de racha, cosa que el
+  // +1 incremental no puede deducir: hay que mirar el conjunto de días. Se lee fuera
+  // de la transacción (dentro solo se admiten lecturas por referencia, no consultas)
+  // y se incluye el ts nuevo en el cálculo.
+  const st = streaksFrom([...(await recentTs(uid)).map(c => c.ts), ts]);
   await runTransaction(db, async tx => {
     const uref = doc(db, "users", uid);
     const us = await tx.get(uref);
@@ -236,6 +282,11 @@ export async function addCacaAt(uid, ts, act){
       [`byHour.${hourOf(ts)}`]:increment(1), [`byWeekday.${weekdayOf(ts)}`]:increment(1), tz:tz() };
     if (y === yearNow()) upd.totalCount = increment(1);
     upd.lastCacaTs = Math.max(data.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
+    // racha recalculada desde los días reales: registrar el día que te faltaba ahora SÍ
+    // repara la cadena. El récord se combina con Math.max para que la ventana de
+    // lectura acotada no pueda bajarlo nunca.
+    upd.currentStreak = st.currentStreak;
+    upd.longestStreak = Math.max(data.longestStreak || 0, st.longestStreak);
     // firstCacaTs: apunta a la caca más antigua conocida
     if (!data.firstCacaTs || ts < data.firstCacaTs) upd.firstCacaTs = ts;
     tx.update(uref, upd);
@@ -259,9 +310,13 @@ export async function removeCaca(uid, act){
   // La query "última caca por ts" no puede ir dentro de la transacción: el SDK solo admite
   // tx.get() sobre referencias concretas, no consultas. La resolvemos fuera y dentro
   // re-leemos ESE doc para confirmar que sigue ahí (otro dispositivo pudo borrarlo).
-  const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(1)));
+  // Se lee una ventana (no solo la última) porque al borrar hay que recalcular la racha:
+  // el día que se queda sin cacas puede partir la cadena, y eso el contador no lo sabe.
+  const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(STREAK_WINDOW)));
   if (snap.empty) return false;
   const cacaRef = snap.docs[0].ref;
+  const resto = snap.docs.slice(1).map(d => d.data().ts);   // cómo queda tras el borrado
+  const st = streaksFrom(resto);
   const uref = doc(db, "users", uid);
   const done = await runTransaction(db, async tx => {
     const cs = await tx.get(cacaRef);
@@ -274,6 +329,12 @@ export async function removeCaca(uid, act){
     if (y === yearNow()) upd.totalCount = increment(-1);
     // solo bajamos los rollups si el usuario ya está backfilleado (si no, tendrían huecos → negativos)
     if (me.statsV === STATS_V){ upd[`byHour.${hourOf(lastTs)}`]=increment(-1); upd[`byWeekday.${weekdayOf(lastTs)}`]=increment(-1); }
+    // racha y lastCacaTs recalculados sin la caca borrada. Antes no se tocaban, así que
+    // el contador seguía contando un día que ya no tenía ninguna caca, y liveStreak no
+    // podía detectarlo porque se apoya justo en el lastCacaTs que quedaba obsoleto.
+    upd.currentStreak = st.currentStreak;
+    upd.longestStreak = Math.max(me.longestStreak || 0, st.longestStreak);
+    upd.lastCacaTs = resto.length ? Math.max(...resto) : 0;
     tx.delete(cacaRef);
     tx.update(uref, upd);
     return true;

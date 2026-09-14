@@ -6,7 +6,7 @@
    ============================================================ */
 const _es = {
   // ── Meta ──
-  'meta.desc': 'Tu cagómetro personal. Suma tus cacas, sigue a tus amigos y compite en grupos.',
+  'meta.desc': 'Tu cagómetro personal. Suma tus cacas, sigue a tus amigos y llevad la cuenta en grupo.',
 
   // ── Splash / bootfail ──
   'bootfail.msg': 'No se pudo cargar la app.',
@@ -512,7 +512,7 @@ const _es = {
 
 const _en = {
   // ── Meta ──
-  'meta.desc': 'Your personal poop tracker. Log your poops, follow your friends, and compete in groups.',
+  'meta.desc': 'Your personal poop tracker. Log your poops, follow your friends, and keep count together in groups.',
 
   // ── Splash / bootfail ──
   'bootfail.msg': 'The app could not be loaded.',

@@ -1915,18 +1915,39 @@ function renderBristolStats(){
   // Antes era slice(-30), que cogía la cola —las 30 más ANTIGUAS—, dejando el bloque
   // congelado en el pasado (cagar no movía la media) y la tendencia del revés, porque
   // `older`/`newer` de abajo asumen orden cronológico.
-  const withBristol = statsCacas.filter(c=>c.bristol).slice(0,30).reverse();
+  const allBristol = statsCacas.filter(c=>c.bristol);
+  const withBristol = allBristol.slice(0,30).reverse();
   if(withBristol.length < 1){ block.hidden=true; return; }
   block.hidden = false;
-  $("bristolStatsHint").textContent = t('bristol.stats.hint',{n:withBristol.length});
+  // La etiqueta dice el PERIODO que cubre la ventana, no solo cuántos registros son:
+  // 30 registros son 5 días para quien caga mucho y 43 para quien caga poco, así que
+  // "30 registros" a secas no permitía saber de cuándo eran los datos.
+  const _fd = ts => { const d=new Date(ts); return `${d.getDate()} ${_meses[d.getMonth()]}`; };
+  const desde=_fd(withBristol[0].ts), hasta=_fd(withBristol[withBristol.length-1].ts);
+  $("bristolStatsHint").textContent = desde===hasta
+    ? t('bristol.stats.hint.day',{n:withBristol.length, day:hasta})
+    : t('bristol.stats.hint.range',{n:withBristol.length, from:desde, to:hasta});
   // Media
   const avg = withBristol.reduce((s,c)=>s+c.bristol,0) / withBristol.length;
   const avgRound = Math.round(avg);
-  const avgLabel = avg < 3 ? t('bristol.stats.constipation') : avg > 5 ? t('bristol.stats.diarrhea') : t('bristol.stats.normal');
-  // Tendencia: comparar primera mitad vs segunda mitad
+  // La etiqueta clínica necesita una muestra mínima: con un solo registro se llegaba a
+  // decir "tendencia al estreñimiento" por una única caca.
+  const MIN_LABEL = 5;
+  const avgLabel = withBristol.length < MIN_LABEL ? t('bristol.stats.fewdata')
+    : avg < 3 ? t('bristol.stats.constipation')
+    : avg > 5 ? t('bristol.stats.diarrhea')
+    : t('bristol.stats.normal');
+  // Media histórica como referencia, solo si la ventana no son ya todas tus cacas
+  // (si no, saldría el mismo número dos veces).
+  const lifeAvg = allBristol.length > withBristol.length
+    ? allBristol.reduce((s,c)=>s+c.bristol,0)/allBristol.length : null;
+  // Tendencia: primera mitad vs segunda (la ventana ya viene en orden cronológico).
+  // Con menos de 4 registros no hay tendencia que calcular: antes se pintaba igualmente
+  // "➡️", que se leía como "estable" cuando en realidad significaba "no hay datos".
   const half = Math.floor(withBristol.length/2);
-  let trendIcon = "➡️";
+  let trendIcon = "";
   if(withBristol.length >= 4){
+    trendIcon = "➡️";
     const older = withBristol.slice(0,half).reduce((s,c)=>s+c.bristol,0)/half;
     const newer = withBristol.slice(half).reduce((s,c)=>s+c.bristol,0)/(withBristol.length-half);
     const diff = newer - older;
@@ -1937,6 +1958,7 @@ function renderBristolStats(){
     <div class="bristol-stats-avg__info">
       <div class="bristol-stats-avg__num">${avg.toFixed(1)}</div>
       <div class="bristol-stats-avg__label">${t('bristol.stats.avg')} · ${avgLabel}</div>
+      ${lifeAvg!=null?`<div class="bristol-stats-avg__life">${t('bristol.stats.lifetime',{v:lifeAvg.toFixed(1)})}</div>`:""}
     </div>
     <div class="bristol-stats-avg__trend">${trendIcon}</div>`;
   // Barras por tipo

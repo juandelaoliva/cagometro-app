@@ -277,6 +277,7 @@ ol,ul{list-style:none}
 .bristol-stats-avg__info{flex:1}
 .bristol-stats-avg__num{font-family:var(--font-d);font-weight:900;font-size:28px;color:var(--brand);line-height:1}
 .bristol-stats-avg__label{font-size:12px;color:var(--ink-soft);margin-top:2px}
+.bristol-stats-avg__life{font-size:11px;color:var(--ink-faint);margin-top:1px}
 .bristol-stats-avg__trend{font-size:20px;line-height:1}
 .bristol-stats-bars{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
 .bristol-bar{display:flex;align-items:center;gap:8px}

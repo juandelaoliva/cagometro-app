@@ -1909,8 +1909,13 @@ function renderStats(){
 function renderBristolStats(){
   const block = $("bristolStatsBlock");
   if(!_bristolAccess()){ block.hidden=true; return; }
-  // Últimas 30 cacas con datos Bristol
-  const withBristol = statsCacas.filter(c=>c.bristol).slice(-30);
+  // Últimas 30 cacas con datos Bristol, en orden CRONOLÓGICO (de la más antigua a la
+  // más reciente). statsCacas viene de myActivity(), que ordena por ts DESC, así que
+  // las recientes están al PRINCIPIO: hay que coger la cabeza y darle la vuelta.
+  // Antes era slice(-30), que cogía la cola —las 30 más ANTIGUAS—, dejando el bloque
+  // congelado en el pasado (cagar no movía la media) y la tendencia del revés, porque
+  // `older`/`newer` de abajo asumen orden cronológico.
+  const withBristol = statsCacas.filter(c=>c.bristol).slice(0,30).reverse();
   if(withBristol.length < 1){ block.hidden=true; return; }
   block.hidden = false;
   $("bristolStatsHint").textContent = t('bristol.stats.hint',{n:withBristol.length});

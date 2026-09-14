@@ -250,20 +250,35 @@ export async function addCacaAt(uid, ts, act){
 }
 
 // undo: borra la última caca, baja contadores y deja constancia en el feed (kind:"undo")
+// El borrado y la bajada de contadores van en UNA transacción, igual que addCaca. Antes
+// eran dos escrituras sueltas: si la segunda no llegaba (se cierra la app, se va la red
+// justo después de borrar), la caca desaparecía pero el contador se quedaba arriba. Y como
+// los contadores NUNCA se recalculan —solo se empujan ±1—, ese desfase se quedaba para
+// siempre. Así o se borra la caca y bajan los contadores, o no pasa nada.
 export async function removeCaca(uid, act){
-  const me = await getUser(uid);
-  if (!me || (me.totalCount||0) <= 0) return false;
+  // La query "última caca por ts" no puede ir dentro de la transacción: el SDK solo admite
+  // tx.get() sobre referencias concretas, no consultas. La resolvemos fuera y dentro
+  // re-leemos ESE doc para confirmar que sigue ahí (otro dispositivo pudo borrarlo).
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(1)));
   if (snap.empty) return false;
-  const last = snap.docs[0];
-  const lastTs = last.data().ts;
-  const y = new Date(lastTs).getFullYear();
-  await deleteDoc(last.ref);
-  const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(lastTs)}`]:increment(-1) };
-  if (y === yearNow()) upd.totalCount = increment(-1);
-  // solo bajamos los rollups si el usuario ya está backfilleado (si no, tendrían huecos → negativos)
-  if (me.statsV === STATS_V){ upd[`byHour.${hourOf(lastTs)}`]=increment(-1); upd[`byWeekday.${weekdayOf(lastTs)}`]=increment(-1); }
-  await updateDoc(doc(db,"users",uid), upd);
+  const cacaRef = snap.docs[0].ref;
+  const uref = doc(db, "users", uid);
+  const done = await runTransaction(db, async tx => {
+    const cs = await tx.get(cacaRef);
+    if (!cs.exists()) return false;                  // ya no está → no toques los contadores
+    const me = (await tx.get(uref)).data();
+    if (!me || (me.totalCount||0) <= 0) return false;
+    const lastTs = cs.data().ts;
+    const y = new Date(lastTs).getFullYear();
+    const upd = { lifetimeCount:increment(-1), [`countsByYear.${y}`]:increment(-1), [`countsByMonth.${monthKey(lastTs)}`]:increment(-1) };
+    if (y === yearNow()) upd.totalCount = increment(-1);
+    // solo bajamos los rollups si el usuario ya está backfilleado (si no, tendrían huecos → negativos)
+    if (me.statsV === STATS_V){ upd[`byHour.${hourOf(lastTs)}`]=increment(-1); upd[`byWeekday.${weekdayOf(lastTs)}`]=increment(-1); }
+    tx.delete(cacaRef);
+    tx.update(uref, upd);
+    return true;
+  });
+  if (!done) return false;
   if (act) writeActivity(uid, { kind:"undo", name:act.name||"", color:act.color||"", ts:Date.now(), year:yearNow(),
     audience: act.audience?.length ? act.audience : [uid], groups: act.groups||[] }).catch(()=>{});
   return true;

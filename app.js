@@ -1588,6 +1588,10 @@ $("lateConfirm").addEventListener("click",async()=>{
     const prevTotal = yearCountOf(me);
     const thisYear = new Date(ts).getFullYear() === new Date().getFullYear();
     const cacaId = await addCacaAt(uid, ts, actMeta());
+    // OJO: aquí NO se llama a checkSyncPoop a propósito. Una caca olvidada no funda
+    // conexiones de tuberías, igual que tampoco cuenta como "cercana" para los demás
+    // (ver el filtro `!c.late` en checkSyncPoop). La conexión celebra haber cagado a la
+    // vez de verdad, y aquí estás registrando algo que pasó hace rato.
     haptic(18); toast(t('toast.caca.late.ok')); _statsLoadedAt=0; loadActivity("force");
     // Bristol también en la caca olvidada (solo si bristolMode); tras el hito si lo hay.
     // Una caca de un año pasado no sube el contador del año → no dispara hito.
@@ -2371,12 +2375,25 @@ function distShort(km){
 // `loc` = tu ubicación (si la tienes) para calcular los km que os separan en un 1:1.
 function checkSyncPoop(loc){
   const now=Date.now();
-  // amigos con caca en los últimos 5 min (no tú, no eventos de sistema/sync)
+  // amigos con caca en los últimos 5 min (no tú, no eventos de sistema/sync).
+  // Las cacas OLVIDADAS quedan fuera (`!c.late`): su evento se escribe con
+  // ts = ahora para que salga arriba del feed, pero la caca es de antes, así que
+  // colarla aquí hacía que registrar a las 09:07 una caca de las 08:14 contara
+  // como "acabo de cagar" y disparara una conexión con quien cagase a las 09:10.
+  // Una caca olvidada no conecta ni por su hora real ni por la de registro.
   const nearby=homeFeedData.filter(c =>
-    c.uid!==uid && (c.kind===undefined||c.kind==="add") && friendNames[c.uid]
+    c.uid!==uid && (c.kind===undefined||c.kind==="add") && !c.late && friendNames[c.uid]
     && (now-c.ts)>=0 && (now-c.ts)<=SYNC_WINDOW);
   if(!nearby.length) return false;
   const nearbyUids=new Set(nearby.map(c=>c.uid));
+  // Si YA estoy dentro de una conexión viva que cubre a esos mismos amigos, esta caca
+  // no funda otra: el encuentro ya está registrado. Sin esto, cagar pocos segundos
+  // después de que un amigo te hubiera incluido creaba una SEGUNDA conexión en paralelo
+  // (no podías unirte a la suya porque ya eras participante, así que fundabas una nueva).
+  if(homeFeedData.some(c => c.kind==="sync" && Array.isArray(c.participantUids)
+    && c.participantUids.includes(uid)
+    && (now-(c.lastTs||c.ts))<=SYNC_WINDOW
+    && [...nearbyUids].every(u=>c.participantUids.includes(u)))) return false;
   // ¿combo ABIERTO en mi feed (con algún amigo cercano) al que unirme?
   // Solo me uno si soy amigo de TODOS los que ya están dentro (misma regla que
   // canSeeSync). Si no, no me cuelo en el combo de un desconocido: fundo mi propia

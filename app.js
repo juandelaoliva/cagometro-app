@@ -163,10 +163,13 @@ function _renderFactMedia(f){
 function _renderFact(offset, animate=false){
   const f = FUN_FACTS[(_factBaseIdx() + offset) % FUN_FACTS.length];
   const textEl = $("funFactText");
+  // La animación va en el <p>, no en el <span> del texto: ahora el span es inline
+  // (para que "fuente" siga al texto en la misma línea) y transform no aplica a inline.
+  const paraEl = $("funFactPara");
   if(animate){
-    textEl.classList.remove("funfact__text--anim");
-    void textEl.offsetWidth;
-    textEl.classList.add("funfact__text--anim");
+    paraEl.classList.remove("funfact__text--anim");
+    void paraEl.offsetWidth;
+    paraEl.classList.add("funfact__text--anim");
   }
   textEl.textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;

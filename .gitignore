@@ -3,3 +3,7 @@ node_modules/
 
 # data exports del bot (datos personales — nunca subir)
 cagometro-*export*.json
+
+# caché del extractor de og:image (se regenera sola)
+tools/.og-cache.json
+funfacts.js.bak

@@ -384,6 +384,7 @@ function showApp(){
   maybeShowFunFact();
   setTimeout(maybeShowBristolTour, 1500);
   setTimeout(maybeShowHeatmapAnnounce, 1700);    // novedad: mapa de calor (aviso único)
+  setTimeout(maybeShowFactAnnounce, 1900);       // novedad: fun facts con imagen (aviso único)
   setTimeout(maybeShowOnboardingPrompt, 3200);   // instalar (iOS) o activar notificaciones (con topes)
 }
 
@@ -1154,7 +1155,61 @@ async function maybeShowHeatmapAnnounce(){
 $("heatAnncClose").addEventListener("click", ()=>$("heatAnncSheet").hidden=true);
 $("heatAnncSheet").addEventListener("click", e=>{ if(e.target===$("heatAnncSheet")) $("heatAnncSheet").hidden=true; });
 $("heatAnncTry").addEventListener("click", ()=>{ $("heatAnncSheet").hidden=true; openMap(); });
-$("notifBody").addEventListener("click", e=>{ if(e.target.closest("[data-annc]")){ $("notifSheet").hidden=true; openHeatAnnc(); } });
+
+/* ---------- aviso único: los fun facts ahora traen imagen ---------- */
+// Solo se lo enseñamos a quien YA usaba la app: para quien se registre a partir de
+// ahora la tarjeta con foto es lo normal, no una novedad. La puerta es la fecha de
+// alta de la cuenta; el localStorage evita que se repita en el mismo dispositivo.
+const FACTANNC_SHIP  = Date.parse("2026-09-16T00:00:00Z");   // día del despliegue
+const FACTANNC_UNTIL = Date.parse("2026-10-16T00:00:00Z");   // sigue en notificaciones hasta aquí
+const FACTANNC_DEMO  = 0;                                    // el wombat cúbico: el dato estrella
+function _factAnncActive(){ return Date.now() < FACTANNC_UNTIL && _factAnncEligible(); }
+function _factAnncEligible(){
+  if(!me) return false;
+  const alta = me.createdAt?.toMillis?.();
+  if(alta != null) return alta < FACTANNC_SHIP;
+  // Sin createdAt: o es una cuenta anterior al campo, o es un alta recién hecha cuyo
+  // serverTimestamp aún no ha resuelto. La primera caca distingue una cosa de la otra.
+  return (me.firstCacaTs || 0) > 0 && me.firstCacaTs < FACTANNC_SHIP;
+}
+// Réplica estática de la tarjeta real con un dato de verdad: se ve la novedad sin
+// meter una captura en el repo, y si la imagen no carga cae al mismo respaldo por
+// categoría que usa la tarjeta.
+function openFactAnnc(){
+  const f = FUN_FACTS[FACTANNC_DEMO];
+  const [emoji, color] = FACT_CAT[f.cat] || ["💩","#7A4A22"];
+  $("factAnncDemo").innerHTML = `
+    <div class="funfact"><div class="funfact__grid">
+      <div class="funfact__media${f.img ? "" : " funfact__media--fallback"}" style="--fact-color:${color}">
+        ${f.img ? `<img class="funfact__img" src="${_aesc(f.img)}" alt="" decoding="async" referrerpolicy="no-referrer">` : ""}
+        <span class="funfact__fallback">${emoji}</span>
+      </div>
+      <div class="funfact__main">
+        <div class="funfact__toggle"><span class="funfact__toggle-label">💩 ${t('funfact.title')}</span></div>
+        <div class="funfact__body"><div class="funfact__body-inner">
+          <p class="funfact__text">${_aesc(getLang()==="en" ? f.en : f.es)} <span class="funfact__src">${t('funfact.source')}</span></p>
+        </div></div>
+      </div>
+    </div></div>`;
+  const img = $("factAnncDemo").querySelector(".funfact__img");
+  if(img) img.onerror = () => { img.parentNode.classList.add("funfact__media--fallback"); img.remove(); };
+  $("factAnncSheet").hidden = false;
+}
+function maybeShowFactAnnounce(){
+  if(!uid || !me) return;
+  if(!_factAnncActive()) return;
+  if(localStorage.getItem("cago_seen_factannc")) return;
+  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
+  localStorage.setItem("cago_seen_factannc","1");
+  openFactAnnc();
+}
+$("factAnncClose").addEventListener("click", ()=>$("factAnncSheet").hidden=true);
+$("factAnncSheet").addEventListener("click", e=>{ if(e.target===$("factAnncSheet")) $("factAnncSheet").hidden=true; });
+$("notifBody").addEventListener("click", e=>{
+  const li = e.target.closest("[data-annc]"); if(!li) return;
+  $("notifSheet").hidden=true;
+  if(li.dataset.annc==="fact") openFactAnnc(); else openHeatAnnc();
+});
 function _closeNotifPrompt(action){
   $("notifPromptSheet").hidden=true;
   if(action) setNotifPromptAction(uid, action).catch(()=>{});
@@ -1198,7 +1253,7 @@ function startNotifications(){
 }
 function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
-function renderNotifBadge(){ const annc=(_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0; const n=notifReqs.length+notifGroupInvites.length+unseenRx+annc; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
+function renderNotifBadge(){ const annc=((_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0)+((_factAnncActive() && !localStorage.getItem("cago_factannc_notifseen"))?1:0); const n=notifReqs.length+notifGroupInvites.length+unseenRx+annc; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
@@ -1212,13 +1267,14 @@ function renderNotifSheet(){
   const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${inv.groupName}</b><small>${t('notif.groupinvite.from',{name:inv.fromName})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
   const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
   let html="";
+  if(_factAnncActive()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc" data-annc="fact"><span class="notif-annc__e">📸</span><span class="nm"><b>${t('factannc.notif.title')}</b><small>${t('factannc.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(_heatAnncActive()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc" data-annc="heat"><span class="notif-annc__e">🔥</span><span class="nm"><b>${t('heatannc.notif.title')}</b><small>${t('heatannc.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(reqs)    html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
   if(ginvites)html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.groupinvites')}</h4><ul class="reqlist">${ginvites}</ul></div>`;
   if(rx)      html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.rx')}</h4><ul class="notif-list">${rx}</ul></div>`;
   $("notifBody").innerHTML = html || `<p class="notif-empty">${t('notif.empty')}<br/><small>${t('notif.empty.sub')}</small></p>`;
 }
-function openNotif(){ unseenRx=0; if(_heatAnncActive()) localStorage.setItem("cago_heatannc_notifseen","1"); renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
+function openNotif(){ unseenRx=0; if(_heatAnncActive()) localStorage.setItem("cago_heatannc_notifseen","1"); if(_factAnncActive()) localStorage.setItem("cago_factannc_notifseen","1"); renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
 $("notifBtn").addEventListener("click", openNotif);
 $("notifClose").addEventListener("click", ()=>$("notifSheet").hidden=true);
 $("notifSheet").addEventListener("click", e=>{ if(e.target===$("notifSheet")) $("notifSheet").hidden=true; });

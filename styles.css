@@ -782,6 +782,12 @@ body.sheet-open{overflow:hidden}
   background:linear-gradient(135deg,#fff6e8,#ffe9d6);border:1px solid rgba(214,140,60,.28)}
 .heatannc__cacamu-emoji{font-size:1.5rem;line-height:1;margin-bottom:6px}
 .heatannc__cacamu-txt{margin:0;font-size:14px;line-height:1.5;color:var(--ink)}
+/* Aviso "los fun facts traen foto": la tarjeta de ejemplo reutiliza las clases
+   .funfact tal cual, así que el popup enseña exactamente lo que se va a ver. */
+.factannc__panel{text-align:center}
+.factannc__demo{margin-bottom:16px;text-align:left;pointer-events:none}
+.factannc__demo .funfact{margin-top:0;box-shadow:0 6px 20px rgba(36,27,18,.14)}
+.factannc__joke{margin:12px 0 0;font-size:13px;line-height:1.5;color:var(--ink-soft);font-style:italic}
 /* selector de ubicación (ubicar cacas pasadas): mapa con pin fijo en el centro */
 .locate-map-wrap{position:relative;height:300px;border-radius:14px;overflow:hidden;border:1px solid var(--line-2);margin:4px 0 2px}
 .locate-map{position:absolute;inset:0}

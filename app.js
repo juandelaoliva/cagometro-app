@@ -14,6 +14,7 @@ import {
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage, setChatMuted,
+  replySnapshot,
   getGroup,
   saveBristol, setBristolMode, setBristolOnboarded, STATS_V
 } from "./store.js";
@@ -2747,8 +2748,17 @@ let _chatMsgUnsub = null;
 let _activeChatId = null;
 let _activeChatData = null;
 let _chatMembers = {};   // uid -> {name,color} de los miembros del grupo activo (para pintar nombre+avatar)
-let _lastMsgs = [];      // últimos mensajes renderizados (re-render al terminar de cargar perfiles)
+let _lastMsgs = [];      // ventana viva del listener (los 30 últimos), se reemplaza en cada snapshot
+let _olderMsgs = [];     // páginas antiguas ya cargadas, que van DELANTE de la ventana viva
 let _oldestMsgClientTs = null;
+let _replyTo = null;     // mensaje que estamos citando, o null
+// Mensajes cargados, en orden. Antes, un snapshot nuevo repintaba con innerHTML solo la
+// ventana viva y borraba del DOM lo que hubieras cargado con "↑ Cargar anteriores"; ahora
+// se conservan, que además es lo que necesita el salto a un mensaje citado antiguo.
+function _allMsgs(){
+  const vistos = new Set(_lastMsgs.map(m=>m.id));
+  return [..._olderMsgs.filter(m=>!vistos.has(m.id)), ..._lastMsgs];
+}
 
 // ── helpers de tiempo ────────────────────────────────────────────
 function _chatTime(ts){
@@ -2841,10 +2851,11 @@ function _msgHtml(m, myUid, prev, next){
   const cont = firstOfBlock ? "" : " msg--cont";
   const tail = lastOfBlock ? " msg--tail" : "";
   const safe = m.text.replace(/</g,"&lt;");
+  const quote = _quoteHtml(m.replyTo, myUid);
 
   if(isMe){   // el "+" a la IZQUIERDA del bocadillo
     return `<li class="msg msg--me${cont}${tail}" data-msg-id="${m.id}">
-      <div class="msg__row">${addBtn}<div class="msg__bubble">${safe}</div></div><div class="msg__time">${timeStr}</div>${chips}
+      <div class="msg__row">${addBtn}<div class="msg__bubble">${quote}${safe}</div></div><div class="msg__time">${timeStr}</div>${chips}
     </li>`;
   }
   if(isGroup){   // el "+" a la DERECHA del bocadillo
@@ -2855,13 +2866,28 @@ function _msgHtml(m, myUid, prev, next){
     const av   = lastOfBlock ? `<span class="msg__av" style="background:${col}">${initial(nm)}</span>` : "";
     return `<li class="msg msg--them msg--group${cont}${tail}" data-msg-id="${m.id}">
       <div class="msg__gutter">${av}</div>
-      <div class="msg__content"><div class="msg__row"><div class="msg__bubble">${name}${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}</div>
+      <div class="msg__content"><div class="msg__row"><div class="msg__bubble">${name}${quote}${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}</div>
     </li>`;
   }
   // DM 1:1: sin nombre ni avatar; "+" a la derecha
   return `<li class="msg msg--them${cont}${tail}" data-msg-id="${m.id}">
-    <div class="msg__row"><div class="msg__bubble">${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}
+    <div class="msg__row"><div class="msg__bubble">${quote}${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}
   </li>`;
+}
+
+// Nombre de quien escribió el mensaje citado. En grupo preferimos el perfil cargado, que
+// está más al día que la copia guardada en el mensaje.
+function _replyName(r, myUid){
+  if(r.senderUid === myUid) return t('chat.reply.you');
+  return _chatMembers[r.senderUid]?.name || r.senderName || t('fallback.someone');
+}
+// La cita va DENTRO del bocadillo, encima del texto. Usa _aesc (escapa < > & ") porque el
+// id viaja en un atributo; el escapado del resto del chat solo cubre "<".
+function _quoteHtml(r, myUid){
+  if(!r || !r.id) return "";
+  return `<div class="msg__quote" data-jump="${_aesc(r.id)}">`
+       + `<span class="msg__quote-name">${_aesc(_replyName(r, myUid))}</span>`
+       + `<span class="msg__quote-text">${_aesc(r.text||"")}</span></div>`;
 }
 
 // ── chat navigation ──────────────────────────────────────────────
@@ -2899,6 +2925,7 @@ function _doCloseChatUI(){
 // Solo cierra la conversación y vuelve a lista — nunca toca el history
 function _doCloseConvUI(){
   _hideReactionPicker();
+  _setReplyTo(null);
   $("chatLayer2").classList.remove("is-open");
   setTimeout(()=>{ $("chatLayer2").hidden = true; }, 260);
   _chatMsgUnsub?.(); _chatMsgUnsub = null;
@@ -2952,19 +2979,21 @@ async function openConversation(chatId, chatData){
   if(_chatNavDepth === 1){ history.pushState({_c:2}, ""); _chatNavDepth = 2; }
   else if(_chatNavDepth === 2){ history.replaceState({_c:2}, ""); }
   _oldestMsgClientTs = null;
+  _olderMsgs = [];
+  _setReplyTo(null);
   markChatRead(chatId, uid).catch(()=>{});
   // Carga los perfiles de los miembros (nombre + color real) para pintar el chat de grupo.
   _chatMembers = {};
   if(chatData.type==="group" && Array.isArray(chatData.members)){
     Promise.all(chatData.members.map(async m=>{
       try{ const u=await getUser(m); if(u) _chatMembers[m]={ name:u.displayName||"", color:u.color||colorForUid(m) }; }catch{}
-    })).then(()=>{ if(_activeChatId===chatId) _renderMessages(_lastMsgs); });
+    })).then(()=>{ if(_activeChatId===chatId) _renderMessages(_allMsgs()); });
   }
   _chatMsgUnsub = watchMessages(chatId, msgs => {
-    if(msgs.length) _oldestMsgClientTs = msgs[0].clientTs;
-    $("loadOlderBtn").hidden = msgs.length < 30;
+    if(msgs.length && !_olderMsgs.length) _oldestMsgClientTs = msgs[0].clientTs;
+    $("loadOlderBtn").hidden = msgs.length < 30 && !_olderMsgs.length;
     _lastMsgs = msgs;
-    _renderMessages(msgs);
+    _renderMessages(_allMsgs());
     if(_activeChatId === chatId) markChatRead(chatId, uid).catch(()=>{});
   });
   // No enfocamos el input a propósito: el teclado solo debe abrirse cuando el
@@ -3059,11 +3088,13 @@ async function _doSend(){
   $("chatInput").value = "";
   $("chatInput").style.height = "";
   $("chatSend").disabled = true;
+  const replyTo = _replyTo;          // se guarda antes de limpiar, para poder restaurarlo
+  _setReplyTo(null);
   try{
-    await sendMessage(_activeChatId, uid, _myDisplayName, text);
+    await sendMessage(_activeChatId, uid, _myDisplayName, text, replyTo);
     const members = _activeChatData?.members || [];
-    notifyNewMessage(_activeChatId, uid, _myDisplayName, text, members).catch(()=>{});
-  } catch(e){ toast("Error: "+(e?.message||e)); $("chatInput").value=text; }
+    notifyNewMessage(_activeChatId, uid, _myDisplayName, text, members, replyTo).catch(()=>{});
+  } catch(e){ toast("Error: "+(e?.message||e)); $("chatInput").value=text; _setReplyTo(replyTo); }
   finally{ $("chatSend").disabled=false; }
 }
 let _myDisplayName = "";
@@ -3075,21 +3106,61 @@ $("chatInput").addEventListener("input", ()=>{
 });
 
 // ── cargar mensajes anteriores ───────────────────────────────────
+// Trae una página más de historial. Devuelve cuántos mensajes ha añadido (0 = se acabó),
+// para que el salto a un mensaje citado pueda seguir tirando hasta encontrarlo.
+async function _loadOlderPage(){
+  if(!_activeChatId || !_oldestMsgClientTs) return 0;
+  const older = await loadOlderMessages(_activeChatId, _oldestMsgClientTs);
+  if(older.length){
+    _oldestMsgClientTs = older[0].clientTs;
+    _olderMsgs = [...older, ..._olderMsgs];
+    _renderMessages(older, true);       // prepend: conserva la posición del scroll
+  }
+  $("loadOlderBtn").hidden = older.length < 30;
+  return older.length;
+}
 $("loadOlderBtn").addEventListener("click", async ()=>{
-  if(!_activeChatId||!_oldestMsgClientTs) return;
   $("loadOlderBtn").disabled=true;
-  try{
-    const older = await loadOlderMessages(_activeChatId, _oldestMsgClientTs);
-    if(older.length){
-      _oldestMsgClientTs = older[0].clientTs;
-      _renderMessages(older, true);
-    }
-    $("loadOlderBtn").hidden = older.length < 30;
-  } catch(e){ toast("Error cargando mensajes"); }
+  try{ await _loadOlderPage(); }
+  catch(e){ toast("Error cargando mensajes"); }
   finally{ $("loadOlderBtn").disabled=false; }
 });
 
-// ── reaccionar a mensajes ────────────────────────────────────────
+// ── responder a un mensaje ───────────────────────────────────────
+// Pinta (o esconde) la barra de "Respondiendo a …" encima del campo de texto.
+function _setReplyTo(m){
+  _replyTo = m ? replySnapshot(m) : null;
+  const bar = $("replyBar");
+  if(!_replyTo){ bar.hidden = true; return; }
+  $("replyBarName").textContent = t('chat.reply.to', { name: _replyName(_replyTo, uid) });
+  $("replyBarText").textContent = _replyTo.text;
+  bar.hidden = false;
+  $("chatInput").focus();
+}
+$("replyBarCancel").addEventListener("click", ()=> _setReplyTo(null));
+
+// Salta al mensaje citado. Si no está cargado, va pidiendo páginas de historial.
+const JUMP_MAX_PAGES = 5;      // 150 mensajes hacia atrás; más allá, no merece la pena
+async function _jumpToMessage(msgId){
+  for(let intento = 0; intento <= JUMP_MAX_PAGES; intento++){
+    const li = $("msgList").querySelector(`[data-msg-id="${CSS.escape(msgId)}"]`);
+    if(li){
+      li.scrollIntoView({ behavior:"smooth", block:"center" });
+      li.classList.remove("msg--found");
+      void li.offsetWidth;                       // reinicia la animación si se repite
+      li.classList.add("msg--found");
+      setTimeout(()=>li.classList.remove("msg--found"), 1500);
+      haptic(12);
+      return;
+    }
+    if(intento === JUMP_MAX_PAGES) break;
+    let traidos = 0;
+    try{ traidos = await _loadOlderPage(); }catch{ break; }
+    if(!traidos) break;                          // se acabó el historial
+  }
+  toast(t('toast.chat.replytoolold'));
+}
+
 // ── reaction picker ──────────────────────────────────────────────
 let _rpMsgId = null;
 const _rp = $("msgReactionPicker");
@@ -3125,17 +3196,83 @@ $("chatView").addEventListener("click", e=>{
   if(!_rp.hidden && !_rp.contains(e.target)) _hideReactionPicker();
 }, true);
 
-// long press en burbuja → picker; tap en reacción existente → toggle; tap en ➕ → picker
-let _chatLpTimer = null;
+/* Gestos sobre un mensaje: mantener pulsado abre el selector de reacciones y arrastrar
+   hacia la derecha lo cita. Van juntos porque compiten por el mismo dedo: antes el
+   long-press se cancelaba con CUALQUIER touchmove, así que un arrastre lo mataba al
+   primer píxel y encima no podía frenar el scroll de la lista.
+
+   La decisión de qué gesto es se toma en `_swipeStep`, que es una función pura para
+   poder probarla sin navegador. Umbrales y regla de confirmación son los mismos que usa
+   el deslizar-para-cerrar de las hojas, y el criterio de eje el del pull-to-refresh. */
+const SW_START = 8,      // px antes de comprometerse con un eje
+      SW_MAX   = 72,     // tope del arrastre
+      SW_OK    = 60,     // px para que cite al soltar
+      SW_FLICK = 0.55;   // px/ms: un golpe rápido cita con menos recorrido
+// estado: "idle" (sin decidir) | "scroll" (vertical, no es lo nuestro) | "drag" (citando)
+function _swipeStep(estado, dx, dy){
+  if(estado !== "idle") return estado;
+  if(Math.abs(dx) < SW_START && Math.abs(dy) < SW_START) return "idle";
+  // hacia la derecha y más horizontal que vertical → arrastre; cualquier otra cosa, scroll
+  return (dx > 0 && Math.abs(dx) > Math.abs(dy)) ? "drag" : "scroll";
+}
+const _swipeCommits = (dx, vx) => dx > SW_OK || (dx > 30 && vx > SW_FLICK);
+const _swipeAmount  = dx => Math.min(dx, SW_MAX);
+
+let _chatLpTimer = null, _swEstado = "idle", _swLi = null, _swArrastro = false;
+let _swX0 = 0, _swY0 = 0, _swXPrev = 0, _swTPrev = 0, _swVx = 0, _swDx = 0;
+const _swReset = ()=>{
+  clearTimeout(_chatLpTimer);
+  _swArrastro = false;
+  if(_swLi){ _swLi.style.transition = ""; _swLi.style.transform = ""; _swLi.classList.remove("msg--swiping"); }
+  _swEstado = "idle"; _swLi = null; _swDx = 0; _swVx = 0;
+};
 $("msgList").addEventListener("touchstart", e=>{
-  const bubble = e.target.closest(".msg__bubble");
-  if(!bubble) return;
-  const li = bubble.closest("[data-msg-id]");
-  if(!li) return;
-  _chatLpTimer = setTimeout(()=>{ navigator.vibrate?.(30); _showReactionPicker(li.dataset.msgId, bubble); }, 500);
+  _swReset();
+  if(e.touches.length !== 1) return;
+  const bubble = e.target.closest(".msg__bubble"); if(!bubble) return;
+  const li = bubble.closest("[data-msg-id]");     if(!li) return;
+  _swLi = li;
+  const tch = e.touches[0];
+  _swX0 = _swXPrev = tch.clientX; _swY0 = tch.clientY; _swTPrev = Date.now();
+  _chatLpTimer = setTimeout(()=>{
+    if(_swEstado === "drag") return;              // ya está citando: no abras el picker
+    _swEstado = "scroll";                         // y que el arrastre ya no se active
+    haptic(30); _showReactionPicker(li.dataset.msgId, bubble);
+  }, 500);
 }, {passive:true});
-$("msgList").addEventListener("touchend",  ()=>clearTimeout(_chatLpTimer), {passive:true});
-$("msgList").addEventListener("touchmove", ()=>clearTimeout(_chatLpTimer), {passive:true});
+
+$("msgList").addEventListener("touchmove", e=>{
+  if(!_swLi || e.touches.length !== 1) return;
+  const tch = e.touches[0], ahora = Date.now();
+  const dx = tch.clientX - _swX0, dy = tch.clientY - _swY0;
+  const antes = _swEstado;
+  _swEstado = _swipeStep(antes, dx, dy);
+  if(_swEstado !== "idle") clearTimeout(_chatLpTimer);   // ya hay eje: fuera el long-press
+  if(_swEstado !== "drag"){ if(antes === "idle" && _swEstado === "scroll") _swLi = null; return; }
+  if(antes !== "drag"){ _swLi.style.transition = "none"; _swLi.classList.add("msg--swiping"); }
+  if(ahora > _swTPrev) _swVx = (tch.clientX - _swXPrev) / (ahora - _swTPrev);
+  _swXPrev = tch.clientX; _swTPrev = ahora; _swDx = dx;
+  e.preventDefault();                                     // frena el scroll mientras arrastras
+  _swLi.style.transform = `translateX(${_swipeAmount(dx)}px)`;
+}, {passive:false});
+
+const _swEnd = ()=>{
+  const li = _swLi, citar = _swEstado === "drag" && _swipeCommits(_swDx, _swVx);
+  if(li && _swEstado === "drag"){
+    li.style.transition = "";                             // vuelve a su sitio con la del CSS
+    li.style.transform = "";
+    li.classList.remove("msg--swiping");
+    _swArrastro = true;                                   // para tragarse el click de después
+  }
+  clearTimeout(_chatLpTimer);
+  _swEstado = "idle"; _swLi = null; _swDx = 0; _swVx = 0;
+  if(citar && li){
+    const m = _allMsgs().find(x => x.id === li.dataset.msgId);
+    if(m){ haptic(18); _setReplyTo(m); }
+  }
+};
+$("msgList").addEventListener("touchend",    _swEnd, {passive:true});
+$("msgList").addEventListener("touchcancel", _swEnd, {passive:true});
 
 // nombre de quien reacciona en el chat (grupo: miembro; DM: el otro; yo: "Tú")
 function _chatReactorName(u){
@@ -3158,12 +3295,16 @@ function showChatReactors(chip){
   _rxTip=tip; haptic(12);
 }
 $("msgList").addEventListener("click", e=>{
+  if(_swArrastro){ _swArrastro = false; return; }   // el click que sigue a un arrastre no cuenta
   const reactBtn = e.target.closest("[data-msg-react]");
   const addBtn   = e.target.closest("[data-msg-react-add]");
+  const quote    = e.target.closest("[data-jump]");
   if(reactBtn){
     showChatReactors(reactBtn);          // tap = ver quién reaccionó (añadir/quitar va por el selector)
   } else if(addBtn){
     _showReactionPicker(addBtn.dataset.msgReactAdd, addBtn);
+  } else if(quote){
+    _jumpToMessage(quote.dataset.jump);
   }
 });
 

@@ -296,6 +296,14 @@
         </div>
         <button class="load-older" id="loadOlderBtn" hidden data-i18n="chat.loadolder">↑ Cargar anteriores</button>
         <ul class="msg-list" id="msgList"></ul>
+        <!-- barra de "respondiendo a…": aparece al deslizar un mensaje hacia la derecha -->
+        <div class="reply-bar" id="replyBar" hidden>
+          <div class="reply-bar__quote">
+            <span class="reply-bar__name" id="replyBarName"></span>
+            <span class="reply-bar__text" id="replyBarText"></span>
+          </div>
+          <button class="reply-bar__x" id="replyBarCancel" data-i18n="chat.reply.cancel" data-i18n-attr="aria-label" aria-label="Cancelar respuesta">✕</button>
+        </div>
         <div class="chat-input-area">
           <textarea class="chat-input" id="chatInput" rows="1" placeholder="Mensaje…" maxlength="1000"></textarea>
           <button class="chat-send" id="chatSend" aria-label="Enviar">➤</button>

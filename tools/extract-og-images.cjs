@@ -47,6 +47,20 @@ const unescapeHtml = s => s
   .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x2F;/gi, "/");
 
+// Bastantes sitios declaran un og:image de plantilla —su logo, su tarjeta social
+// genérica— cuando el artículo no tiene imagen propia. Eso es peor que no tener
+// nada: PubMed Central devuelve la MISMA tarjeta para todos sus artículos, así que
+// media tarjetera saldría con el logo de PMC. Mejor descartarla y dejar que la app
+// use el respaldo por categoría, que al menos varía.
+const GENERICAS = [
+  /\/pmc\/cms\/images\/pmc-card-share\./i,     // PubMed Central
+  /natgeo\/static\/default\.NG\.logo/i,        // National Geographic
+  /\/scidaily-icon\./i,                        // ScienceDaily
+  /\/social-cards\/[a-z-]*homepage\./i,        // Sky HISTORY y similares
+  /\/(logo|default|placeholder)\.(png|jpe?g|svg)$/i,
+];
+const esGenerica = url => GENERICAS.some(re => re.test(url));
+
 // Busca og:image y, si no está, las alternativas habituales. Acepta los atributos
 // en cualquier orden, que varía mucho entre CMS.
 function extraerImagen(html, baseUrl){
@@ -58,8 +72,10 @@ function extraerImagen(html, baseUrl){
     const m = html.match(re);
     const val = m && (m[1] || m[2]);
     if (val){
-      try { return new URL(unescapeHtml(val.trim()), baseUrl).href; }   // resuelve relativas
-      catch { /* URL inválida: seguimos probando */ }
+      try {
+        const abs = new URL(unescapeHtml(val.trim()), baseUrl).href;    // resuelve relativas
+        if (!esGenerica(abs)) return abs;    // si es plantilla, probamos la siguiente propiedad
+      } catch { /* URL inválida: seguimos probando */ }
     }
   }
   return null;
@@ -114,7 +130,7 @@ async function pedir(url){
     try {
       const html = await pedir(url);
       const img  = extraerImagen(html, url);
-      if (!img) throw new Error("la página no declara og:image");
+      if (!img) throw new Error("sin og:image propia (o es una plantilla del sitio)");
       e.obj.img = img; cache[url] = img; ok++;
       console.log(`${etiqueta}  ✅ ${img.slice(0, 70)}`);
       fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 1));   // guarda ya: permite cortar

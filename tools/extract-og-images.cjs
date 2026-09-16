@@ -47,6 +47,21 @@ const unescapeHtml = s => s
   .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
   .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x2F;/gi, "/");
 
+// Bastantes sitios declaran un og:image de plantilla —su logo, su tarjeta social
+// genérica— cuando el artículo no tiene imagen propia. Eso es peor que no tener
+// nada: PubMed Central devuelve la MISMA tarjeta para todos sus artículos, así que
+// media tarjetera saldría con el logo de PMC. Mejor descartarla y dejar que la app
+// use el respaldo por categoría, que al menos varía.
+const GENERICAS = [
+  /\/pmc\/cms\/images\/pmc-card-share\./i,     // PubMed Central
+  /natgeo\/static\/default\.NG\.logo/i,        // National Geographic
+  /\/scidaily-icon\./i,                        // ScienceDaily
+  /\/social-cards\/[a-z-]*homepage\./i,        // Sky HISTORY y similares
+  /\/themes\/custom\/[^/]+\/images\//i,        // logo del tema del CMS (NOAA Repository, Drupal…)
+  /\/(logo|default|placeholder)\.(png|jpe?g|svg)$/i,
+];
+const esGenerica = url => GENERICAS.some(re => re.test(url));
+
 // Busca og:image y, si no está, las alternativas habituales. Acepta los atributos
 // en cualquier orden, que varía mucho entre CMS.
 function extraerImagen(html, baseUrl){
@@ -58,8 +73,10 @@ function extraerImagen(html, baseUrl){
     const m = html.match(re);
     const val = m && (m[1] || m[2]);
     if (val){
-      try { return new URL(unescapeHtml(val.trim()), baseUrl).href; }   // resuelve relativas
-      catch { /* URL inválida: seguimos probando */ }
+      try {
+        const abs = new URL(unescapeHtml(val.trim()), baseUrl).href;    // resuelve relativas
+        if (!esGenerica(abs)) return abs;    // si es plantilla, probamos la siguiente propiedad
+      } catch { /* URL inválida: seguimos probando */ }
     }
   }
   return null;
@@ -96,6 +113,12 @@ async function pedir(url){
     catch { /* no es JSON: no es un fun fact */ }
   });
 
+  // Una plantilla que ya esté guardada en funfacts.js se tira: así el fichero se cura
+  // solo al relanzar, en vez de arrastrarla porque "ya tiene imagen".
+  let limpiadas = 0;
+  for (const e of entradas) if (e.obj.img && esGenerica(e.obj.img)){ delete e.obj.img; limpiadas++; }
+  if (limpiadas) console.log(`${limpiadas} imágenes de plantilla descartadas de funfacts.js`);
+
   const pendientes = entradas.filter(e => e.obj.url && !(ONLY_MISSING && e.obj.img));
   console.log(`${entradas.length} fun facts · ${pendientes.length} por procesar` +
               `${Object.keys(cache).length ? ` · ${Object.keys(cache).length} ya en caché` : ""}`);
@@ -107,6 +130,16 @@ async function pedir(url){
     const etiqueta = `[${String(n + 1).padStart(3)}/${pendientes.length}] ${new URL(url).hostname}`;
 
     if (cache[url]){                       // ya resuelta en una pasada anterior
+      // La caché puede venir de antes de que existiera el filtro de plantillas, así
+      // que hay que pasarla por él igual: si no, una entrada vieja reinyecta el logo
+      // del sitio sin llegar a tocar extraerImagen().
+      if (esGenerica(cache[url])){
+        delete cache[url];
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 1));
+        fallos.push({ url, motivo: "en caché, pero es una plantilla del sitio" });
+        console.log(`${etiqueta}  ❌ en caché, pero es una plantilla del sitio`);
+        continue;
+      }
       e.obj.img = cache[url]; ok++;
       console.log(`${etiqueta}  ⏩ en caché`);
       continue;
@@ -114,7 +147,7 @@ async function pedir(url){
     try {
       const html = await pedir(url);
       const img  = extraerImagen(html, url);
-      if (!img) throw new Error("la página no declara og:image");
+      if (!img) throw new Error("sin og:image propia (o es una plantilla del sitio)");
       e.obj.img = img; cache[url] = img; ok++;
       console.log(`${etiqueta}  ✅ ${img.slice(0, 70)}`);
       fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 1));   // guarda ya: permite cortar

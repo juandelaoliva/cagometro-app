@@ -115,24 +115,37 @@
             <div class="chip"><b id="statStreak">0</b><span data-i18n="chip.racha">racha</span></div>
           </div>
         </section>
+        <!-- La imagen es una COLUMNA de la tarjeta entera, no del cuerpo: así cubre todo
+             el alto (título incluido). Al plegar se encoge a 0 y el "¿Sabías que?",
+             que vive en la columna derecha, se desliza solo hasta el borde izquierdo. -->
         <div class="funfact" id="funFact" hidden>
-          <button class="funfact__toggle" id="funFactToggle" aria-label="Expandir/Colapsar">
-            <span class="funfact__toggle-label">💩 <span data-i18n="funfact.title">¿Sabías que?</span></span>
-            <span class="funfact__toggle-chevron" id="funFactChevron"></span>
-          </button>
-          <div class="funfact__body" id="funFactBody">
-            <div class="funfact__body-inner">
-              <p class="funfact__text" id="funFactText"></p>
-              <div class="funfact__foot">
-                <a class="funfact__src" id="funFactSrc" target="_blank" rel="noopener noreferrer" data-i18n="funfact.source">fuente</a>
-                <div class="funfact__foot-right">
-                  <div class="funfact__dots" id="funFactDots"></div>
-                  <button class="funfact__more" id="funFactShuffle" data-i18n="funfact.another">otra 🔀</button>
+          <div class="funfact__grid">
+            <!-- Vista previa del enlace a la fuente (og:image), por eso va envuelta en el
+                 <a> al artículo. aria-hidden + tabindex="-1" porque el enlace "fuente"
+                 del texto ya lleva al mismo sitio. -->
+            <a class="funfact__media" id="funFactMedia" target="_blank" rel="noopener noreferrer"
+               aria-hidden="true" tabindex="-1">
+              <img class="funfact__img" id="funFactImg" alt="" loading="lazy" decoding="async"
+                   referrerpolicy="no-referrer">
+              <span class="funfact__fallback" id="funFactFallback"></span>
+            </a>
+            <div class="funfact__main">
+              <button class="funfact__toggle" id="funFactToggle" aria-label="Expandir/Colapsar">
+                <span class="funfact__toggle-label">💩 <span data-i18n="funfact.title">¿Sabías que?</span></span>
+                <span class="funfact__toggle-chevron" id="funFactChevron"></span>
+              </button>
+              <div class="funfact__body" id="funFactBody">
+                <div class="funfact__body-inner">
+                  <p class="funfact__text" id="funFactPara"><span id="funFactText"></span> <a class="funfact__src" id="funFactSrc" target="_blank" rel="noopener noreferrer" data-i18n="funfact.source">fuente</a></p>
+                  <div class="funfact__foot">
+                    <div class="funfact__dots" id="funFactDots"></div>
+                    <button class="funfact__more" id="funFactShuffle" data-i18n="funfact.another">otra 🔀</button>
+                  </div>
+                  <div class="funfact__tomorrow" id="funFactTomorrow" hidden>
+                    <span id="funFactTomorrowMsg"></span>
+                    <button class="funfact__reset" id="funFactReread" title="Releer">🔄</button>
+                  </div>
                 </div>
-              </div>
-              <div class="funfact__tomorrow" id="funFactTomorrow" hidden>
-                <span id="funFactTomorrowMsg"></span>
-                <button class="funfact__reset" id="funFactReread" title="Releer">🔄</button>
               </div>
             </div>
           </div>

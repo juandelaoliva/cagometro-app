@@ -138,6 +138,28 @@ function _setFactCollapsed(collapsed){
   $("funFactChevron").textContent = collapsed ? "" : "✕";
 }
 
+// Respaldo por categoría: emoji + color. Cubre las fuentes sin og:image (los
+// resúmenes de PubMed no tienen) y las imágenes que dejen de cargar con el tiempo,
+// porque esas URLs de CDN acaban caducando.
+const FACT_CAT = {
+  animals:["🦫","#4E79A7"], science:["🔬","#59A14F"], history:["🏛️","#9C755F"],
+  archaeology:["🏺","#B07AA1"], paleontology:["🦕","#76B7B2"], ecology:["🌿","#2E9E68"],
+  space:["🚀","#3B5FA8"], technology:["⚙️","#7C726A"], records:["🏆","#E59A2E"],
+  medicine:["🩺","#D8573F"], evolution:["🧬","#76B7B2"], human_body:["🫀","#D8573F"],
+  culture:["🎭","#B07AA1"],
+};
+function _renderFactMedia(f){
+  const media=$("funFactMedia"), img=$("funFactImg"), fb=$("funFactFallback");
+  const [emoji,color] = FACT_CAT[f.cat] || ["💩","#7A4A22"];
+  media.href = f.url;
+  media.style.setProperty("--fact-color", color);
+  fb.textContent = emoji;
+  const alRespaldo = () => { media.classList.add("funfact__media--fallback"); img.removeAttribute("src"); };
+  media.classList.remove("funfact__media--fallback");
+  img.onerror = alRespaldo;                    // enlace muerto o CDN que bloquea
+  if(f.img) img.src = f.img; else alRespaldo();
+}
+
 function _renderFact(offset, animate=false){
   const f = FUN_FACTS[(_factBaseIdx() + offset) % FUN_FACTS.length];
   const textEl = $("funFactText");
@@ -148,6 +170,7 @@ function _renderFact(offset, animate=false){
   }
   textEl.textContent = getLang()==="en" ? f.en : f.es;
   $("funFactSrc").href = f.url;
+  _renderFactMedia(f);
   const exhausted = offset >= FACTS_PER_DAY - 1;
   // dots: solo cuando no agotado
   const dotsEl = $("funFactDots");

@@ -122,6 +122,15 @@
           </button>
           <div class="funfact__body" id="funFactBody">
             <div class="funfact__body-inner">
+              <!-- La imagen es la vista previa del enlace a la fuente (og:image), por eso
+                   va envuelta en el <a> que apunta al artículo. aria-hidden + tabindex="-1"
+                   porque el enlace "fuente" de abajo ya lleva al mismo sitio. -->
+              <a class="funfact__media" id="funFactMedia" target="_blank" rel="noopener noreferrer"
+                 aria-hidden="true" tabindex="-1">
+                <img class="funfact__img" id="funFactImg" alt="" loading="lazy" decoding="async"
+                     referrerpolicy="no-referrer">
+                <span class="funfact__fallback" id="funFactFallback"></span>
+              </a>
               <p class="funfact__text" id="funFactText"></p>
               <div class="funfact__foot">
                 <a class="funfact__src" id="funFactSrc" target="_blank" rel="noopener noreferrer" data-i18n="funfact.source">fuente</a>

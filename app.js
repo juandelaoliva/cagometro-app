@@ -1162,7 +1162,6 @@ $("heatAnncTry").addEventListener("click", ()=>{ $("heatAnncSheet").hidden=true;
 // alta de la cuenta; el localStorage evita que se repita en el mismo dispositivo.
 const FACTANNC_SHIP  = Date.parse("2026-09-16T00:00:00Z");   // día del despliegue
 const FACTANNC_UNTIL = Date.parse("2026-10-16T00:00:00Z");   // sigue en notificaciones hasta aquí
-const FACTANNC_DEMO  = 0;                                    // el wombat cúbico: el dato estrella
 function _factAnncActive(){ return Date.now() < FACTANNC_UNTIL && _factAnncEligible(); }
 function _factAnncEligible(){
   if(!me) return false;
@@ -1172,29 +1171,7 @@ function _factAnncEligible(){
   // serverTimestamp aún no ha resuelto. La primera caca distingue una cosa de la otra.
   return (me.firstCacaTs || 0) > 0 && me.firstCacaTs < FACTANNC_SHIP;
 }
-// Réplica estática de la tarjeta real con un dato de verdad: se ve la novedad sin
-// meter una captura en el repo, y si la imagen no carga cae al mismo respaldo por
-// categoría que usa la tarjeta.
-function openFactAnnc(){
-  const f = FUN_FACTS[FACTANNC_DEMO];
-  const [emoji, color] = FACT_CAT[f.cat] || ["💩","#7A4A22"];
-  $("factAnncDemo").innerHTML = `
-    <div class="funfact"><div class="funfact__grid">
-      <div class="funfact__media${f.img ? "" : " funfact__media--fallback"}" style="--fact-color:${color}">
-        ${f.img ? `<img class="funfact__img" src="${_aesc(f.img)}" alt="" decoding="async" referrerpolicy="no-referrer">` : ""}
-        <span class="funfact__fallback">${emoji}</span>
-      </div>
-      <div class="funfact__main">
-        <div class="funfact__toggle"><span class="funfact__toggle-label">💩 ${t('funfact.title')}</span></div>
-        <div class="funfact__body"><div class="funfact__body-inner">
-          <p class="funfact__text">${_aesc(getLang()==="en" ? f.en : f.es)} <span class="funfact__src">${t('funfact.source')}</span></p>
-        </div></div>
-      </div>
-    </div></div>`;
-  const img = $("factAnncDemo").querySelector(".funfact__img");
-  if(img) img.onerror = () => { img.parentNode.classList.add("funfact__media--fallback"); img.remove(); };
-  $("factAnncSheet").hidden = false;
-}
+function openFactAnnc(){ $("factAnncSheet").hidden = false; }
 function maybeShowFactAnnounce(){
   if(!uid || !me) return;
   if(!_factAnncActive()) return;

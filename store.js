@@ -721,8 +721,21 @@ export async function ensureGroupChat(gid, members){
   return gid;
 }
 
+// Recorte del texto citado. La cita se guarda COPIADA dentro del mensaje nuevo, así que
+// conviene que no engorde el documento: con dos líneas en pantalla sobra.
+const REPLY_MAX = 120;
+export const replySnapshot = m => m && ({
+  id: m.id,
+  senderUid: m.senderUid,
+  senderName: m.senderName || "",
+  text: (m.text||"").length > REPLY_MAX ? (m.text||"").slice(0, REPLY_MAX-1)+"…" : (m.text||""),
+});
+
 // Envía un mensaje. Actualiza lastMessage y lastTs en el chat doc.
-export async function sendMessage(chatId, senderUid, senderName, text){
+// `replyTo` es una COPIA del mensaje citado (replySnapshot), no una referencia: la ventana
+// viva son 30 mensajes, así que resolver el id al pintar costaría una lectura por cita; y
+// las reglas impiden editar un mensaje, de modo que la copia no puede quedar descolgada.
+export async function sendMessage(chatId, senderUid, senderName, text, replyTo=null){
   const clientTs = Date.now();
   await addDoc(collection(db,"chats",chatId,"messages"), {
     senderUid, senderName,
@@ -730,6 +743,7 @@ export async function sendMessage(chatId, senderUid, senderName, text){
     ts: serverTimestamp(),
     clientTs,
     reactions: {},
+    ...(replyTo ? { replyTo } : {}),   // campo opcional: los mensajes viejos no lo llevan
   });
   await updateDoc(doc(db,"chats",chatId), {
     lastMessage: { text: text.trim(), senderName, ts: clientTs },
@@ -786,16 +800,19 @@ export async function reactToMessage(chatId, msgId, uid, emoji){
 export const setChatMuted = (chatId, uid, muted) =>
   updateDoc(doc(db,"chats",chatId), { mutedBy: muted ? arrayUnion(uid) : arrayRemove(uid) });
 
-export async function notifyNewMessage(chatId, senderUid, senderName, text, members){
+export async function notifyNewMessage(chatId, senderUid, senderName, text, members, replyTo=null){
   // no avises a quien tenga el chat silenciado
   let muted = [];
   try { muted = (await getDoc(doc(db,"chats",chatId))).data()?.mutedBy || []; } catch {}
   const mutedSet = new Set(muted);
   const targets = members.filter(m => m !== senderUid && !mutedSet.has(m));
+  const body = text.length > 80 ? text.slice(0,77)+"…" : text;
   await Promise.all(targets.map(toUid =>
+    // A quien le responden se le dice; al resto del grupo le llega el aviso normal.
+    // (Los textos de push de este fichero van en castellano a pelo, como los demás.)
     enqueuePush(senderUid, toUid, "chat_message",
-      senderName,
-      text.length > 80 ? text.slice(0,77)+"…" : text
+      replyTo && replyTo.senderUid === toUid ? `${senderName} respondió a tu mensaje` : senderName,
+      body
     ).catch(()=>{})
   ));
 }

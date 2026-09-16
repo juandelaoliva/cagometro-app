@@ -57,6 +57,7 @@ const GENERICAS = [
   /natgeo\/static\/default\.NG\.logo/i,        // National Geographic
   /\/scidaily-icon\./i,                        // ScienceDaily
   /\/social-cards\/[a-z-]*homepage\./i,        // Sky HISTORY y similares
+  /\/themes\/custom\/[^/]+\/images\//i,        // logo del tema del CMS (NOAA Repository, Drupal…)
   /\/(logo|default|placeholder)\.(png|jpe?g|svg)$/i,
 ];
 const esGenerica = url => GENERICAS.some(re => re.test(url));
@@ -112,6 +113,12 @@ async function pedir(url){
     catch { /* no es JSON: no es un fun fact */ }
   });
 
+  // Una plantilla que ya esté guardada en funfacts.js se tira: así el fichero se cura
+  // solo al relanzar, en vez de arrastrarla porque "ya tiene imagen".
+  let limpiadas = 0;
+  for (const e of entradas) if (e.obj.img && esGenerica(e.obj.img)){ delete e.obj.img; limpiadas++; }
+  if (limpiadas) console.log(`${limpiadas} imágenes de plantilla descartadas de funfacts.js`);
+
   const pendientes = entradas.filter(e => e.obj.url && !(ONLY_MISSING && e.obj.img));
   console.log(`${entradas.length} fun facts · ${pendientes.length} por procesar` +
               `${Object.keys(cache).length ? ` · ${Object.keys(cache).length} ya en caché` : ""}`);
@@ -123,6 +130,16 @@ async function pedir(url){
     const etiqueta = `[${String(n + 1).padStart(3)}/${pendientes.length}] ${new URL(url).hostname}`;
 
     if (cache[url]){                       // ya resuelta en una pasada anterior
+      // La caché puede venir de antes de que existiera el filtro de plantillas, así
+      // que hay que pasarla por él igual: si no, una entrada vieja reinyecta el logo
+      // del sitio sin llegar a tocar extraerImagen().
+      if (esGenerica(cache[url])){
+        delete cache[url];
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 1));
+        fallos.push({ url, motivo: "en caché, pero es una plantilla del sitio" });
+        console.log(`${etiqueta}  ❌ en caché, pero es una plantilla del sitio`);
+        continue;
+      }
       e.obj.img = cache[url]; ok++;
       console.log(`${etiqueta}  ⏩ en caché`);
       continue;

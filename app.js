@@ -2266,15 +2266,8 @@ function _applyMapPrivacy(ajeno){
   // rebota al soltar. En tu mapa es un detalle bonito que dice "hasta aquí"; en el de otra
   // persona es enseñar de más, aunque sea un instante. Se apaga solo en los ajenos.
   _map.options.bounceAtZoomLimits = !ajeno;
-  if(ajeno) _avisaTopeZoom();
-}
-// Se explica UNA vez por dispositivo, como el aviso del mapa de calor. No se puede atar a
-// `zoomend`: con un solo pin el encuadre aterriza justo en el tope, así que saltaría solo
-// al abrir, sin que el usuario haya intentado acercarse.
-function _avisaTopeZoom(){
-  if(localStorage.getItem("cago_seen_privzoom")) return;
-  localStorage.setItem("cago_seen_privzoom","1");
-  setTimeout(()=>toast(t('map.privacy.zoomcap')), 900);   // tras el encuadre, no sobre el loader
+  // Sin aviso: el "+" apagado ya dice que ahí se acaba, y un mensaje explicando el límite
+  // llama la atención sobre él más que el propio límite.
 }
 function _resetHeat(){
   if(_heatLayer){ try{_map.removeLayer(_heatLayer);}catch(e){} _heatLayer=null; }

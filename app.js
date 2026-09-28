@@ -2246,11 +2246,11 @@ let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
 
 /* Privacidad: en el mapa de OTRA persona o de un grupo no se puede acercar tanto.
    A zoom 19 un píxel son 23 cm y el pin (34 px) tapa 8 metros: señala un portal.
-   A 15 el pin tapa unos 124 m —más ancho que una manzana—, así que enseña el barrio
-   pero no puede señalar un edificio. En tu propio mapa no hay tope.
+   A 14 el pin tapa unos 247 m y se ve kilómetro y medio a cada lado, así que sitúa la
+   zona pero no la calle. En tu propio mapa no hay tope.
    OJO: hay UNA sola instancia de mapa para las tres superficies (tuyo, de un amigo, de
    grupo), así que el tope se aplica en CADA apertura, no al construirla. */
-const SHARED_MAX_ZOOM = 15;   // mapa de otra persona o de grupo
+const SHARED_MAX_ZOOM = 14;   // mapa de otra persona o de grupo
 const OWN_MAX_ZOOM    = 19;   // el tuyo: el máximo del tileLayer, como hasta ahora
 let _mapMaxZoom = OWN_MAX_ZOOM;
 // Nº de apertura. Las dos funciones que abren mapa hacen `await` a mitad y comparten la

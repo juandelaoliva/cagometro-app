@@ -2243,6 +2243,23 @@ function getGeo(){
 let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set(),_legendData={};
 // heatmap (toggle): guardamos los puntos del mapa actual para poder alternar pines↔calor
 let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
+// El mapa es un histórico: enseña todo lo que hay, no solo el año en curso. Cuando hay
+// cacas de más de un año aparece un selector para acotarlo; con un solo año no sale, que
+// sería un control que no filtra nada. `_mapYear` null = todos.
+let _mapPtsAll=[], _mapYears=[], _mapYear=null;
+const _anioDe = ts => new Date(ts).getFullYear();
+// El `maxZoom` de heatLayer NO es un tope de zoom (eso es SHARED_MAX_ZOOM, abajo): es el
+// zoom al que el plugin da por saturado un punto para calcular la intensidad.
+const HEAT_OPTS = {radius:28, blur:20, maxZoom:16, minOpacity:.35};
+// Prepara los datos del mapa que se acaba de abrir: puntos con año, años disponibles y
+// el selector. Vuelve siempre a "todos" para que el filtro no se herede de otro mapa.
+function _setMapData(pts){
+  _mapPtsAll = pts.map(p => ({ lat:p.lat, lng:p.lng, anio:_anioDe(p.ts), uid:p.uid||null }));
+  _mapYears  = [...new Set(_mapPtsAll.map(p=>p.anio))].sort((a,b)=>b-a);
+  _mapYear   = null;
+  _mapPoints = _mapPtsAll.map(p=>[p.lat,p.lng]);
+  _renderYearPicker();
+}
 
 /* Privacidad: en el mapa de OTRA persona o de un grupo no se puede acercar tanto.
    A zoom 19 un píxel son 23 cm y el pin (34 px) tapa 8 metros: señala un portal.
@@ -2288,18 +2305,13 @@ $("mapHeatBtn").addEventListener("click", ()=>{
   if(_heatOn){
     _markers.forEach(m=>_map.removeLayer(m));
     if(_isGroupMap){ $("mapLegendBtn").hidden=true; $("mapLegendSheet").hidden=true; }
-    // El `maxZoom` de heatLayer NO es un tope de zoom (eso es SHARED_MAX_ZOOM, arriba):
-    // es el zoom al que el plugin da por saturado un punto para calcular la intensidad.
-    _heatLayer=L.heatLayer(_mapPoints, {radius:28, blur:20, maxZoom:16, minOpacity:.35}).addTo(_map);
     b.classList.add("on"); b.textContent="📍 "+t('map.pins');
   } else {
     if(_heatLayer){ _map.removeLayer(_heatLayer); _heatLayer=null; }
-    if(_isGroupMap){   // respeta el filtro de la leyenda al volver a pines
-      Object.entries(_groupMarkers).forEach(([u2,ms])=>{ if(!_legendHidden.has(u2)) ms.forEach(m=>m.addTo(_map)); });
-      $("mapLegendBtn").hidden=false;
-    } else _markers.forEach(m=>m.addTo(_map));
+    if(_isGroupMap) $("mapLegendBtn").hidden=false;
     b.classList.remove("on"); b.textContent="🔥 "+t('map.heat');
   }
+  _applyMapFilters();   // respeta los filtros de año y de leyenda en los dos modos
 });
 $("openMapBtn").addEventListener("click", ()=>openMap());
 $("mapClose").addEventListener("click", ()=>{ $("mapSheet").hidden=true; hideMapLoading(); });
@@ -2342,9 +2354,12 @@ async function openMap(friend){
   const pName = friend ? friend.name : (me?.displayName||"");
   const pColor = friend ? (friend.color||colorForUid(friend.uid)) : (me?.color||colorForUid(uid));
   const icon=pinIcon(pColor);
-  _markers=pts.map(c=>L.marker([c.lat,c.lng],{icon}).bindPopup(`<b>${pName}</b><br>${fmtFull(c.ts)}`).addTo(_map));
+  _markers=pts.map(c=>{
+    const m=L.marker([c.lat,c.lng],{icon}).bindPopup(`<b>${pName}</b><br>${fmtFull(c.ts)}`).addTo(_map);
+    m._anio=_anioDe(c.ts); return m;   // el selector de año filtra por esto
+  });
   hideMapLoading();
-  _isGroupMap=false; _mapPoints=pts.map(c=>[c.lat,c.lng]); _resetHeat();
+  _isGroupMap=false; _resetHeat(); _setMapData(pts);
   $("mapHeatBtn").hidden = !pts.length;
   // El tope va también en fitBounds: con un solo pin encuadraría a tope de zoom, o sea
   // justo encima del portal, sin que nadie toque nada.
@@ -2381,9 +2396,9 @@ async function openGroupMap(group){
   const pts = await groupLocatedCacas(group);
   if(seq !== _mapOpenSeq) return;      // mientras cargaba se abrió otro mapa
   hideMapLoading();
-  if(!pts.length){ _hideLegend(); $("mapHeatBtn").hidden=true; _map.setView([40.4168,-3.7038],5);
+  if(!pts.length){ _hideLegend(); $("mapHeatBtn").hidden=true; _setMapData([]); _map.setView([40.4168,-3.7038],5);
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
-  _isGroupMap=true; _mapPoints=pts.map(p=>[p.lat,p.lng]); _resetHeat(); $("mapHeatBtn").hidden=false;
+  _isGroupMap=true; _resetHeat(); _setMapData(pts); $("mapHeatBtn").hidden=false;
   // agrupar por persona
   const byUid={};
   for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,pts:[]}).pts.push(p); }
@@ -2394,6 +2409,7 @@ async function openGroupMap(group){
     _groupMarkers[u2]=info.pts.map(p=>{
       const m=L.marker([p.lat,p.lng],{icon}).addTo(_map);
       m.bindPopup(`<b>${info.name}</b><br>${fmtFull(p.ts)}`);
+      m._anio=_anioDe(p.ts);           // el selector de año filtra por esto
       _markers.push(m); return m;
     });
   }
@@ -2416,13 +2432,55 @@ function renderMapLegend(byUid){
     `<button class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${u}"><span class="leg-chip__dot" style="background:${info.color}"></span>${info.name} · ${info.pts.length}</button>`
   ).join("");
 }
-// Aplica el filtro actual a los pines (solo en modo pines) y actualiza los chips.
-function _applyLegend(){
-  if(!_heatOn) Object.entries(_groupMarkers).forEach(([u,ms])=>{
-    if(_legendHidden.has(u)) ms.forEach(m=>_map.removeLayer(m)); else ms.forEach(m=>m.addTo(_map));
-  });
+/* Un único sitio donde se decide qué pin se ve. Hay DOS filtros que se combinan: el año
+   (en cualquier mapa) y la leyenda por persona (solo en los de grupo). Tenerlos separados
+   los haría pisarse: al cambiar de año se repintarían los pines de alguien oculto. */
+const _pinVisible = (m, u) =>
+  (!_mapYear || m._anio === _mapYear) && !(u && _legendHidden.has(u));
+
+function _applyMapFilters({refit=false}={}){
+  // el mapa de calor se repinta desde los puntos filtrados; los pines se muestran/ocultan
+  _mapPoints = _mapPtsAll.filter(p => (!_mapYear || p.anio === _mapYear)
+                                   && !(p.uid && _legendHidden.has(p.uid)))
+                         .map(p => [p.lat, p.lng]);
+  if(_heatOn){
+    if(_heatLayer){ _map.removeLayer(_heatLayer); _heatLayer=null; }
+    if(_mapPoints.length) _heatLayer=L.heatLayer(_mapPoints, HEAT_OPTS).addTo(_map);
+  } else if(_isGroupMap){
+    Object.entries(_groupMarkers).forEach(([u,ms])=>ms.forEach(m=>{
+      if(_pinVisible(m,u)) m.addTo(_map); else _map.removeLayer(m);
+    }));
+  } else {
+    _markers.forEach(m=>{ if(_pinVisible(m)) m.addTo(_map); else _map.removeLayer(m); });
+  }
   $("mapLegendList").querySelectorAll("[data-leguid]").forEach(c=>c.classList.toggle("off", _legendHidden.has(c.dataset.leguid)));
+  if(refit){
+    const vis = _isGroupMap
+      ? Object.entries(_groupMarkers).flatMap(([u,ms])=>ms.filter(m=>_pinVisible(m,u)))
+      : _markers.filter(m=>_pinVisible(m));
+    // si el cruce de filtros no deja nada, mejor quedarse donde está que saltar a España
+    if(vis.length) _map.fitBounds(L.featureGroup(vis).getBounds().pad(0.3), {maxZoom:_mapMaxZoom});
+  }
 }
+const _applyLegend = () => _applyMapFilters();
+
+// Chips de año. Solo salen si hay cacas de más de un año.
+function _renderYearPicker(){
+  const cont=$("mapYears");
+  if(_mapYears.length < 2){ cont.hidden=true; cont.innerHTML=""; return; }
+  cont.innerHTML = [["all", t('map.year.all')], ..._mapYears.map(a=>[String(a), String(a)])]
+    .map(([v,txt])=>{
+      const activo = (v==="all") ? _mapYear===null : _mapYear===+v;
+      return `<button class="map-year${activo?" on":""}" data-mapyear="${v}">${txt}</button>`;
+    }).join("");
+  cont.hidden=false;
+}
+$("mapYears").addEventListener("click", e=>{
+  const b=e.target.closest("[data-mapyear]"); if(!b) return;
+  _mapYear = b.dataset.mapyear==="all" ? null : +b.dataset.mapyear;
+  _renderYearPicker();
+  _applyMapFilters({refit:true});   // sin reencuadrar te quedarías mirando otro sitio
+});
 $("mapLegendBtn").addEventListener("click", ()=>{ const s=$("mapLegendSheet"); s.hidden=!s.hidden; });
 $("mapLegendClose").addEventListener("click", ()=>$("mapLegendSheet").hidden=true);
 $("mapLegendList").addEventListener("click", e=>{

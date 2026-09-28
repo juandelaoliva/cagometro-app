@@ -765,6 +765,18 @@ body.sheet-open{overflow:hidden}
   white-space:nowrap;max-width:calc(100vw - 76px);overflow:hidden}
 .map-heat:active{transform:scale(.97)}
 .map-heat.on{background:var(--brand);color:#fff;border-color:transparent;box-shadow:0 4px 18px rgba(0,0,0,.22)}
+/* selector de año: debajo del botón de calor, alineado a la derecha como el resto de
+   controles. Envuelve si hay muchos años, sin cruzar la mitad de la pantalla. */
+.map-years{position:absolute;top:calc(126px + env(safe-area-inset-top));right:14px;z-index:1000;
+  display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:min(60vw,240px)}
+.map-years[hidden]{display:none}
+.map-year{height:32px;padding:0 12px;border-radius:16px;
+  background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid rgba(36,27,18,.08);box-shadow:0 4px 16px rgba(36,27,18,.16);
+  font-size:13px;font-weight:700;color:var(--ink);white-space:nowrap;cursor:pointer;
+  transition:transform .1s ease}
+.map-year:active{transform:scale(.97)}
+.map-year.on{background:var(--brand);color:#fff;border-color:transparent}
 /* pastilla reutilizable (misma que la del mapa) para usar fuera del mapa */
 .heat-pill{height:40px;padding:0 15px;border-radius:20px;
   background:rgba(255,255,255,.86);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);

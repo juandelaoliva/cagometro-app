@@ -493,6 +493,7 @@ const _es = {
   // ── Mapa ──
   'map.empty': '📍 Sin ubicaciones registradas.',
   'map.privacy.zoomcap': '🔒 En los mapas de otras personas no se puede acercar más',
+  'map.year.all': 'Todos',
   'map.close.aria': 'Cerrar',
 
   // ── Genéricos ──
@@ -1009,6 +1010,7 @@ const _en = {
   // ── Mapa ──
   'map.empty': '📍 No locations recorded.',
   'map.privacy.zoomcap': "🔒 You can't zoom in any further on other people's maps",
+  'map.year.all': 'All',
   'map.close.aria': 'Close',
 
   // ── Genéricos ──

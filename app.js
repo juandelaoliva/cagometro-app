@@ -2283,7 +2283,11 @@ function _applyMapPrivacy(ajeno){
   // fondo de zoom, los pines nuevos se pintarían a ese zoom ese instante.
   const z = _map.getZoom();
   if(isFinite(z) && z > _mapMaxZoom) _map.setView(_map.getCenter(), _mapMaxZoom, {animate:false});
-  _map.setMaxZoom(_mapMaxZoom);   // apaga el "+" y limita pellizco y rueda
+  _map.setMaxZoom(_mapMaxZoom);   // apaga el "+" y limita la rueda y el doble toque
+  // Leaflet trae `bounceAtZoomLimits` activado: al pellizcar DEJA pasarse del tope y solo
+  // rebota al soltar. En tu mapa es un detalle bonito que dice "hasta aquí"; en el de otra
+  // persona es enseñar de más, aunque sea un instante. Se apaga solo en los ajenos.
+  _map.options.bounceAtZoomLimits = !ajeno;
   if(ajeno) _avisaTopeZoom();
 }
 // Se explica UNA vez por dispositivo, como el aviso del mapa de calor. No se puede atar a

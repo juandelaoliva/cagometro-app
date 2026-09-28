@@ -2243,6 +2243,40 @@ function getGeo(){
 let _map=null,_markers=[],_groupMarkers={},_legendHidden=new Set(),_legendData={};
 // heatmap (toggle): guardamos los puntos del mapa actual para poder alternar pines↔calor
 let _mapPoints=[], _heatLayer=null, _heatOn=false, _isGroupMap=false;
+
+/* Privacidad: en el mapa de OTRA persona o de un grupo no se puede acercar tanto.
+   A zoom 19 un píxel son 23 cm y el pin (34 px) tapa 8 metros: señala un portal.
+   A 15 el pin tapa unos 124 m —más ancho que una manzana—, así que enseña el barrio
+   pero no puede señalar un edificio. En tu propio mapa no hay tope.
+   OJO: hay UNA sola instancia de mapa para las tres superficies (tuyo, de un amigo, de
+   grupo), así que el tope se aplica en CADA apertura, no al construirla. */
+const SHARED_MAX_ZOOM = 15;   // mapa de otra persona o de grupo
+const OWN_MAX_ZOOM    = 19;   // el tuyo: el máximo del tileLayer, como hasta ahora
+let _mapMaxZoom = OWN_MAX_ZOOM;
+// Nº de apertura. Las dos funciones que abren mapa hacen `await` a mitad y comparten la
+// misma instancia y el mismo estado: sin esto, abrir el mapa de un amigo, cerrarlo y abrir
+// el tuyo antes de que llegue la petición hace que la continuación del amigo pinte SUS
+// pines en TU mapa, ya con el tope levantado a 19. Cada apertura se queda con su número y
+// se calla si ha dejado de ser la vigente.
+let _mapOpenSeq = 0;
+function _applyMapPrivacy(ajeno){
+  _mapMaxZoom = ajeno ? SHARED_MAX_ZOOM : OWN_MAX_ZOOM;
+  // Recorta la vista YA, sin animación: el encuadre llega 160 ms más tarde y hasta
+  // entonces el mapa sigue donde lo dejó la apertura anterior. Si venías de TU mapa a
+  // fondo de zoom, los pines nuevos se pintarían a ese zoom ese instante.
+  const z = _map.getZoom();
+  if(isFinite(z) && z > _mapMaxZoom) _map.setView(_map.getCenter(), _mapMaxZoom, {animate:false});
+  _map.setMaxZoom(_mapMaxZoom);   // apaga el "+" y limita pellizco y rueda
+  if(ajeno) _avisaTopeZoom();
+}
+// Se explica UNA vez por dispositivo, como el aviso del mapa de calor. No se puede atar a
+// `zoomend`: con un solo pin el encuadre aterriza justo en el tope, así que saltaría solo
+// al abrir, sin que el usuario haya intentado acercarse.
+function _avisaTopeZoom(){
+  if(localStorage.getItem("cago_seen_privzoom")) return;
+  localStorage.setItem("cago_seen_privzoom","1");
+  setTimeout(()=>toast(t('map.privacy.zoomcap')), 900);   // tras el encuadre, no sobre el loader
+}
 function _resetHeat(){
   if(_heatLayer){ try{_map.removeLayer(_heatLayer);}catch(e){} _heatLayer=null; }
   _heatOn=false; const b=$("mapHeatBtn"); if(b){ b.classList.remove("on"); b.textContent="🔥 "+t('map.heat'); }
@@ -2254,6 +2288,8 @@ $("mapHeatBtn").addEventListener("click", ()=>{
   if(_heatOn){
     _markers.forEach(m=>_map.removeLayer(m));
     if(_isGroupMap){ $("mapLegendBtn").hidden=true; $("mapLegendSheet").hidden=true; }
+    // El `maxZoom` de heatLayer NO es un tope de zoom (eso es SHARED_MAX_ZOOM, arriba):
+    // es el zoom al que el plugin da por saturado un punto para calcular la intensidad.
     _heatLayer=L.heatLayer(_mapPoints, {radius:28, blur:20, maxZoom:16, minOpacity:.35}).addTo(_map);
     b.classList.add("on"); b.textContent="📍 "+t('map.pins');
   } else {
@@ -2270,7 +2306,7 @@ $("mapClose").addEventListener("click", ()=>{ $("mapSheet").hidden=true; hideMap
 function _ensureMap(){
   if(!_map){
     _map=L.map("map",{zoomControl:false});
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap"}).addTo(_map);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:OWN_MAX_ZOOM,attribution:"&copy; OpenStreetMap"}).addTo(_map);
     L.control.zoom({position:"bottomleft"}).addTo(_map);
   }
   setTimeout(()=>_map.invalidateSize(),120);
@@ -2293,11 +2329,14 @@ async function openMap(friend){
   else { titleEl.hidden=true; }
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
+  const seq = ++_mapOpenSeq;
+  _applyMapPrivacy(!!friend);   // sin `friend` es TU mapa: sin tope
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={};
   showMapLoadingDelayed();
   const targetUid = friend ? friend.uid : uid;
   const cacas = (!friend && statsCacas.length && Date.now()-_statsLoadedAt < 120000)
     ? statsCacas : await myActivity(targetUid, 2000);
+  if(seq !== _mapOpenSeq) return;      // mientras cargaba se abrió otro mapa
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
   // pin del color de la persona (el suyo real) + globo con nombre y fecha al tocarlo, como en el mapa de grupo
   const pName = friend ? friend.name : (me?.displayName||"");
@@ -2307,7 +2346,14 @@ async function openMap(friend){
   hideMapLoading();
   _isGroupMap=false; _mapPoints=pts.map(c=>[c.lat,c.lng]); _resetHeat();
   $("mapHeatBtn").hidden = !pts.length;
-  if(_markers.length) setTimeout(()=>_map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)),160);
+  // El tope va también en fitBounds: con un solo pin encuadraría a tope de zoom, o sea
+  // justo encima del portal, sin que nadie toque nada.
+  // El tope va también en fitBounds: con un solo pin los límites son un punto, así que
+  // encuadraría a tope de zoom —justo encima del portal— sin que nadie toque nada.
+  if(_markers.length) setTimeout(()=>{
+    if(seq !== _mapOpenSeq) return;
+    _map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3), {maxZoom:_mapMaxZoom});
+  },160);
   else { _map.setView([40.4168,-3.7038],5); $("mapEmpty").hidden=false; }
 }
 
@@ -2328,9 +2374,12 @@ async function openGroupMap(group){
   $("mapTitle").textContent=`🗺️ ${group.name}`; $("mapTitle").hidden=false; $("mapTitle").classList.add("map-title--top");
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
+  const seq = ++_mapOpenSeq;
+  _applyMapPrivacy(true);   // antes del return temprano de "grupo sin ubicaciones"
   _markers.forEach(m=>_map.removeLayer(m)); _markers=[]; _groupMarkers={}; _legendHidden=new Set();
   showMapLoadingDelayed();
   const pts = await groupLocatedCacas(group);
+  if(seq !== _mapOpenSeq) return;      // mientras cargaba se abrió otro mapa
   hideMapLoading();
   if(!pts.length){ _hideLegend(); $("mapHeatBtn").hidden=true; _map.setView([40.4168,-3.7038],5);
     $("mapEmpty").textContent=t('grupos.map.empty'); $("mapEmpty").hidden=false; return; }
@@ -2348,7 +2397,10 @@ async function openGroupMap(group){
       _markers.push(m); return m;
     });
   }
-  setTimeout(()=>{ if(_markers.length) _map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3)); },160);
+  setTimeout(()=>{
+    if(seq !== _mapOpenSeq) return;
+    if(_markers.length) _map.fitBounds(L.featureGroup(_markers).getBounds().pad(0.3), {maxZoom:_mapMaxZoom});
+  },160);
   renderMapLegend(byUid);
 }
 function _hideLegend(){ $("mapLegendBtn").hidden=true; $("mapLegendSheet").hidden=true; }

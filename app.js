@@ -385,7 +385,6 @@ function showApp(){
   maybeShowFunFact();
   setTimeout(maybeShowBristolTour, 1500);
   setTimeout(maybeShowHeatmapAnnounce, 1700);    // novedad: mapa de calor (aviso único)
-  setTimeout(maybeShowFactAnnounce, 1900);       // novedad: fun facts con imagen (aviso único)
   setTimeout(maybeShowOnboardingPrompt, 3200);   // instalar (iOS) o activar notificaciones (con topes)
 }
 
@@ -667,6 +666,7 @@ function startFeed(){
     if(!feedShown) feedShown=FEED_PAGE;
     renderFeedChips(); renderFeed();           // pinta SIEMPRE primero (lo importante)
     try{ detectReactionNotifs(acts); }catch(e){ console.error("notif:", e); }   // que un fallo aquí no rompa el feed
+    try{ detectSyncNotifs(acts); }catch(e){ console.error("notif sync:", e); }
   }, 60, err=>{                                 // p.ej. índice construyéndose → reintenta solo
     console.warn("feed listener:", err?.code||err);
     stopFeed();
@@ -755,6 +755,49 @@ function detectReactionNotifs(acts){
   if(unknown.length) Promise.all(unknown.map(getUser)).then(us=>{ us.forEach((u,i)=>{ if(u) notifFriends[unknown[i]]=u.displayName||"Alguien"; }); refreshNotif(); });
   refreshNotif();
 }
+/* Conexiones de tuberías de tus COMPAÑEROS DE GRUPO en las que tú no estás → campanita.
+   Los participantes ya reciben push (checkSyncPoop); el resto de tu gente solo lo veía si
+   abría el feed y hacía scroll. Se avisa por la campana y no por push a propósito: son
+   entre 13 y 16 personas por conexión y varias conexiones al día, así que vibrar el móvil
+   por algo en lo que no participas acabaría con todo el mundo apagando las notificaciones.
+   Se limita a compañeros de grupo —no a todos los amigos— porque el grupo es donde esto
+   se vive en común.
+   Los docs de sync no guardan `groups`, así que la pertenencia se cruza aquí con los
+   miembros de MIS grupos: ni campo nuevo, ni regla nueva, ni lectura extra. */
+const _comparteGrupoConmigo = uids =>
+  myGroupsCache.some(g => (g.members||[]).some(m => m!==uid && uids.includes(m)));
+
+function detectSyncNotifs(acts){
+  // Sin mis grupos cargados no se puede saber quién es compañero. Y si fijáramos la base
+  // ahora saldría vacía, de modo que al cargar el grafo TODAS las conexiones que ya
+  // existían se contarían como nuevas de golpe, en cada arranque.
+  if(!myGroupsCache.length) return;
+  const cur = new Map();
+  for(const a of acts){
+    if(a.kind !== "sync") continue;
+    const uids = a.participantUids || [];
+    if(uids.includes(uid)) continue;              // si participas, ya te llegó el push
+    if(!_comparteGrupoConmigo(uids)) continue;
+    const byU = new Map();
+    for(const p of (a.participants||[])) if(!byU.has(p.uid)) byU.set(p.uid, p);
+    cur.set(a.id, {
+      id: a.id, ts: a.lastTs || a.ts, n: new Set(uids).size,
+      names: [...byU.values()].map(p => friendNames[p.uid] || p.name || t('fallback.someone')),
+    });
+  }
+  // Misma mecánica que las reacciones: la primera pasada solo fija la base, para no
+  // anunciar como nuevo todo el historial al abrir la app.
+  if(syncBaseline === null){ syncBaseline = new Set(cur.keys()); }
+  else {
+    let nuevas = 0;
+    for(const k of cur.keys()) if(!syncBaseline.has(k)){ syncBaseline.add(k); nuevas++; }
+    for(const k of [...syncBaseline]) if(!cur.has(k)) syncBaseline.delete(k);
+    unseenSync += nuevas;
+  }
+  notifSync = [...cur.values()].sort((a,b) => b.ts - a.ts);
+  refreshNotif();
+}
+
 // ── filtros del feed (chips + búsqueda) ──
 let feedScope="all", feedQ="";
 // chips de grupo visibles para MÍ = grupos del autor ∩ mis grupos
@@ -992,6 +1035,7 @@ window.addEventListener("scroll", hideReactors, true);
 
 /* ---------- centro de notificaciones (in-app, tiempo real) ---------- */
 let notifReqs=[], notifRx=[], notifGroupInvites=[], rxBaseline=null, reqBaseline=null, unseenRx=0, notifUnsub=[], notifFriends={};
+let notifSync=[], syncBaseline=null, unseenSync=0;   // conexiones de tus grupos (ver detectSyncNotifs)
 // permiso del navegador para notificaciones locales del sistema (no necesita VAPID/servidor)
 async function requestNotifPermission(){
   if(!("Notification" in window)) return "denied";
@@ -1148,6 +1192,10 @@ async function openHeatAnnc(){
 }
 async function maybeShowHeatmapAnnounce(){
   if(!uid || !me) return;
+  // Respeta su propia caducidad. Faltaba: el panel de notificaciones sí la miraba, pero
+  // el popup no, así que seguía saltando en cualquier dispositivo nuevo (su puerta es
+  // localStorage, que en un móvil recién estrenado está vacío) meses después.
+  if(!_heatAnncActive()) return;
   if(localStorage.getItem("cago_seen_heatannc")) return;
   if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
   localStorage.setItem("cago_seen_heatannc","1");
@@ -1157,36 +1205,12 @@ $("heatAnncClose").addEventListener("click", ()=>$("heatAnncSheet").hidden=true)
 $("heatAnncSheet").addEventListener("click", e=>{ if(e.target===$("heatAnncSheet")) $("heatAnncSheet").hidden=true; });
 $("heatAnncTry").addEventListener("click", ()=>{ $("heatAnncSheet").hidden=true; openMap(); });
 
-/* ---------- aviso único: los fun facts ahora traen imagen ---------- */
-// Solo se lo enseñamos a quien YA usaba la app: para quien se registre a partir de
-// ahora la tarjeta con foto es lo normal, no una novedad. La puerta es la fecha de
-// alta de la cuenta; el localStorage evita que se repita en el mismo dispositivo.
-const FACTANNC_SHIP  = Date.parse("2026-09-16T00:00:00Z");   // día del despliegue
-const FACTANNC_UNTIL = Date.parse("2026-10-16T00:00:00Z");   // sigue en notificaciones hasta aquí
-function _factAnncActive(){ return Date.now() < FACTANNC_UNTIL && _factAnncEligible(); }
-function _factAnncEligible(){
-  if(!me) return false;
-  const alta = me.createdAt?.toMillis?.();
-  if(alta != null) return alta < FACTANNC_SHIP;
-  // Sin createdAt: o es una cuenta anterior al campo, o es un alta recién hecha cuyo
-  // serverTimestamp aún no ha resuelto. La primera caca distingue una cosa de la otra.
-  return (me.firstCacaTs || 0) > 0 && me.firstCacaTs < FACTANNC_SHIP;
-}
-function openFactAnnc(){ $("factAnncSheet").hidden = false; }
-function maybeShowFactAnnounce(){
-  if(!uid || !me) return;
-  if(!_factAnncActive()) return;
-  if(localStorage.getItem("cago_seen_factannc")) return;
-  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
-  localStorage.setItem("cago_seen_factannc","1");
-  openFactAnnc();
-}
-$("factAnncClose").addEventListener("click", ()=>$("factAnncSheet").hidden=true);
-$("factAnncSheet").addEventListener("click", e=>{ if(e.target===$("factAnncSheet")) $("factAnncSheet").hidden=true; });
+/* El aviso de "los fun facts ahora traen foto" (sep-2026) se ha retirado: ya cumplió.
+   Se quitó entero en vez de dejarlo apagado porque su puerta era localStorage, así que
+   volvía a saltar en cada dispositivo nuevo por muy viejo que fuera el anuncio. */
 $("notifBody").addEventListener("click", e=>{
-  const li = e.target.closest("[data-annc]"); if(!li) return;
-  $("notifSheet").hidden=true;
-  if(li.dataset.annc==="fact") openFactAnnc(); else openHeatAnnc();
+  if(!e.target.closest("[data-annc]")) return;
+  $("notifSheet").hidden=true; openHeatAnnc();
 });
 function _closeNotifPrompt(action){
   $("notifPromptSheet").hidden=true;
@@ -1229,9 +1253,9 @@ function startNotifications(){
   }));
   // (las reacciones a MIS cacas se detectan en el listener del feed → detectReactionNotifs)
 }
-function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; _feedLoadedAt=0; renderNotifBadge(); }
+function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; notifSync=[]; syncBaseline=null; unseenSync=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
-function renderNotifBadge(){ const annc=((_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0)+((_factAnncActive() && !localStorage.getItem("cago_factannc_notifseen"))?1:0); const n=notifReqs.length+notifGroupInvites.length+unseenRx+annc; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
+function renderNotifBadge(){ const annc=(_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0; const n=notifReqs.length+notifGroupInvites.length+unseenRx+unseenSync+annc; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
@@ -1244,15 +1268,20 @@ function renderNotifSheet(){
   const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${r.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
   const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${inv.groupName}</b><small>${t('notif.groupinvite.from',{name:inv.fromName})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
   const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
+  const sy=notifSync.slice(0,20).map(v=>{
+    const txt = v.n>=3 ? t('notif.sync.many',{n:v.n, names:v.names.slice(0,3).join(", ")})
+                       : t('notif.sync.two',{a:v.names[0]||t('fallback.someone'), b:v.names[1]||t('fallback.someone')});
+    return `<li class="notif-rx"><span class="notif-rx__e">🔗</span><span class="feed__txt">${txt}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`;
+  }).join("");
   let html="";
-  if(_factAnncActive()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc" data-annc="fact"><span class="notif-annc__e">📸</span><span class="nm"><b>${t('factannc.notif.title')}</b><small>${t('factannc.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(_heatAnncActive()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc" data-annc="heat"><span class="notif-annc__e">🔥</span><span class="nm"><b>${t('heatannc.notif.title')}</b><small>${t('heatannc.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(reqs)    html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
   if(ginvites)html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.groupinvites')}</h4><ul class="reqlist">${ginvites}</ul></div>`;
   if(rx)      html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.rx')}</h4><ul class="notif-list">${rx}</ul></div>`;
+  if(sy)      html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.sync')}</h4><ul class="notif-list">${sy}</ul></div>`;
   $("notifBody").innerHTML = html || `<p class="notif-empty">${t('notif.empty')}<br/><small>${t('notif.empty.sub')}</small></p>`;
 }
-function openNotif(){ unseenRx=0; if(_heatAnncActive()) localStorage.setItem("cago_heatannc_notifseen","1"); if(_factAnncActive()) localStorage.setItem("cago_factannc_notifseen","1"); renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
+function openNotif(){ unseenRx=0; unseenSync=0; if(_heatAnncActive()) localStorage.setItem("cago_heatannc_notifseen","1"); renderNotifBadge(); renderNotifSheet(); $("notifSheet").hidden=false; }
 $("notifBtn").addEventListener("click", openNotif);
 $("notifClose").addEventListener("click", ()=>$("notifSheet").hidden=true);
 $("notifSheet").addEventListener("click", e=>{ if(e.target===$("notifSheet")) $("notifSheet").hidden=true; });
@@ -2288,15 +2317,8 @@ function _applyMapPrivacy(ajeno){
   // rebota al soltar. En tu mapa es un detalle bonito que dice "hasta aquí"; en el de otra
   // persona es enseñar de más, aunque sea un instante. Se apaga solo en los ajenos.
   _map.options.bounceAtZoomLimits = !ajeno;
-  if(ajeno) _avisaTopeZoom();
-}
-// Se explica UNA vez por dispositivo, como el aviso del mapa de calor. No se puede atar a
-// `zoomend`: con un solo pin el encuadre aterriza justo en el tope, así que saltaría solo
-// al abrir, sin que el usuario haya intentado acercarse.
-function _avisaTopeZoom(){
-  if(localStorage.getItem("cago_seen_privzoom")) return;
-  localStorage.setItem("cago_seen_privzoom","1");
-  setTimeout(()=>toast(t('map.privacy.zoomcap')), 900);   // tras el encuadre, no sobre el loader
+  // Sin aviso: el "+" apagado ya dice que ahí se acaba, y un mensaje explicando el límite
+  // llama la atención sobre él más que el propio límite.
 }
 function _resetHeat(){
   if(_heatLayer){ try{_map.removeLayer(_heatLayer);}catch(e){} _heatLayer=null; }

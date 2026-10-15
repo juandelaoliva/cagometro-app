@@ -599,8 +599,39 @@
       <label class="toggle">
         <input type="checkbox" id="setNotif" />
         <span class="toggle__track"><span class="toggle__thumb"></span></span>
-        <span class="toggle__txt" data-i18n="settings.notif.toggle">Avisarme de reacciones, amistades e hitos</span>
+        <span class="toggle__txt" data-i18n="settings.notif.toggle">Recibir notificaciones</span>
       </label>
+
+      <!-- Qué avisos quieres, por separado. Se atenúan si el interruptor de arriba está
+           apagado: ahí no llega nada, así que elegir categorías no significaría nada. -->
+      <div class="set-subtoggles" id="notifCats">
+        <label class="toggle toggle--sub">
+          <input type="checkbox" id="setNotifChats" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt" data-i18n="settings.notif.chats">💬 Mensajes de chat</span>
+        </label>
+        <p class="set-hint set-hint--sub" data-i18n="settings.notif.chats.hint">Cada conversación se puede silenciar por separado desde el propio chat.</p>
+        <label class="toggle toggle--sub">
+          <input type="checkbox" id="setNotifSync" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt" data-i18n="settings.notif.sync">🔗 Conexiones de tuberías</span>
+        </label>
+        <label class="toggle toggle--sub">
+          <input type="checkbox" id="setNotifMilestones" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt" data-i18n="settings.notif.milestones">🎉 Hitos de tus amigos</span>
+        </label>
+        <label class="toggle toggle--sub">
+          <input type="checkbox" id="setNotifReactions" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt" data-i18n="settings.notif.reactions">💩 Reacciones a tus cacas</span>
+        </label>
+        <label class="toggle toggle--sub">
+          <input type="checkbox" id="setNotifOvertake" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt" data-i18n="settings.notif.overtake">🏃 Cuando alguien te supera</span>
+        </label>
+      </div>
 
       <label class="set-label" data-i18n="settings.lang.label">Idioma</label>
       <div class="segctl" id="langSel">

@@ -267,6 +267,49 @@ export const removeToken = (uid, token) => updateDoc(doc(db,"users",uid,"private
 export const enqueuePush = (fromUid, toUid, type, title, body) =>
   addDoc(collection(db,"pushQueue"), { fromUid, toUid, type, title, body, sent:false, ts: serverTimestamp() });
 
+/* ── Preferencias de notificación, por categoría ───────────────────────────
+   El push lo encola el móvil de QUIEN PROVOCA el aviso, así que para respetar el
+   ajuste hay que mirar las preferencias del DESTINATARIO antes de encolar. (Lo
+   correcto sería filtrar en la Pi, al entregar; se hace aquí a propósito, por
+   sencillez, mientras no se rehaga la app.)
+
+   `notifPrefs` ausente = todo activado, así que nadie necesita migración. El
+   interruptor maestro `notifications` manda sobre las categorías.
+
+   La caché evita el coste de esto: el chat ya filtraba leyendo UN doc (el del
+   chat, compartido por todos), pero una preferencia personal vive en el doc de
+   cada uno, así que sin caché un grupo de diez haría diez lecturas por mensaje. */
+export const NOTIF_CATS = ["chats","sync","milestones","reactions","overtake"];
+const PREFS_TTL = 5*60*1000;
+const _prefsCache = new Map();   // uid -> { prefs, at }
+
+export const clearPrefsCache = uid => { if(uid) _prefsCache.delete(uid); else _prefsCache.clear(); };
+
+async function _prefsDe(uid){
+  const hit = _prefsCache.get(uid);
+  if(hit && Date.now()-hit.at < PREFS_TTL) return hit.prefs;
+  let prefs = { notifications:true, cats:{} };
+  try{
+    const u = await getUser(uid);
+    // `notifications !== false`: los docs antiguos pueden no tener el campo.
+    if(u) prefs = { notifications: u.notifications !== false, cats: u.notifPrefs || {} };
+  }catch{ /* si falla la lectura, mejor avisar de más que tragarse el aviso */ }
+  _prefsCache.set(uid, { prefs, at: Date.now() });
+  return prefs;
+}
+
+// ¿Quiere esta persona que le avisemos de esta categoría?
+export async function quiereAviso(toUid, cat){
+  const p = await _prefsDe(toUid);
+  if(!p.notifications) return false;          // maestro apagado
+  return p.cats[cat] !== false;               // ausente = sí
+}
+// Lo mismo para varios destinatarios, en paralelo.
+export async function filtraPorPrefs(uids, cat){
+  const ok = await Promise.all(uids.map(u => quiereAviso(u, cat).catch(()=>true)));
+  return uids.filter((_,i) => ok[i]);
+}
+
 // "late caca": add one at a chosen past time (/latecaca). Counts toward the YEAR
 // of that timestamp; totalCount (current year) only bumps if it's this year.
 export async function addCacaAt(uid, ts, act){
@@ -805,7 +848,10 @@ export async function notifyNewMessage(chatId, senderUid, senderName, text, memb
   let muted = [];
   try { muted = (await getDoc(doc(db,"chats",chatId))).data()?.mutedBy || []; } catch {}
   const mutedSet = new Set(muted);
-  const targets = members.filter(m => m !== senderUid && !mutedSet.has(m));
+  // dos filtros que se suman: silenciar ESTA conversación (mutedBy, en el doc del chat)
+  // y silenciar TODOS los chats (preferencia personal, en el doc de cada uno).
+  const targets = await filtraPorPrefs(
+    members.filter(m => m !== senderUid && !mutedSet.has(m)), "chats");
   const body = text.length > 80 ? text.slice(0,77)+"…" : text;
   await Promise.all(targets.map(toUid =>
     // A quien le responden se le dice; al resto del grupo le llega el aviso normal.

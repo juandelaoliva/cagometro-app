@@ -7,6 +7,7 @@ import {
   logNotifPromptShown, setNotifPromptAction, logInstallPromptShown,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
+  quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
@@ -422,7 +423,7 @@ function openSettings(){
   $("setNamePreview").textContent=me.displayName||"—";
   $("setEmail").textContent=me.email||"—";
   $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
-  renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications;
+  renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications; _pintaCatsNotif();
   $("setHaptics").checked = hapticsOn;
   $("setShareMap").checked = me.shareMap !== false;
   $("adminBtn").hidden = uid!==ADMIN_UID;
@@ -517,6 +518,7 @@ function _adminUserCard(u){
       <div class="admin-kv admin-kv--wrap"><span>⚙️ Ajustes</span><div class="admin-flags">
         <span>🔔 Notif ${_ayn(u.notifications)}</span><span>🗺️ Mapa ${_ayn(u.shareMap!==false)}</span>
         <span>📍 Ubicación: ${u.locationMode||"never"}</span><span>🧻 Bristol ${_ayn(u.bristolMode)}</span></div></div>
+      <div class="admin-kv"><span>🔕 Silenciadas</span><b>${_aSilenciadas(u)}</b></div>
       <div class="admin-kv"><span>🔔 Popup notif</span><b>${u.notifPromptSeenCount ? `visto ${u.notifPromptSeenCount}× · ${_aPromptAction(u.notifPromptAction)}` : "no visto"}</b></div>
       <div class="admin-kv"><span>📱 Dispositivo</span><b>${u.platform?`${u.platform} · ${u.browser||"?"} · ${u.standalone?"PWA":"navegador"}`:"—"}</b></div>
       <div class="admin-kv"><span>🔔 ¿Puede recibir?</span><b>${_aCanNotify(u)}</b></div>
@@ -606,7 +608,36 @@ $("setNotif").addEventListener("change", async e=>{
     else if(_fcmToken) removeToken(uid,_fcmToken).catch(()=>{});
   }
   catch(err){ e.target.checked=!on; toast(t('toast.notif.fail')); console.error(err); }
+  _pintaCatsNotif();
 });
+
+/* ---------- categorías de notificación ---------- */
+// id del interruptor -> clave en notifPrefs
+const CAT_TOGGLES = { setNotifChats:"chats", setNotifSync:"sync", setNotifMilestones:"milestones",
+                      setNotifReactions:"reactions", setNotifOvertake:"overtake" };
+// Refleja en la UI lo que hay en `me`. Categoría ausente = activada, igual que al enviar.
+function _pintaCatsNotif(){
+  const maestro = !!me?.notifications;
+  const prefs = me?.notifPrefs || {};
+  for(const [id,cat] of Object.entries(CAT_TOGGLES)){
+    const el=$(id); if(!el) continue;
+    el.checked  = prefs[cat] !== false;
+    el.disabled = !maestro;        // sin el maestro no llega nada: elegir categorías no diría nada
+  }
+  $("notifCats").classList.toggle("is-off", !maestro);
+}
+for(const [id,cat] of Object.entries(CAT_TOGGLES)){
+  const el=$(id); if(!el) continue;
+  el.addEventListener("change", async e=>{
+    const on=e.target.checked;
+    try{
+      await updateMe(uid, { [`notifPrefs.${cat}`]: on });   // ruta con punto: no pisa las demás
+      if(me) me.notifPrefs = { ...(me.notifPrefs||{}), [cat]: on };
+      clearPrefsCache(uid);   // por si este dispositivo también envía
+    }catch(err){ e.target.checked=!on; toast(t('toast.notif.fail')); console.error(err); }
+  });
+}
+
 /* ---------- aviso de cambio de año ---------- */
 // Se muestra UNA sola vez: la primera vez que abres la app ya entrado el año nuevo.
 // Todos los datos salen del doc de usuario que watchMe ya tiene en memoria, así que
@@ -746,8 +777,12 @@ function detectReactionNotifs(acts){
     for(const [k,v] of cur) if(!rxBaseline.has(k)){ rxBaseline.add(k); added++; last=v; }
     for(const k of [...rxBaseline]) if(!cur.has(k)) rxBaseline.delete(k);
     if(added){ unseenRx+=added;
-      if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif(t('push.reaction.title'), t('push.localrx.one',{name:n,emoji:last.emoji})));
-      else showLocalNotif(t('push.reaction.title'), t('push.localrx.many',{n:added}));
+      // Esta no pasa por la Pi: la lanza TU propia pestaña. Si no se filtrara aquí,
+      // silenciar las reacciones no las callaría con la app abierta.
+      if(_catActiva("reactions")){
+        if(added===1 && last) resolveName(last.reactorUid).then(n=> showLocalNotif(t('push.reaction.title'), t('push.localrx.one',{name:n,emoji:last.emoji})));
+        else showLocalNotif(t('push.reaction.title'), t('push.localrx.many',{n:added}));
+      }
     }
   }
   notifRx=[...cur.values()].sort((a,b)=>b.ts-a.ts);
@@ -974,7 +1009,9 @@ async function applyReaction(entry, emoji){
       const targets = entry.kind==="sync"
         ? [...new Set([entry.uid, entry.withUid, ...(entry.participantUids||[])])].filter(u=>u && u!==uid)
         : [entry.uid];
-      targets.forEach(tUid=> enqueuePush(uid, tUid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{}));
+      filtraPorPrefs(targets, "reactions").then(dest => dest.forEach(tUid=>
+        enqueuePush(uid, tUid, "reaction", t('push.reaction.title'), t('push.reaction.body',{name:me?.displayName||t('fallback.someone'),emoji})).catch(()=>{}))
+      ).catch(()=>{});
     }
   }
   catch(err){ toast(t('toast.caca.react.fail')); console.error(err); loadActivity(); }
@@ -1056,7 +1093,8 @@ async function checkGroupOvertakes(oldTotal){
         if(r.id===uid || sentTo.has(r.id)) continue;
         if(yearCountOf(r)===oldTotal){          // estábamos empatados → ahora le supero
           sentTo.add(r.id);
-          enqueuePush(uid, r.id, "overtake", t('push.overtake.title'), t('push.overtake.body',{name,group:g.name})).catch(()=>{});
+          if(await quiereAviso(r.id, "overtake"))
+            enqueuePush(uid, r.id, "overtake", t('push.overtake.title'), t('push.overtake.body',{name,group:g.name})).catch(()=>{});
         }
       }
     }
@@ -1066,7 +1104,8 @@ async function checkGroupOvertakes(oldTotal){
 async function notifyFriendsMilestone(n){
   try{
     const fr=await getFriends(uid); const name=me?.displayName||"Alguien";
-    fr.forEach(f=> enqueuePush(uid, f.id, "milestone", t('push.milestone.title'), t('push.milestone.body',{name,n})).catch(()=>{}) );
+    const dest=await filtraPorPrefs(fr.map(f=>f.id), "milestones");
+    dest.forEach(f=> enqueuePush(uid, f, "milestone", t('push.milestone.title'), t('push.milestone.body',{name,n})).catch(()=>{}) );
   }catch(e){ console.error(e); }
 }
 // Registra el dispositivo en FCM para recibir push con la app cerrada (vía la Pi).
@@ -1081,6 +1120,13 @@ async function enablePush(){
     if(token){ _fcmToken=token; await saveToken(uid, token); }
     onMessage(messaging, ()=>{ refreshNotif(); });   // primer plano: el listener local ya muestra el banner
   }catch(e){ console.warn("push:", e?.message||e); }
+}
+// ¿Tengo YO activada esta categoría? Mis preferencias ya están en memoria (`me`), así que
+// esto no lee nada. Para las de OTRA persona hay que ir a su doc: quiereAviso/filtraPorPrefs.
+// Categoría ausente = activada, igual que en el servidor.
+function _catActiva(cat){
+  if(!me || me.notifications === false) return false;        // maestro apagado
+  return (me.notifPrefs||{})[cat] !== false;
 }
 function showLocalNotif(title, body){
   if(!("Notification" in window) || Notification.permission!=="granted") return;
@@ -2569,6 +2615,20 @@ function distShort(km){
 // con caca en ventana; si hay un combo abierto nos unimos (rolling: cada quien
 // reinicia los 5 min), y si no, fundamos uno. Doc compartido, id determinista.
 // `loc` = tu ubicación (si la tienes) para calcular los km que os separan en un 1:1.
+/* "El grupo de esa conexión" = los grupos que comparten TODOS los participantes. Si no
+   comparten ninguno, no hay espectadores y solo se avisan entre ellos, como hasta ahora.
+   Si comparten varios, la unión sin repetir.
+   Se calcula aquí y no se guarda en el doc a propósito: cuando un combo crece, los grupos
+   comunes pueden encogerse (entra alguien que no está en ese grupo), y la regla de update
+   de /activity solo deja tocar participants, participantUids, lastTs y audience — así que
+   un `groups` guardado se quedaría viejo sin poder corregirlo. */
+function _espectadoresDeGrupo(participantes){
+  const comunes = myGroupsCache.filter(g => participantes.every(u => (g.members||[]).includes(u)));
+  return [...new Set(comunes.flatMap(g => g.members||[]))]
+           .filter(u => u !== uid && !participantes.includes(u));
+}
+const _nombresDe = uids => uids.map(u => friendNames[u] || t('fallback.someone'));
+
 function checkSyncPoop(loc){
   const now=Date.now();
   // amigos con caca en los últimos 5 min (no tú, no eventos de sistema/sync).
@@ -2645,11 +2705,27 @@ function checkSyncPoop(loc){
   // el doc se guarda de verdad (con reintentos ante cortes de red tras cagar). Así nunca
   // hay "notificación fantasma" sin entrada en el feed. Si tras los reintentos falla del
   // todo, liberamos la sesión para poder reintentar en el siguiente evento.
-  const notifyOthers = () => prevUids.filter(u2=>u2!==uid).forEach(u2=>
-    enqueuePush(uid, u2, "sync",
+  const participantes = [...new Set([uid, ...prevUids])];
+  const miNombre = me?.displayName || t('fallback.someone');
+  const notifyOthers = async () => {
+    // 1) Los PARTICIPANTES, en segunda persona ("ha cagado a la vez que tú").
+    const otros = await filtraPorPrefs(prevUids.filter(u2=>u2!==uid), "sync");
+    otros.forEach(u2 => enqueuePush(uid, u2, "sync",
       count>=3 ? t('push.combo.title',{n:count}) : t('push.sync.title'),
-      count>=3 ? t('push.combo.body',{name:me?.displayName||t('fallback.someone'),n:count}) : t('push.sync.body',{name:me?.displayName||t('fallback.someone')})
+      count>=3 ? t('push.combo.body',{name:miNombre,n:count}) : t('push.sync.body',{name:miNombre})
     ).catch(()=>{}));
+    // 2) El GRUPO, en tercera persona: a quien mira desde fuera "ha cagado a la vez que
+    //    tú" no le cuadra. Solo al FUNDAR (`!open`): si no, un combo que crece de 2 a 3
+    //    avisaría al grupo dos veces de la misma conexión.
+    if(open) return;
+    const dest = await filtraPorPrefs(_espectadoresDeGrupo(participantes), "sync");
+    const nombres = _nombresDe(participantes.filter(u2=>u2!==uid)).concat(miNombre);
+    dest.forEach(u2 => enqueuePush(uid, u2, "sync",
+      count>=3 ? t('push.combo.title',{n:count}) : t('push.sync.title'),
+      count>=3 ? t('push.combo.group.many',{n:count, names:nombres.slice(0,2).join(", ")})
+               : t('push.sync.group',{a:nombres[0], b:nombres[1]||miNombre})
+    ).catch(()=>{}));
+  };
   _persistSync(sessionId, base, meP, audience)
     .then(notifyOthers)
     .catch(e=>{ console.error("combo:",e); if(_lastSyncSession===sessionId) _lastSyncSession=null; });

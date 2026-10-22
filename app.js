@@ -10,7 +10,7 @@ import {
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
   adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
-  getUser, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
+  getUser, getUserLite, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
   renameGroup, kickFromGroup, deleteGroup,
   getOrCreateDM, ensureGroupChat, sendMessage, markChatRead,
@@ -394,7 +394,7 @@ let _fiUid=null;
 async function openFriendInvite(otherUid){
   if(otherUid===uid){ toast(t('toast.self')); return; }
   _fiUid=otherUid;
-  const u=await getUser(otherUid);
+  const u=await getUserLite(otherUid);
   if(!u){ toast(t('toast.notfound')); return; }
   $("fiAvatar").textContent=initial(u.displayName); $("fiAvatar").style.background=u.color||colorForUid(otherUid);
   $("fiName").textContent=u.displayName||t('fallback.someone');
@@ -404,7 +404,7 @@ $("fiCancel").addEventListener("click",()=>$("friendInviteSheet").hidden=true);
 $("friendInviteSheet").addEventListener("click",e=>{ if(e.target===$("friendInviteSheet")) $("friendInviteSheet").hidden=true; });
 $("fiAccept").addEventListener("click", async ()=>{
   if(!_fiUid)return; $("friendInviteSheet").hidden=true;
-  try{ await addFriendDirect(uid,_fiUid); toast(t('toast.friend.accepted'));
+  try{ const r=await addFriendDirect(uid,_fiUid); toast(t(r==='already'?'toast.friend.already':r==='accepted'?'toast.friend.accepted':'toast.friend.requested'));
     if(document.querySelector(".view.is-active")?.dataset.view==="amigos") renderAmigos(); }
   catch(err){ toast(t('toast.friend.fail')); console.error(err); }
 });
@@ -1282,7 +1282,7 @@ function startNotifications(){
     _graphAt=0;   // cambió la red de amistades → refresca la audiencia en la próxima carga
     const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
     const enriched=await Promise.all(pend.map(async f=>{
-      const o=await getUser(f.uids.find(u=>u!==uid));
+      const o=await getUserLite(f.uids.find(u=>u!==uid));
       return { id:f.id, name:o?.displayName||t('fallback.someone'), color:o?.color };
     }));
     if(reqBaseline===null){ reqBaseline=new Set(enriched.map(r=>r.id)); }   // base: no notifica las ya existentes
@@ -1307,7 +1307,7 @@ const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone
 async function resolveName(ru){
   if(ru===uid) return "Tú";
   if(notifFriends[ru]) return notifFriends[ru];
-  try{ const u=await getUser(ru); const n=u?.displayName||t('fallback.someone'); notifFriends[ru]=n; return n; }
+  try{ const u=await getUserLite(ru); const n=u?.displayName||t('fallback.someone'); notifFriends[ru]=n; return n; }
   catch{ return t('fallback.someone'); }
 }
 function renderNotifSheet(){
@@ -1747,7 +1747,7 @@ $("addFriendBtn").addEventListener("click",async()=>{
   try{ const o=await sendFriendRequest(uid,email); $("friendEmail").value="";
     msg.textContent=t('amigos.req.sent',{name:o.displayName}); msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
   catch(err){ msg.style.color="var(--rose)";
-    msg.textContent=err.message==="no-user"?t('amigos.req.nouser'):err.message==="self"?t('amigos.req.self'):t('amigos.req.fail'); msg.hidden=false; }
+    msg.textContent=err.message==="no-user"?t('amigos.req.nouser'):err.message==="self"?t('amigos.req.self'):err.message==="exists"?t('amigos.req.exists'):t('amigos.req.fail'); msg.hidden=false; }
 });
 let friendSort="rank", _friends=[];
 document.querySelector(".sortbar").addEventListener("click", e=>{
@@ -1772,12 +1772,12 @@ async function renderAmigos(){
   const outgoing=pending.filter(f=>f.requestedBy===uid);
   $("reqBlock").hidden = !pending.length;
   const incHtml=await Promise.all(incoming.map(async f=>{
-    const other=await getUser(f.uids.find(u=>u!==uid));
+    const other=await getUserLite(f.uids.find(u=>u!==uid));
     return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.wantsyou')}</small></span>
       <button class="btn-accept" data-accept="${f.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
   }));
   const outHtml=await Promise.all(outgoing.map(async f=>{
-    const other=await getUser(f.uids.find(u=>u!==uid));
+    const other=await getUserLite(f.uids.find(u=>u!==uid));
     return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.pending')}</small></span>
       <button class="btn-decline" data-cancel="${f.id}" aria-label="${t('amigos.req.cancel')}" title="${t('amigos.req.cancel')}">✕</button></li>`;
   }));

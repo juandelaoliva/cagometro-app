@@ -97,6 +97,30 @@ export async function googleSignIn(){
   return user;
 }
 
+/* ---------- perfil público + búsqueda por email ---------- */
+// Con las reglas endurecidas, `users/{uid}` solo lo leen el dueño y sus amigos. Para lo que
+// SÍ tiene que ver un desconocido (el nombre de quien te manda una solicitud o te invita por
+// enlace, y encontrar a alguien por su email) hay dos docs mínimos que solo escribe su dueño:
+//   publicProfiles/{uid}  → { displayName, color, photoURL }
+//   userLookup/{email}    → { uid }
+// Las escrituras son «best effort»: con las reglas ANTERIORES esas colecciones no existen y
+// se deniegan, y eso no debe romper el alta ni el login.
+const emailKey = e => (e || "").toLowerCase().trim();
+async function syncPublicDocs(uid, d){
+  try{
+    await setDoc(doc(db,"publicProfiles",uid), { displayName: d.displayName || "", color: d.color || colorForUid(uid), photoURL: d.photoURL || null });
+    if (emailKey(d.email)) await setDoc(doc(db,"userLookup",emailKey(d.email)), { uid });
+    return true;
+  }catch(e){ return false; }
+}
+// Perfil de alguien que puede NO ser tu amigo: el completo si las reglas te lo dejan leer,
+// y si no, el público.
+export async function getUserLite(uid){
+  try{ const u = await getUser(uid); if (u) return u; }catch(e){}
+  try{ const s = await getDoc(doc(db,"publicProfiles",uid)); if (s.exists()) return { id:uid, ...s.data() }; }catch(e){}
+  return null;
+}
+
 /* ---------- profile ---------- */
 export async function ensureProfile(user, displayName){
   const ref = doc(db, "users", user.uid);
@@ -126,8 +150,15 @@ export async function ensureProfile(user, displayName){
       telegramUsername: null,
       createdAt: serverTimestamp(),
     });
-  } else if (snap.data().tz !== tz()) {
-    updateDoc(ref, { tz: tz() }).catch(()=>{});   // mantener tz al día (viaje/nuevo dispositivo)
+    const fresh = (await getDoc(ref)).data();
+    if (await syncPublicDocs(user.uid, fresh)) updateDoc(ref, { publicV: 1 }).catch(()=>{});
+  } else {
+    const d = snap.data();
+    if (d.tz !== tz()) updateDoc(ref, { tz: tz() }).catch(()=>{});   // mantener tz al día (viaje/nuevo dispositivo)
+    // Los usuarios anteriores a las reglas nuevas se sincronizan solos en su próximo login.
+    // `publicV` solo se marca si las escrituras se aceptaron: con las reglas viejas se
+    // denegarían y se reintentaría en cada login.
+    if (!d.publicV) syncPublicDocs(user.uid, d).then(ok => { if (ok) updateDoc(ref, { publicV: 1 }).catch(()=>{}); });
   }
   return ref;
 }
@@ -243,7 +274,13 @@ export const watchActivity = (uid, cb, n = 60, onError) =>
     s => cb(s.docs.map(d => ({ id: d.id, ...d.data() }))),
     e => { if (onError) onError(e); });
 // Ajustes del perfil (nickname, color, notificaciones…)
-export const updateMe = (uid, patch) => updateDoc(doc(db, "users", uid), patch);
+export async function updateMe(uid, patch){
+  await updateDoc(doc(db, "users", uid), patch);
+  // nombre/color/foto también viven en el perfil público: que no se queden desfasados
+  const pub = {};
+  for (const k of ["displayName","color","photoURL"]) if (k in patch) pub[k] = patch[k];
+  if (Object.keys(pub).length) setDoc(doc(db,"publicProfiles",uid), pub, { merge:true }).catch(()=>{});
+}
 
 // Popup de activación de notificaciones: métricas mínimas en el doc del usuario
 // (cuántas veces se mostró + última acción) para poder verlo en el panel de admin.
@@ -462,22 +499,45 @@ export async function adminWipeUser(targetUid){
   // sacarlo de todos los grupos
   for(;;){ const s=await getDocs(query(collection(db,"groups"), where("members","array-contains",targetUid), limit(300))); if(s.empty)break; const b=writeBatch(db); s.docs.forEach(d=>b.update(d.ref,{members:arrayRemove(targetUid)})); await b.commit(); if(s.size<300)break; }
   try{ await deleteDoc(doc(db,"users",targetUid,"private","push")); }catch(e){}
+  try{
+    const em = emailKey((await getDoc(doc(db,"users",targetUid))).data()?.email);
+    if (em) await deleteDoc(doc(db,"userLookup",em));
+    await deleteDoc(doc(db,"publicProfiles",targetUid));
+  }catch(e){}
   await deleteDoc(doc(db,"users",targetUid));
 }
 
 /* ---------- friends ---------- */
 const pairId = (a,b) => [a,b].sort().join("_");
 
+const denied = e => e?.code === "permission-denied";
 export async function findUserByEmail(email){
-  const snap = await getDocs(query(collection(db,"users"), where("email","==",(email||"").toLowerCase().trim()), limit(1)));
-  return snap.empty ? null : { uid:snap.docs[0].id, ...snap.docs[0].data() };
+  const key = emailKey(email);
+  if (!key) return null;
+  try{
+    const l = await getDoc(doc(db,"userLookup",key));
+    if (l.exists()){
+      const uid = l.data().uid;
+      return { ...((await getUserLite(uid)) || {}), uid };
+    }
+  }catch(e){ if (!denied(e)) throw e; }   // reglas anteriores: la colección no existe
+  // Respaldo para las reglas anteriores y para quien aún no se ha sincronizado. Con las
+  // reglas nuevas esta consulta se deniega, y se trata como «no existe».
+  try{
+    const snap = await getDocs(query(collection(db,"users"), where("email","==",key), limit(1)));
+    return snap.empty ? null : { uid:snap.docs[0].id, ...snap.docs[0].data() };
+  }catch(e){ if (denied(e)) return null; throw e; }
 }
 export async function sendFriendRequest(myUid, email){
   const other = await findUserByEmail(email);
   if (!other) throw new Error("no-user");
   if (other.uid === myUid) throw new Error("self");
-  await setDoc(doc(db,"friendships", pairId(myUid, other.uid)),
-    { uids:[myUid, other.uid], status:"pending", requestedBy:myUid, createdAt:serverTimestamp() }, { merge:true });
+  // Ya hay una amistad o solicitud entre los dos: no se toca. (Antes `merge:true` degradaba
+  // una amistad aceptada a pendiente, y con las reglas nuevas reescribirla se deniega.)
+  const pid = pairId(myUid, other.uid);
+  if ((await myFriendships(myUid)).some(f => f.id === pid)) throw new Error("exists");
+  await setDoc(doc(db,"friendships", pid),
+    { uids:[myUid, other.uid].sort(), status:"pending", requestedBy:myUid, createdAt:serverTimestamp() });
   const me = await getUser(myUid);
   enqueuePush(myUid, other.uid, "friend_request", "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
   return other;
@@ -494,14 +554,26 @@ export async function acceptFriend(id, myUid){
 }
 export const removeFriend = id => deleteDoc(doc(db,"friendships",id));
 
-// Amistad directa (desde un enlace de invitación): el que abre el enlace acepta
-// y quedáis amigos al instante, sin solicitud pendiente.
+// Amistad desde un enlace de invitación (?friend=UID). Antes quedabais amigos al instante,
+// pero el servidor no puede comprobar que esa persona compartió el enlace: cualquiera podía
+// fabricar un enlace con el uid de otro. Ahora el que abre el enlace manda una SOLICITUD y
+// la otra persona la acepta con un toque (le llega por la campana y por push).
+// Devuelve qué pasó: "requested" | "accepted" | "already".
 export async function addFriendDirect(myUid, otherUid){
   if (otherUid === myUid) throw new Error("self");
-  await setDoc(doc(db,"friendships", pairId(myUid, otherUid)),
-    { uids:[myUid, otherUid].sort(), status:"accepted", source:"link", createdAt:serverTimestamp() }, { merge:true });
+  const pid = pairId(myUid, otherUid);
+  const f = (await myFriendships(myUid)).find(x => x.id === pid);
+  if (f){
+    if (f.status === "accepted") return "already";
+    if (f.requestedBy === myUid) return "requested";        // ya la pedí yo: nada que hacer
+    await acceptFriend(pid, myUid);                          // me la había mandado él: se cruzan
+    return "accepted";
+  }
+  await setDoc(doc(db,"friendships", pid),
+    { uids:[myUid, otherUid].sort(), status:"pending", requestedBy:myUid, source:"link", createdAt:serverTimestamp() });
   const me = await getUser(myUid);
-  enqueuePush(myUid, otherUid, "friend_accepted", "¡Nueva amistad! 🤝", `${me?.displayName||"Alguien"} aceptó tu invitación`).catch(()=>{});
+  enqueuePush(myUid, otherUid, "friend_request", "Nueva solicitud de amistad 👋", `${me?.displayName||"Alguien"} quiere ser tu amigo/a`).catch(()=>{});
+  return "requested";
 }
 
 // Listeners en tiempo real para el centro de notificaciones in-app
@@ -539,26 +611,76 @@ export async function friendsFeed(myUid, perFriend = 5){
 const genCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 
 export async function createGroup(uid, name){
+  const code = genCode();
   const ref = await addDoc(collection(db,"groups"), {
     name: (name||"").trim() || "Mi grupo", createdBy: uid, members: [uid],
-    inviteCode: genCode(), createdAt: serverTimestamp(),
+    inviteCode: code, createdAt: serverTimestamp(),
   });
+  // código → grupo, para poder unirse sin poder LISTAR los grupos (ver joinGroup). Con las
+  // reglas anteriores la colección no existe y se deniega: no debe impedir crear el grupo.
+  try{ await setDoc(doc(db,"inviteCodes",code), { gid: ref.id, createdBy: uid }); }catch(e){}
   return { id: ref.id, ...(await getDoc(ref)).data() };
 }
-export async function joinGroup(uid, code){
-  const snap = await getDocs(query(collection(db,"groups"), where("inviteCode","==",(code||"").toUpperCase().trim()), limit(1)));
-  if (snap.empty) throw new Error("no-group");
-  const g = snap.docs[0];
-  const others = (g.data().members||[]).filter(m => m !== uid);
-  if (!(g.data().members||[]).includes(uid)) await updateDoc(g.ref, { members: arrayUnion(uid) });
-  // auto-amigos: te haces amigo (aceptado) de todos los miembros actuales
-  if (others.length){
-    const batch = writeBatch(db);
-    for (const m of others)
-      batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", createdAt:serverTimestamp() }, { merge:true });
-    await batch.commit();
+
+// Hace amigos aceptados (source:"group") a `uid` con el resto de miembros del grupo. Las
+// reglas solo admiten CREAR esa amistad (con `gid`, y los dos dentro del grupo), no
+// reescribir una que ya existe: por eso solo se crean las que faltan.
+async function befriendGroupMates(uid, gid, members){
+  const others = members.filter(m => m !== uid);
+  if (!others.length) return;
+  const existing = new Map((await myFriendships(uid)).map(f => [f.id, f]));
+  const toCreate = [];
+  for (const m of others){
+    const id = pairId(uid, m), f = existing.get(id);
+    if (!f){ toCreate.push(m); continue; }
+    if (f.status !== "pending") continue;                    // ya sois amigos
+    if (f.requestedBy === uid){
+      // solicitud mía sin contestar: no puedo aceptarla yo, pero sí retirarla y crear la de grupo
+      await deleteDoc(doc(db,"friendships",id)); toCreate.push(m);
+    } else {
+      await updateDoc(doc(db,"friendships",id), { status:"accepted" });   // me la mandó él: la acepto
+    }
   }
-  return { id: g.id, ...(await getDoc(g.ref)).data() };
+  if (!toCreate.length) return;
+  const batch = writeBatch(db);
+  for (const m of toCreate)
+    batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", gid, createdAt:serverTimestamp() });
+  await batch.commit();
+}
+
+// Unirse a un grupo por su id. Con las reglas nuevas un no-miembro NO puede leer el grupo,
+// así que se entra primero y se lee después (ya como miembro) para saber con quién hacerse amigo.
+async function joinGroupById(uid, gid){
+  const ref = doc(db,"groups",gid);
+  try{ await updateDoc(ref, { members: arrayUnion(uid) }); }
+  catch(e){
+    // Si ya eras miembro, arrayUnion no cambia nada y la regla de «unirse» no lo admite; si
+    // el grupo no existe, tampoco. Lo distingue la lectura de abajo.
+    if (!denied(e) && e?.code !== "not-found") throw e;
+  }
+  let snap;
+  try{ snap = await getDoc(ref); }catch(e){ throw new Error("no-group"); }
+  if (!snap.exists()) throw new Error("no-group");
+  const g = { id: snap.id, ...snap.data() };
+  if (!(g.members||[]).includes(uid)) throw new Error("no-group");
+  await befriendGroupMates(uid, gid, g.members||[]);
+  return g;
+}
+export async function joinGroup(uid, code){
+  const c = (code||"").toUpperCase().trim();
+  if (!c) throw new Error("no-group");
+  let gid = null;
+  try{ const s = await getDoc(doc(db,"inviteCodes",c)); if (s.exists()) gid = s.data().gid; }
+  catch(e){ if (!denied(e)) throw e; }
+  if (!gid){
+    // respaldo: reglas anteriores, o un grupo anterior a `inviteCodes` aún sin sincronizar
+    try{
+      const snap = await getDocs(query(collection(db,"groups"), where("inviteCode","==",c), limit(1)));
+      if (!snap.empty) gid = snap.docs[0].id;
+    }catch(e){ if (!denied(e)) throw e; }
+  }
+  if (!gid) throw new Error("no-group");
+  return joinGroupById(uid, gid);
 }
 export const leaveGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });
 export const renameGroup = (gid, name) => updateDoc(doc(db,"groups",gid), { name: name.trim() });
@@ -722,21 +844,12 @@ export const watchGroupInvites = (uid, cb) =>
   );
 
 export async function acceptGroupInvite(invite, uid){
-  // Reutilizamos la lógica de joinGroup: añade al grupo y auto-amiga a todos los miembros actuales
-  const groupRef = doc(db, "groups", invite.gid);
-  const gsnap = await getDoc(groupRef);
-  if (!gsnap.exists()) throw new Error("group-gone");
-  const currentMembers = gsnap.data().members || [];
-  const others = currentMembers.filter(m => m !== uid);
-  if (!currentMembers.includes(uid)) await updateDoc(groupRef, { members: arrayUnion(uid) });
-  if (others.length){
-    const batch = writeBatch(db);
-    for (const m of others)
-      batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", createdAt:serverTimestamp() }, { merge:true });
-    await batch.commit();
-  }
+  // Misma lógica que joinGroup: añade al grupo y auto-amiga a todos los miembros actuales
+  let g;
+  try{ g = await joinGroupById(uid, invite.gid); }
+  catch(e){ throw e.message === "no-group" ? new Error("group-gone") : e; }
   await updateDoc(doc(db,"groupInvites",invite.id), { status: "accepted" });
-  return { id: gsnap.id, ...gsnap.data(), members: [...new Set([...currentMembers, uid])] };
+  return g;
 }
 
 export const declineGroupInvite = (inviteId) =>

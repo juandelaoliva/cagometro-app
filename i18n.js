@@ -135,6 +135,8 @@ const _es = {
   'toast.notfound': 'No se encontró a esa persona',
   'toast.friend.accepted': '¡Nuevo amigo! 🎉',
   'toast.friend.fail': 'No se pudo',
+  'toast.friend.requested': 'Solicitud enviada ✅',
+  'toast.friend.already': 'Ya sois amigos',
   'toast.friend.removed': 'Amigo eliminado',
   'toast.friend.req.canceled': 'Solicitud cancelada',
   'toast.caca.geo': '¡Caca + ubicación! 📍',
@@ -272,15 +274,16 @@ const _es = {
   'amigos.req.nouser': 'No hay ningún usuario con ese email.',
   'amigos.req.self': 'Ese eres tú 😄',
   'amigos.req.fail': 'No se pudo enviar.',
+  'amigos.req.exists': 'Ya sois amigos o ya hay una solicitud pendiente.',
   'amigos.sort.rank': '🏆 Ranking',
   'amigos.sort.alpha': '🔤 A–Z',
   'amigos.invite.text': '¿Te unes a mi red en El Cagómetro? 💩',
 
   // ── Sheet: invitación de amigo ──
   'fi.wantsyou': 'quiere ser tu amigo/a',
-  'fi.sub': 'Si aceptas, os añadiréis mutuamente como amigos y veréis vuestra actividad.',
+  'fi.sub': 'Le enviaremos una solicitud y, cuando la acepte, os veréis la actividad.',
   'fi.cancel': 'Ahora no',
-  'fi.accept': 'Aceptar 🤝',
+  'fi.accept': 'Añadir 🤝',
 
   // ── Grupos ──
   'grupos.title': 'Grupos',
@@ -657,6 +660,8 @@ const _en = {
   'toast.notfound': 'Person not found',
   'toast.friend.accepted': 'New friend! 🎉',
   'toast.friend.fail': 'Could not complete',
+  'toast.friend.requested': 'Request sent ✅',
+  'toast.friend.already': 'You are already friends',
   'toast.friend.removed': 'Friend removed',
   'toast.friend.req.canceled': 'Request canceled',
   'toast.caca.geo': 'Poop + location! 📍',
@@ -794,15 +799,16 @@ const _en = {
   'amigos.req.nouser': 'No user found with that email.',
   'amigos.req.self': "That's you 😄",
   'amigos.req.fail': 'Could not send.',
+  'amigos.req.exists': 'You are already friends, or a request is already pending.',
   'amigos.sort.rank': '🏆 Ranking',
   'amigos.sort.alpha': '🔤 A–Z',
   'amigos.invite.text': 'Join my network on El Cagómetro? 💩',
 
   // ── Sheet: invitación de amigo ──
   'fi.wantsyou': 'wants to be your friend',
-  'fi.sub': "If you accept, you'll both be added as friends and see each other's activity.",
+  'fi.sub': "We'll send a request, and once they accept you'll see each other's activity.",
   'fi.cancel': 'Not now',
-  'fi.accept': 'Accept 🤝',
+  'fi.accept': 'Add 🤝',
 
   // ── Grupos ──
   'grupos.title': 'Groups',

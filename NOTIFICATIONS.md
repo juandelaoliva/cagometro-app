@@ -49,8 +49,11 @@ Campo `type` en la colección `pushQueue` (lo lee la Pi para decidir cómo entre
 - **In-app:** `watchFriendships` (tiempo real) → aparece en la campanita (sección Solicitudes, con Aceptar/✕) + banner.
 
 ### friend_accepted — amistad aceptada
-- **Disparo:** `acceptFriend()` y `addFriendDirect()` (enlace de invitación).
-- Avisa **a quien pidió/invitó** que ya sois amigos.
+- **Disparo:** `acceptFriend()`.
+- Avisa **a quien pidió** que ya sois amigos.
+- El enlace de invitación (`addFriendDirect`) ya **no** hace amigos al instante: manda una
+  solicitud (`friend_request`) a quien compartió el enlace, y su `acceptFriend()` dispara
+  este aviso de vuelta.
 
 ### milestone — hito de un amigo
 - **Disparo:** en `watchMe`, al detectar que tu contador cruza un hito → `notifyFriendsMilestone()` avisa a **todos tus amigos**.

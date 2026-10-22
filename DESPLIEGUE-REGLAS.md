@@ -1,0 +1,95 @@
+# Despliegue: reglas de Firestore endurecidas
+
+Tres pasos, **en este orden**. El cliente nuevo funciona con las reglas actuales y con las
+nuevas, así que se puede parar entre un paso y otro sin que nada se rompa.
+
+Antes de empezar, en una terminal con Node 18+ y Java:
+
+```bash
+cd rules-tests && npm ci && npm test      # 89 pruebas; todas tienen que pasar
+```
+
+## 0 · Red de seguridad
+
+- **Copia de los datos.** Una exportación de Firestore, o la última copia de la Pi. El paso 2
+  escribe en producción.
+- **Guarda las reglas actuales** (el fichero de la rama, antes del paso 3):
+  `git show HEAD:firestore.rules > ~/firestore.rules.antiguas`
+
+## 1 · Cliente (GitHub Pages)
+
+Fusiona la rama a `main` con un *merge commit* (no *squash*: hay ramas apiladas encima).
+Pages publica solo. La rama ya trae el `sw.js` con la versión subida, así que los móviles se
+actualizan en ~30 s; si prefieres lanzarlo con `./deploy.sh`, también vale.
+
+Comprueba en la PWA: entrar, sumar una caca, abrir un grupo, buscar un amigo por email.
+
+Lo que ve la gente: **el enlace de invitación de amistad ya no hace amigos al instante**, manda
+una solicitud que la otra persona acepta (cambian los textos «Añadir» y «Le enviaremos una
+solicitud…»).
+
+## 2 · Relleno de datos
+
+Desde la Raspberry (necesita `firebase-admin` v10 o posterior y credenciales):
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS=/ruta/a/la/clave.json
+node tools/backfill-public-docs.cjs                    # ensayo: no escribe nada
+```
+
+Revisa el informe:
+
+- **Conflictos** (código de grupo repetido, email repetido, grupo sin código): hay que
+  resolverlos a mano; el script sale con código 1 y no los pisa.
+- **Parejas de grupo sin amistad aceptada**: las reglas nuevas ocultarían a esas personas entre
+  sí. `--fix-friendships` las crea o acepta.
+
+```bash
+node tools/backfill-public-docs.cjs --apply --yes [--fix-friendships]
+node tools/backfill-public-docs.cjs                    # repetir: todo tiene que salir a 0
+```
+
+Es idempotente: se puede repetir. Los usuarios que se registren o entren después se sincronizan
+solos.
+
+## 3 · Reglas
+
+```bash
+cp firestore.rules.draft firestore.rules
+```
+
+y publícalas: **consola de Firebase** (Firestore → Reglas → pegar → Publicar), o con la CLI
+(`firebase deploy --only firestore:rules`; hoy el repo no tiene `firebase.json` en la raíz, haría
+falta uno con `{"firestore":{"rules":"firestore.rules"}}`).
+
+**Comprobación inmediata, con dos cuentas que sean amigas y una que no:**
+
+- [ ] Entrar y sumar una caca.
+- [ ] Ver el perfil, las cacas y el mapa de un amigo.
+- [ ] Mandar una solicitud por email y aceptarla (el nombre se ve antes de aceptar).
+- [ ] Crear un grupo y unirse con su código desde otra cuenta.
+- [ ] Abrir un enlace `?friend=` y un enlace `?join=`.
+- [ ] La cuenta sin relación **no** puede ver las cacas de la otra (consola del navegador:
+  `permission-denied`).
+
+## Marcha atrás
+
+- **Reglas:** vuelve a publicar `~/firestore.rules.antiguas`. El cliente nuevo sigue
+  funcionando con ellas.
+- **Cliente:** `git revert -m 1 <merge>`; solo hace falta si hay un fallo de interfaz.
+- Los docs que crea el relleno (`publicProfiles`, `userLookup`, `inviteCodes`) no estorban a las
+  reglas antiguas: no hace falta borrarlos.
+
+## Qué vigilar después
+
+- **Lecturas:** cada lectura del perfil o las cacas de un amigo hace una lectura más en las
+  reglas. Mira la cuota los primeros días.
+- **`permission-denied` inesperados**, sobre todo de personas con grupos antiguos: casi siempre es
+  una pareja de grupo sin amistad que el relleno no arregló.
+- **Un tipo de push nuevo** hay que añadirlo a la lista de `pushQueue` en las reglas, o fallará
+  sin avisar.
+
+## Lo que este despliegue no resuelve
+
+Unirse a un grupo sigue sin comprobar el código en las reglas; el borrado de cuenta, denunciar y
+bloquear, y la política de privacidad son trabajo aparte (ver `MIGRACION-EXPO.md`, Fase 0).

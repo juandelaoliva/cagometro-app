@@ -62,10 +62,10 @@ el mes cuatro.
 
 ---
 
-## 3. 🚨 Tres cosas que Apple te va a rechazar — hazlas primero
+## 3. 🚨 Cuatro cosas que Apple te va a rechazar — hazlas primero
 
-Esto es lo más valioso del documento. Son tres carencias **de la app actual**, no del
-puerto, y las tres son causa habitual de rechazo. Si las dejas para el final, te comen
+Esto es lo más valioso del documento. Son cuatro carencias **de la app actual**, no del
+puerto, y las cuatro son causa habitual de rechazo. Si las dejas para el final, te comen
 semanas de ida y vuelta con el revisor.
 
 ### 3.1 No se puede borrar la cuenta
@@ -117,9 +117,26 @@ privacidad de la ficha. Lo que recoges hoy:
 Lo de **salud** es lo que se suele pasar por alto. Declararlo mal en las etiquetas es
 motivo de rechazo, y además te obliga a ser explícito sobre para qué lo usas.
 
+### 3.4 Hay Google como inicio de sesión y ninguna alternativa
+
+La app ofrece entrar con Google (`googleSignIn`, `store.js:94`) además de correo y
+contraseña. Apple pide que, si ofreces un inicio de sesión de terceros, ofrezcas también una
+opción equivalente que cumpla unos criterios de privacidad; casi todo el mundo lo resuelve
+con **Sign in with Apple**. El correo y contraseña propios podrían valer, así que no es
+seguro que te lo exijan, pero es el rechazo más barato de evitar. Hay que decidir pronto:
+
+- **Añadir Sign in with Apple** (`expo-apple-authentication` y el proveedor `apple.com` de
+  Firebase Auth), o
+- **Quitar Google en la versión de iOS**.
+
+Una consecuencia que conviene tener presente: con «Ocultar mi correo», Apple entrega una
+dirección de reenvío. Esa dirección es la que se guardaría en `users.email`, y **buscar
+amigos por email** (`findUserByEmail`) no encontraría a esas personas. Contrasta el texto
+vigente de la guideline 4.8 antes de decidir.
+
 > Los números de cláusula de Apple cambian de vez en cuando. Lo que no cambia es el fondo:
-> **borrado de cuenta, moderación de contenido y privacidad declarada**. Contrasta el texto
-> vigente en las *App Review Guidelines* antes de enviar.
+> **borrado de cuenta, moderación de contenido, privacidad declarada e inicio de sesión
+> equivalente**. Contrasta el texto vigente en las *App Review Guidelines* antes de enviar.
 
 ---
 
@@ -170,7 +187,7 @@ viajar**:
 |---|---|---|
 | `cago_lang` | idioma (en `i18n.js`) | `AsyncStorage` |
 | `cago_haptics` | háptica sí/no | `AsyncStorage` |
-| `cago_outbox` | **la cola de cacas sin enviar** | `AsyncStorage`, y con cuidado: es el único sitio donde vive un dato que todavía no está en Firestore |
+| `cago_outbox` | **la cola de cacas sin enviar** | `AsyncStorage`, y con cuidado: es el único sitio donde vive un dato que todavía no está en Firestore. Hoy `outboxGet` es síncrono y `AsyncStorage` no: el cambio llega a todos los que lo llaman |
 | `cago_fact_idx` · `cago_fact_idx_day` · `cago_fact_collapsed` | por dónde vas en los datos del día | `AsyncStorage` |
 | `cago_seen_once` | si es la primera sesión en este aparato | `AsyncStorage` |
 | `cago_seen_heatannc` · `cago_heatannc_notifseen` | el aviso del mapa de calor, ya caducado | **se tiran** |
@@ -238,13 +255,17 @@ tuyo**:
 | arrastrar para cerrar las hojas (`initSheetGestures`, umbral 90 px o impulso 0,55 px/ms) | una librería de *bottom sheet*, o `Modal` |
 | tirar para refrescar (solo en PWA instalada, 72 px, anillo animado) | `RefreshControl` de `FlatList` |
 | mantener pulsado para reaccionar (450–500 ms) | `Pressable` con `onLongPress` |
-| deslizar para responder (`_swipeStep`, `SW_OK 60`, flick 0,55) | `react-native-gesture-handler` — **este sí lo reescribes**, pero el arbitraje de ejes ya está aislado en una función pura y probada |
+| deslizar para responder (`_swipeStep`, `SW_OK 60`, flick 0,55) | `react-native-gesture-handler` — **este sí lo reescribes**, pero el arbitraje de ejes ya está aislado en una función pura (no hay tests en el repo: escríbelos al portarla) |
 
 ### Lo que sí se porta casi tal cual
 
 `store.js` entero, los dos diccionarios de `i18n.js`, `funfacts.js`, `firestore.rules`,
 toda la lógica de rachas, contadores, hitos, conexiones y Bristol. **Es más de la mitad
 del valor del proyecto y no se toca.** Es la razón por la que esto es viable.
+
+«Casi» tal cual: cambian los imports de Firebase, el inicio de sesión con Google y el
+outbox (`localStorage`). Y las **gráficas** son barras de HTML (`barsHTML`, `app.js:108`),
+sin `<canvas>`: se rehacen con `View` y no hace falta ninguna librería de gráficas.
 
 ---
 
@@ -278,9 +299,40 @@ Dos caminos, y conviene elegir pronto porque condiciona todo:
 **Recomendación: empezar con el SDK web.** Si algún día la persistencia offline se queda
 corta, se cambia; `store.js` está lo bastante aislado como para que duela poco.
 
+Dos trampas de ese camino que hay que conocer desde el principio:
+
+- **La sesión no persiste sola.** En React Native hay que inicializar Auth con
+  `initializeAuth` y persistencia en `AsyncStorage`; con `getAuth` a secas se pierde la
+  sesión al cerrar la app. Comprueba el patrón vigente en la documentación de Firebase.
+- **Firestore no tiene caché offline en disco**, porque no hay IndexedDB: la caché vive en
+  memoria y se pierde al cerrar la app. Esto hace **más crítico** el outbox de cacas sin
+  enviar (§4), que hoy es un `localStorage` síncrono y pasará a `AsyncStorage`, que no lo es.
+
 El inicio de sesión con Google **no se porta**: `signInWithPopup` no existe en nativo. Se
 hace con `expo-auth-session` o el módulo nativo de Google. Es la primera cosa que se rompe
 y conviene resolverla pronto, porque sin ella no puedes ni entrar a probar.
+
+### Enlaces de invitación
+
+Hoy se comparten enlaces `?join=CÓDIGO` (grupo) y `?friend=UID` (amistad), que se construyen
+con `location.origin` y se procesan al arrancar (`parsePendingInvite`, `app.js:250`). Son el
+canal por el que crece la app, y en nativo no funcionan solos. Hace falta:
+
+- **Universal links (iOS) y app links (Android)**, con un esquema propio como respaldo.
+  Requieren servir `apple-app-site-association` y `assetlinks.json` desde la **raíz** del
+  dominio (`/.well-known/`).
+- **Un dominio.** La PWA vive hoy en `juandelaoliva.github.io/cagometro-app/`, una página de
+  *proyecto* bajo una ruta, y esos ficheros tendrían que estar en la raíz de
+  `juandelaoliva.github.io`, que es otro repo. Lo limpio es un dominio propio. Contrasta con
+  la documentación de Apple y de GitHub Pages si te vale la alternativa.
+- **Qué pasa si no tienes la app instalada.** iOS no tiene enlaces diferidos de serie. La
+  página web de ese enlace (la PWA) debe mostrar «Abre en la app / descárgala» y conservar el
+  código, para poder pegarlo tras instalar.
+- `expo-linking` y `expo-router` recogen el enlace al arrancar; hay que portar
+  `processInvite` a ese punto de entrada.
+
+Una consecuencia de las reglas endurecidas: el enlace `?friend=UID` crea una **solicitud**
+pendiente, no una amistad instantánea (ver `firestore.rules.draft`).
 
 ### Notificaciones
 
@@ -307,6 +359,15 @@ resultados desde la segunda semana.
 - Borrado de cuenta.
 - Denunciar y bloquear.
 - Política de privacidad publicada.
+- **Endurecer las reglas de Firestore.** Es **bloqueante** antes de abrir el registro al
+  público: con tiendas, cualquier desconocido que se registre puede leer las cacas con
+  ubicación de todo el mundo. Hay un borrador en `firestore.rules.draft` (probado en el
+  emulador con `rules-tests/`; trae la lista de cambios de cliente y de rellenos de datos
+  que necesita) y el detalle en §11.3.
+  Primero hay que cerrar `friendships`: las reglas de lectura se apoyan en ella.
+- **Decidir Sign in with Apple** (§3.4).
+- **Diseñar los enlaces de invitación** (dominio y formato, §5), porque condicionan la
+  configuración de la app nativa.
 - **Arreglar el README**, que hoy describe un `api.js` con datos simulados que ya no
   existe y va a despistar a Claude en el proyecto nuevo.
 
@@ -335,7 +396,8 @@ resultados desde la segunda semana.
 - Chat completo.
 - Mapas.
 - Bristol, estadísticas y gráficas.
-- Panel de admin.
+- ~~Panel de admin.~~ **Se queda en la PWA.** Lo usas tú solo y su barrera real son las
+  reglas (por uid), no la pantalla; portarlo es trabajo sin beneficio para nadie más.
 
 ### Fase 5 · Tiendas
 - Iconos y pantalla de carga, capturas de cada tamaño.
@@ -416,8 +478,12 @@ es la mitad del esfuerzo y se puede posponer sin que nadie se quede sin app.
   y pasa a ser un problema.
 - **Las fotos de Bristol** son 7 PNG de ~45 KB. En nativo entran en el paquete: conviene
   comprimirlas o pasarlas a formato moderno.
-- **La zona horaria** se guarda en cada caca (`tz`). En nativo se obtiene distinto; que no
-  se te quede en blanco o romperás las estadísticas por hora.
+- **La zona horaria** se guarda en cada caca (`tz`). Es probable que
+  `Intl.DateTimeFormat().resolvedOptions().timeZone` funcione tal cual en Hermes (hay también
+  `expo-localization`), pero compruébalo en un dispositivo real: que no se te quede en blanco
+  o romperás las estadísticas por hora.
+- **Los emuladores** (`firebase.js`) apuntan a `localhost`. En un móvil físico `localhost`
+  no es tu ordenador: hay que usar la IP de la red local.
 - **Los listeners.** Hay siete `watch*` con `onSnapshot` vivos a la vez (perfil, feed,
   amistades, invitaciones, chats, mensajes abiertos). En la web se cierran al salir y poco
   más; en nativo la app no se cierra, se va al fondo, y un listener olvidado sigue leyendo
@@ -482,8 +548,10 @@ momento para no arrastrarlas:
   `store.js:792`): por eso el globo de no leídos cuenta tu propio último mensaje.
 - **Dos formas distintas de guardar reacciones**: en el feed `{uid: [emoji]}`, en los
   mensajes `{emoji: [uid]}`. Unificarlas ahora cuesta poco; dentro de un año, no.
-- **Código muerto en `store.js`**: `homeFeed`, `friendsFeed`, `groupFeed`, `watchMyCacas`,
-  `findUserByEmail`, `streaksFrom`, `outboxClear`. Y campos muertos en los datos:
+- **Código muerto en `store.js`**: `homeFeed`, `friendsFeed`, `groupFeed`, `watchMyCacas`
+  (solo existen su definición: no los usa nadie). `findUserByEmail`, `streaksFrom` y
+  `outboxClear` **no los importa `app.js`, pero sí se usan dentro de `store.js`**
+  (`sendFriendRequest`, `addCacaAt`/`removeCaca` y `outboxFlush`): no los borres. Y campos muertos en los datos:
   `totalCount` (se escribe y no se lee nunca), `privacy`, `telegramUserId` /
   `telegramUsername`.
 - **El escapado de HTML es inconsistente** — unos sitios escapan, otros interpolan el
@@ -509,6 +577,47 @@ app en tiendas públicas, esto deja de ser una nota al margen:
   entrada propia.
 - La privacidad de las conexiones de tuberías (`canSeeSync`) se aplica **solo al pintar**,
   no en las reglas. Está documentado como limitación en `NOTIFICATIONS.md:119`.
+
+**Lo que este apartado no decía y es lo más grave:**
+
+- **`friendships` se puede falsificar.** La regla de creación solo exige que tú estés en
+  `uids`, así que cualquiera puede crear una amistad **ya `accepted`** con cualquier uid sin
+  su permiso (`addFriendDirect` y `joinGroup` lo hacen a propósito). Y la de actualización no
+  limita campos, así que quien manda una solicitud puede **aceptarla él mismo**. Cualquier
+  regla de lectura basada en amistad hereda el agujero, así que hay que cerrar esta primero.
+- **`pushQueue`** deja a cualquiera encolar un push con texto libre a cualquier `toUid`.
+  En una tienda pública eso es un canal de spam hacia todos tus usuarios.
+- **Ya hay una forma de arreglar la lectura sin denormalizar.** Los ids de `friendships` son
+  deterministas (los dos uids ordenados), así que una regla puede hacer un `get()` sobre ese
+  doc. Y como `joinGroup` hace amigos aceptados a todos los miembros, «compañero de grupo»
+  implica «amigo» y esa sola comprobación cubre las dos cosas. Cuesta una lectura extra por
+  cada lectura de un doc ajeno, y exige auditar los grupos antiguos.
+- Esa restricción rompe dos consultas del cliente: `findUserByEmail` (consulta sobre
+  `users`) y la búsqueda de grupo por código en `joinGroup` (consulta sobre `groups`). Se
+  sustituyen por `userLookup` e `inviteCodes` (lectura solo por clave).
+
+Todo está en `firestore.rules.draft`, con la lista de cambios de cliente, los rellenos de
+datos y las decisiones que quedan abiertas.
+
+**Estado.** `rules-tests/` ejecuta 89 pruebas contra los emuladores de Auth y Firestore
+(`cd rules-tests && npm test`, con Node 18+ y Java), todas en verde:
+
+- 55 de **reglas**. Contra las reglas actuales fallan 29: es lo que el borrador cierra.
+- 25 del **cliente real**: ejecutan el `store.js` de la app tal cual (con un hook que cambia
+  el bundle de navegador por el SDK de npm) contra las reglas nuevas **y** las actuales. Con
+  las actuales pasan los que existen en las dos (6 solo tienen sentido con las nuevas), de
+  modo que el cliente se puede desplegar primero sin romper nada.
+- 9 del **script de relleno** `tools/backfill-public-docs.cjs`.
+
+**Cambios de cliente hechos** (`store.js`, `app.js`, `i18n.js`; sin desplegar): perfil
+público (`publicProfiles`) para lo que debe ver un desconocido, búsqueda por email por
+`userLookup`, unirse a un grupo por `inviteCodes` y entrando antes de leerlo, amistades de
+grupo con `gid` y solo las que faltan, y el enlace `?friend=` convertido en solicitud.
+
+**Orden de despliegue:** cliente nuevo → `backfill-public-docs.cjs` (ensayo, luego
+`--apply --yes`) → reglas nuevas. Los detalles y el porqué del orden están en la cabecera de
+`firestore.rules.draft`. Los tests no cubren los chats ni `groupInvites` (no cambian) ni lo
+que no se puede ver en un emulador: la interfaz, o el rendimiento con datos reales.
 
 ### 11.4 Assets que sobran (12 MB de repo, y no hacían falta)
 

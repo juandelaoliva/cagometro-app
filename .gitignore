@@ -7,3 +7,8 @@ cagometro-*export*.json
 # caché del extractor de og:image (se regenera sola)
 tools/.og-cache.json
 funfacts.js.bak
+
+# logs del emulador de Firestore (rules-tests)
+firestore-debug.log
+firebase-debug.log
+ui-debug.log

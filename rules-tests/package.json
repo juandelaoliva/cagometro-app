@@ -1,0 +1,16 @@
+{
+  "name": "cagometro-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests de las reglas de Firestore contra el emulador. No forma parte de la app.",
+  "scripts": {
+    "test": "firebase emulators:exec --only auth,firestore --project demo-cagometro \"node --test --test-concurrency=1\"",
+    "test:current": "RULES_FILE=../firestore.rules npm test"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.5.0",
+    "firebase-tools": "^15.34.1"
+  }
+}

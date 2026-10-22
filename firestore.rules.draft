@@ -1,0 +1,273 @@
+rules_version = '2';
+// ═══════════════════════════════════════════════════════════════════════════════
+// Cagómetro · Firestore rules — BORRADOR ENDURECIDO (NO es el fichero que se despliega)
+//
+// ESTADO: pasa los 89 tests de rules-tests/ contra el emulador (`cd rules-tests && npm
+// test`; hace falta Node 18+ y Java): 55 de reglas, 25 del cliente real (store.js) y 9 del
+// script de relleno. Los de reglas contra las reglas ACTUALES (`npm run test:current`)
+// fallan 29: ese es el hueco que cierra. Y los 25 del cliente pasan con las reglas actuales
+// y con estas (6 de ellos solo tienen sentido con las nuevas y se omiten): por eso el cliente
+// se puede desplegar PRIMERO sin romper nada. Ver «Orden de despliegue».
+//
+// QUÉ ARREGLA respecto a firestore.rules
+//   1. users / cacas: solo el dueño, sus amigos aceptados y el admin (hoy: cualquiera
+//      con sesión → con registro abierto desde las tiendas, cualquiera lee lat/lng de todos).
+//   2. friendships: hoy cualquiera puede CREAR una amistad ya `accepted` con cualquier
+//      uid, y el solicitante puede ACEPTAR su propia solicitud. Cualquier regla basada en
+//      amistad hereda ese agujero, así que se cierra aquí primero.
+//   3. pushQueue: hoy cualquiera encola un push con texto libre a cualquier uid.
+//   4. activity: reaccionar solo si estás en la audiencia, y solo tu propia entrada.
+//   5. groups: lectura solo para miembros (hoy: todos, incluido el código de invitación);
+//      «salir» solo te saca a ti (hoy un miembro puede expulsar a cualquiera).
+//   6. users: el propio usuario puede borrar su doc (borrado de cuenta, requisito de Apple).
+//
+// CAMBIOS DE CLIENTE (HECHOS en store.js / app.js / i18n.js; pendientes de desplegar)
+//   · findUserByEmail lee `userLookup/{email}` → {uid} y, para el nombre, `publicProfiles`.
+//     Conserva como respaldo la consulta antigua (solo vale con las reglas actuales).
+//   · `publicProfiles/{uid}` → {displayName,color,photoURL}: lo único que ve un desconocido.
+//     Con `users` restringido a amigos, quien recibe una solicitud no vería el nombre de
+//     quien la manda, ni quién te invita con un enlace. `getUserLite` lo usa de respaldo.
+//   · joinGroup resuelve el código por `inviteCodes/{CÓDIGO}` → {gid}; se une PRIMERO y lee
+//     el grupo después (ya como miembro) para saber con quién hacerse amigo.
+//   · addFriendDirect (enlace ?friend=UID) ya no crea la amistad aceptada: manda una
+//     SOLICITUD pendiente (`source:'link'`). El servidor no puede comprobar que esa persona
+//     compartió el enlace. Si el otro ya te había mandado una, se cruzan y quedáis amigos.
+//   · joinGroup / acceptGroupInvite crean las amistades de grupo con `gid`, solo las que
+//     faltan: una amistad existente no se puede reescribir. Una solicitud tuya pendiente
+//     con alguien del grupo se retira y se sustituye; una suya, se acepta.
+//   · sendFriendRequest ya no usa `merge:true` (degradaba una amistad aceptada a pendiente).
+//   · updateMe mantiene `publicProfiles` al día; ensureProfile sincroniza a los usuarios
+//     existentes en su próximo login (marca `publicV`).
+//   · enqueuePush: todos los `type` que usa app.js están en la lista de abajo. Uno nuevo
+//     que no se añada aquí falla EN SILENCIO (los llamadores hacen .catch(()=>{})).
+//
+// ORDEN DE DESPLIEGUE (importa)
+//   1. Cliente nuevo (GitHub Pages). Funciona con las reglas actuales.
+//   2. `node tools/backfill-public-docs.cjs` (ensayo) → revisar → `--apply --yes`. Rellena
+//      publicProfiles / userLookup / inviteCodes y AUDITA que los miembros de cada grupo son
+//      amigos aceptados entre sí (las reglas lo dan por hecho). `--fix-friendships` arregla
+//      las que falten. Esperar a que el cliente nuevo llegue a los móviles (sw.js) para que
+//      los usuarios nuevos y los cambios de nombre ya se sincronicen solos.
+//   3. Reglas nuevas (renombrar este fichero a firestore.rules y desplegar).
+//   Si se despliegan las reglas antes que el relleno, buscar por email y unirse por código
+//   fallan para todo el que aún no esté sincronizado.
+//
+// COSTE: cada lectura de un doc de un amigo hace un get() extra en las reglas, y se
+// factura como una lectura más. Límite de 10 accesos por petición (20 en consultas y
+// lotes); un mismo doc consultado varias veces cuenta una vez.
+//
+// DECISIONES ABIERTAS (no resueltas aquí)
+//   · Borrado de cuenta: `messages` sigue con `allow delete: if false`. O se cambia la
+//     regla, o el borrado anonimiza los mensajes (sin poder editarlos tampoco con las
+//     reglas actuales; haría falta Admin SDK desde la Pi).
+//   · Unirse a un grupo no comprueba el código: la regla solo ve que te añades a ti. En
+//     la práctica el gid solo se conoce vía inviteCodes o por ser miembro, pero no es
+//     hermético. Lo hermético es mediar con Admin SDK.
+//   · privacidad de `sync` (canSeeSync) sigue aplicándose solo al pintar.
+// ═══════════════════════════════════════════════════════════════════════════════
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    // admin único (Juan). Es la barrera real del panel de administración.
+    function isAdmin() { return signedIn() && request.auth.uid == "OQxbpTTQqBbWsykiU7JKcUdZ7z32"; }
+
+    function inGroup(gid, uid) {
+      return exists(/databases/$(database)/documents/groups/$(gid))
+          && uid in get(/databases/$(database)/documents/groups/$(gid)).data.members;
+    }
+    function isGroupMember(gid) { return signedIn() && inGroup(gid, request.auth.uid); }
+
+    // id de amistad = los dos uids ordenados y unidos por «_» (igual que pairId en store.js).
+    // Los uids de Firebase son ASCII, así que `<` ordena igual que Array.sort() en JS.
+    function pairKey(a, b) { return a < b ? a + '_' + b : b + '_' + a; }
+    function friendshipDoc(other) {
+      return /databases/$(database)/documents/friendships/$(pairKey(request.auth.uid, other));
+    }
+    function hasFriendship(other) { return signedIn() && exists(friendshipDoc(other)); }
+    function areFriends(other) {
+      return signedIn() && exists(friendshipDoc(other))
+          && get(friendshipDoc(other)).data.status == 'accepted';
+    }
+
+    // Solo cambia el mapa `reactions`, y solo la entrada del que reacciona.
+    function onlyMyReaction() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+          && request.resource.data.reactions.diff(resource.data.reactions).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // --- users ---
+    match /users/{uid} {
+      allow read:   if isOwner(uid) || isAdmin() || areFriends(uid);
+      allow create, update: if isOwner(uid) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();     // borrado de cuenta desde la app
+
+      match /cacas/{cacaId} {
+        allow read:   if isOwner(uid) || isAdmin() || areFriends(uid);
+        allow create: if isOwner(uid)
+                       && request.resource.data.uid == uid
+                       && request.resource.data.ts is number;
+        // el dueño edita su caca; un amigo solo puede tocar `reactions`
+        allow update: if isOwner(uid)
+                       || (areFriends(uid)
+                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+        allow delete: if isOwner(uid) || isAdmin();
+      }
+      match /private/{doc} {
+        allow read, write: if isOwner(uid) || isAdmin();
+      }
+    }
+
+    // --- búsqueda de usuario por email (sustituye a la consulta sobre `users`) ---
+    // Solo `get` por clave exacta; no se puede listar. Cada persona escribe SU entrada y
+    // solo con el email de su propio token.
+    match /userLookup/{emailKey} {
+      allow get:    if signedIn();
+      allow list:   if false;
+      allow create, update: if signedIn()
+                       && emailKey == request.auth.token.email.lower()
+                       && request.resource.data.keys().hasOnly(['uid'])
+                       && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
+
+    // --- perfil público mínimo: nombre y color, legibles por clave por cualquiera con sesión ---
+    // Con `users` restringido a amigos, quien recibe una solicitud no podría ver el nombre de
+    // quien la manda, ni quién te invita con un enlace. Esto es lo único que se comparte con
+    // desconocidos: sin estadísticas, sin email, sin ubicación. Solo el dueño lo escribe.
+    match /publicProfiles/{uid} {
+      allow get:    if signedIn();
+      allow list:   if false;
+      allow create, update: if isOwner(uid)
+                       && request.resource.data.keys().hasOnly(['displayName', 'color', 'photoURL']);
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // --- código de invitación → grupo (sustituye a la consulta sobre `groups`) ---
+    match /inviteCodes/{code} {
+      allow get:    if signedIn();
+      allow list:   if false;
+      allow create: if signedIn()
+                       && request.resource.data.keys().hasOnly(['gid', 'createdBy'])
+                       && request.resource.data.createdBy == request.auth.uid
+                       && get(/databases/$(database)/documents/groups/$(request.resource.data.gid)).data.createdBy == request.auth.uid;
+      allow delete: if isAdmin() || (signedIn() && resource.data.createdBy == request.auth.uid);
+    }
+
+    match /config/{doc} {
+      allow read:  if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- cola de push: la crean los clientes; solo el emisor (Admin SDK) la lee/borra ---
+    // Hay que tener ya una amistad (aunque sea pendiente: así llega el aviso de solicitud)
+    // con el destinatario. El texto va acotado y los tipos son una lista cerrada.
+    match /pushQueue/{id} {
+      allow create: if signedIn()
+                     && request.resource.data.fromUid == request.auth.uid
+                     && request.resource.data.keys().hasOnly(['fromUid','toUid','type','title','body','sent','ts'])
+                     && request.resource.data.type in ['reaction','friend_request','friend_accepted','milestone',
+                                                       'overtake','sync','chat_message','group_invite']
+                     && request.resource.data.title.size() <= 120
+                     && request.resource.data.body.size() <= 300
+                     && (request.resource.data.toUid == request.auth.uid
+                         || hasFriendship(request.resource.data.toUid));
+      allow read, update, delete: if false;
+    }
+
+    // --- feed de actividad ---
+    // `resource == null` sigue siendo imprescindible (ver firestore.rules): el get() previo
+    // de una conexión de tuberías que aún no existe.
+    match /activity/{id} {
+      allow read:   if signedIn() && (resource == null || request.auth.uid in resource.data.audience
+                                      || resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid)
+                     // reaccionar: estar en la audiencia y tocar solo tu entrada
+                     || (signedIn() && request.auth.uid in resource.data.audience && onlyMyReaction())
+                     // unirse a una conexión de tuberías: solo sumar, nunca quitar a otro
+                     || (signedIn()
+                         && request.auth.uid in request.resource.data.participantUids
+                         && request.resource.data.participantUids.hasAll(resource.data.participantUids)
+                         && request.resource.data.diff(resource.data).affectedKeys()
+                              .hasOnly(['participants','participantUids','lastTs','audience']));
+      allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
+    }
+
+    // --- friendships: id = pairKey(uidA, uidB) ---
+    match /friendships/{pair} {
+      allow read:   if (signedIn() && request.auth.uid in resource.data.uids) || isAdmin();
+      allow create: if signedIn()
+                     && request.resource.data.uids.size() == 2
+                     && request.auth.uid in request.resource.data.uids
+                     && pair == pairKey(request.resource.data.uids[0], request.resource.data.uids[1])
+                     && (
+                          // solicitud: pendiente y a nombre de quien la crea (también la de enlace)
+                          (request.resource.data.status == 'pending'
+                           && request.resource.data.requestedBy == request.auth.uid)
+                          // amistad automática de grupo: ambos tienen que estar en ese grupo
+                          || (request.resource.data.status == 'accepted'
+                              && request.resource.data.source == 'group'
+                              && inGroup(request.resource.data.gid, request.resource.data.uids[0])
+                              && inGroup(request.resource.data.gid, request.resource.data.uids[1]))
+                        );
+      // aceptar: solo el que NO la pidió, y solo cambia `status` de pending a accepted
+      allow update: if signedIn()
+                     && request.auth.uid in resource.data.uids
+                     && request.auth.uid != resource.data.get('requestedBy', '')
+                     && resource.data.status == 'pending'
+                     && request.resource.data.status == 'accepted'
+                     && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if (signedIn() && request.auth.uid in resource.data.uids) || isAdmin();
+    }
+
+    match /groupInvites/{inviteId} {
+      allow read:   if signedIn() && (resource == null || request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid);
+      allow create: if signedIn() && request.auth.uid == request.resource.data.fromUid;
+      allow update: if signedIn() && request.auth.uid == resource.data.toUid
+                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.fromUid && resource.data.status != "pending");
+    }
+
+    // --- chat (sin cambios) ---
+    match /chats/{chatId} {
+      allow read, update: if signedIn() && (request.auth.uid in resource.data.members || isGroupMember(chatId));
+      allow create:       if signedIn() && request.auth.uid in request.resource.data.members;
+
+      match /messages/{msgId} {
+        allow read:   if signedIn() && (request.auth.uid in
+                         get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                         || isGroupMember(chatId));
+        allow create: if signedIn()
+                         && request.auth.uid == request.resource.data.senderUid
+                         && (request.auth.uid in
+                            get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                            || isGroupMember(chatId));
+        allow update: if signedIn()
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+        // TODO(borrado de cuenta): decidir entre permitir borrar los propios o anonimizar.
+        allow delete: if false;
+      }
+    }
+
+    // --- groups ---
+    match /groups/{gid} {
+      allow read:   if signedIn() && (request.auth.uid in resource.data.members || isAdmin());
+      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow update: if isAdmin()
+                     || (signedIn() && request.auth.uid == resource.data.createdBy)   // admin del grupo: renombrar, expulsar…
+                     // miembro: solo SALIR, es decir, quitarse a sí mismo y a nadie más
+                     || (signedIn() && request.auth.uid in resource.data.members
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
+                         && request.resource.data.members.toSet()
+                              == resource.data.members.toSet().difference([request.auth.uid].toSet()))
+                     // unirse: añadirse a sí mismo (ver «decisiones abiertas»: no comprueba el código)
+                     || (signedIn() && request.auth.uid in request.resource.data.members
+                         && !(request.auth.uid in resource.data.members)
+                         && request.resource.data.members.size() == resource.data.members.size() + 1
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']));
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.createdBy);
+    }
+  }
+}

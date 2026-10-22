@@ -78,6 +78,15 @@ Hay que construir: borrar el usuario de Firebase Auth, sus cacas, su doc de usua
 mensajes, sacarlo de los grupos y de las amistades, y decidir qué pasa con las conexiones
 de tubería compartidas en las que participó.
 
+Dos escollos concretos que ya se ven en el código:
+
+- **Las reglas prohíben borrar mensajes** (`allow delete: if false` en
+  `chats/*/messages/*`): los mensajes son inmutables a propósito. O se cambia la regla, o
+  el borrado los anonimiza en vez de borrarlos. Hay que decidirlo, no descubrirlo.
+- **Las conexiones de tuberías son documentos compartidos.** Sacar a una persona de
+  `participants` rompe la cláusula `hasAll` que protege la conexión de que alguien te
+  borre de ella. Probablemente haya que hacerlo desde la Pi con el Admin SDK.
+
 > Merece la pena hacerlo **ya, en la PWA**. Es trabajo que vale para las dos, y te obliga a
 > pensar el borrado en cascada con calma en vez de con prisa.
 
@@ -152,20 +161,84 @@ Aquí está el trabajo real. Medido sobre el código, no estimado.
 | `dvh` | 2 | `Dimensions` / `useWindowDimensions` |
 | `color-mix` | 1 | calcular el color a mano |
 
+### Qué guarda hoy en el dispositivo
+
+Nueve claves de `localStorage`. Conviene decidirlas una a una, porque **no todas quieren
+viajar**:
+
+| clave | qué es | en nativo |
+|---|---|---|
+| `cago_lang` | idioma (en `i18n.js`) | `AsyncStorage` |
+| `cago_haptics` | háptica sí/no | `AsyncStorage` |
+| `cago_outbox` | **la cola de cacas sin enviar** | `AsyncStorage`, y con cuidado: es el único sitio donde vive un dato que todavía no está en Firestore |
+| `cago_fact_idx` · `cago_fact_idx_day` · `cago_fact_collapsed` | por dónde vas en los datos del día | `AsyncStorage` |
+| `cago_seen_once` | si es la primera sesión en este aparato | `AsyncStorage` |
+| `cago_seen_heatannc` · `cago_heatannc_notifseen` | el aviso del mapa de calor, ya caducado | **se tiran** |
+
+La lección de #59 sigue valiendo y vale el doble en nativo: lo que es **preferencia de la
+persona** va al documento de usuario y viaja entre dispositivos; lo que es **estado de
+este aparato** se queda en el almacenamiento local. Los avisos únicos que reaparecían al
+estrenar móvil fallaban justo por confundir las dos cosas.
+
+### El bucle de actualización que desaparece
+
+Hoy tienes algo que no se valora hasta que se pierde: `sw.js` cachea el shell, `app.js`
+sondea `reg.update()` **cada 30 segundos** y en cada vuelta al primer plano, y cuando hay
+versión nueva le manda `SKIP_WAITING` y recarga sola. Haces `git push` y en medio minuto
+todo el mundo tiene la versión nueva sin enterarse.
+
+En nativo eso se parte en dos:
+
+- **Cambios de JavaScript** → `expo-updates`. Publicas y el móvil se actualiza al
+  siguiente arranque. No es instantáneo, y hay que decidir si fuerzas el reinicio.
+- **Cambios nativos** (una librería nueva, un permiso nuevo, el icono) → **pasan por la
+  tienda**. Días de revisión.
+
+Es la diferencia de ritmo más grande entre lo que tienes y lo que vas a tener, y conviene
+interiorizarla antes de empezar: se acabó arreglar un fallo en diez minutos. El
+`deploy.sh` que renumera la caché y espera a que GitHub Pages publique deja de tener
+sentido; su sitio lo ocupan las compilaciones de EAS.
+
 ### Las tres piezas caras
 
-**Los mapas.** Leaflet con mosaicos de OpenStreetMap, marcadores con HTML propio
-(`divIcon`), globos, el control de zoom, el plugin de mapa de calor y el selector de
-ubicación. Con `react-native-maps` cambias a Google Maps o Apple Maps, lo que implica
-**clave de API y un modelo de costes** que hoy no tienes. El mapa de calor hay que
-rehacerlo. Y el tope de zoom de los mapas ajenos (#55-57) se consigue de otra forma.
+**Los mapas.** Es la pieza con más superficie pegada a Leaflet. Punto por punto:
+
+| hoy, con Leaflet | con `react-native-maps` |
+|---|---|
+| mosaicos de OpenStreetMap con `{s}` (subdominios a·b·c) | Google Maps o Apple Maps por defecto; seguir con OSM exige `UrlTile` y repasar su política de uso |
+| `divIcon` con HTML propio (un 💩 del color de cada persona) | `<Marker>` con un componente hijo: se puede, pero se repinta distinto y con muchos pines cuesta |
+| globos (`bindPopup`) | `<Callout>`, con su propio comportamiento |
+| `L.heatLayer` (plugin 0.2.0) | **no hay equivalente directo**: o una librería de heatmap, o se rehace |
+| `setMaxZoom` + `bounceAtZoomLimits` para el tope de los mapas ajenos (#55-57) | `maxZoomLevel`, o recortar en `onRegionChangeComplete` — **hay que volver a probarlo con los dedos**, que es justo donde falló la primera vez |
+| `fitBounds` con `maxZoom` | `fitToCoordinates` |
+| la leyenda que filtra por persona y el selector de año | lógica nuestra: se porta tal cual, solo cambia lo que pinta |
+
+Y por encima de todo: Google Maps **pide clave de API y tiene modelo de costes**. Hoy los
+mapas no te cuestan nada.
 
 **El chat.** Lista invertida con paginación, burbujas agrupadas por bloques, deslizar para
-responder, mantener pulsado para reaccionar, saltar al mensaje citado, el teclado. Es la
-pantalla con más estado de toda la app.
+responder, mantener pulsado para reaccionar, saltar al mensaje citado (que puede tener que
+cargar hasta cinco páginas hacia atrás), el teclado. Es la pantalla con más estado de toda
+la app. La buena noticia: `FlatList` con `inverted` te regala media pantalla, y la lógica
+de bloques y de citas (`replySnapshot`, el recorte a 120 caracteres) es nuestra y se porta.
 
-**La navegación.** Hoy son `pushState` y una trampa del botón atrás hecha a mano, con
-`_chatNavDepth` como invariante. Eso no se traduce: se tira y se rehace con el router.
+**La navegación.** Hoy son `history.pushState` y una trampa del botón atrás hecha a mano,
+con `_chatNavDepth` como invariante — un contador que *tiene* que reflejar siempre cuántas
+capas de chat hay abiertas, y que está documentado como tal en `app.js:3107`. Todo eso se
+tira: el router lleva la pila, y el botón atrás de Android lo gestiona él. Es trabajo que
+desaparece, no que se traduce.
+
+### Cuatro sistemas de gestos hechos a mano
+
+Vale la pena contarlos aparte, porque en nativo **tres de los cuatro dejan de ser código
+tuyo**:
+
+| hoy | mañana |
+|---|---|
+| arrastrar para cerrar las hojas (`initSheetGestures`, umbral 90 px o impulso 0,55 px/ms) | una librería de *bottom sheet*, o `Modal` |
+| tirar para refrescar (solo en PWA instalada, 72 px, anillo animado) | `RefreshControl` de `FlatList` |
+| mantener pulsado para reaccionar (450–500 ms) | `Pressable` con `onLongPress` |
+| deslizar para responder (`_swipeStep`, `SW_OK 60`, flick 0,55) | `react-native-gesture-handler` — **este sí lo reescribes**, pero el arbitraje de ejes ya está aislado en una función pura y probada |
 
 ### Lo que sí se porta casi tal cual
 
@@ -345,6 +418,16 @@ es la mitad del esfuerzo y se puede posponer sin que nadie se quede sin app.
   comprimirlas o pasarlas a formato moderno.
 - **La zona horaria** se guarda en cada caca (`tz`). En nativo se obtiene distinto; que no
   se te quede en blanco o romperás las estadísticas por hora.
+- **Los listeners.** Hay siete `watch*` con `onSnapshot` vivos a la vez (perfil, feed,
+  amistades, invitaciones, chats, mensajes abiertos). En la web se cierran al salir y poco
+  más; en nativo la app no se cierra, se va al fondo, y un listener olvidado sigue leyendo
+  y gastando. Cada pantalla tiene que soltar el suyo al desmontarse.
+- **`firebase-bundle.js` desaparece.** Los 803 KB que hoy están versionados en el repo
+  porque no hay herramienta de compilación pasan a ser un `npm i firebase`. Es de las pocas
+  cosas que mejoran solas.
+- **Las fuentes vienen hoy de un CDN.** Fraunces y Hanken Grotesk se cargan de Google
+  Fonts; en nativo hay que empaquetarlas con `expo-font`, lo que además quita una
+  dependencia de red en el arranque.
 
 ---
 
@@ -357,3 +440,85 @@ es la mitad del esfuerzo y se puede posponer sin que nadie se quede sin app.
 
 Con eso tienes la base y las tres cosas que te habrían bloqueado al final, resueltas al
 principio.
+
+---
+
+## 11. Anexo · inventario para tener al lado
+
+Esto no se lee de seguido: se consulta. Está medido sobre el código de hoy.
+
+### 11.1 Las pantallas, para ir tachando
+
+**Cuatro vistas** (Inicio · Grupos · Amigos · Perfil) + **el chat**, que son dos capas
+(lista de conversaciones y conversación abierta), + **22 hojas inferiores**, todas hoy en
+el mismo `index.html` y escondidas con `hidden`:
+
+```
+menuSheet · lateSheet · locateSheet · reactSheet · psSheet (ficha de persona)
+adminSheet · notifSheet · notifPromptSheet · installPromptSheet · heatAnncSheet
+chatSettingsSheet · settingsSheet · friendInviteSheet · chatNewSheet
+groupInvitePickerSheet · yearRecapSheet · bristolTourSheet · bristolSheet
+groupAdminSheet · groupInviteSheet · mapSheet · mapLegendSheet
+```
+
+En nativo cada una es un modal o un *bottom sheet*. Tres se pueden tirar de entrada:
+`heatAnncSheet` (el aviso del mapa de calor caducó en julio), `installPromptSheet` (no hay
+nada que instalar: ya es una app) y `notifPromptSheet` tal como está (el permiso se pide
+de otra forma, con `expo-notifications`).
+
+La ficha de persona (`psSheet`) merece mención aparte: hace **una sola lectura de
+Firestore** y saca de ahí todas las estadísticas gracias a los contadores
+desnormalizados. Ese diseño se porta intacto y es parte de por qué la app es barata.
+
+### 11.2 La deuda que te llevas puesta
+
+Si la copias sin mirar, la copias. Ninguna de estas es grave, pero el puerto es un buen
+momento para no arrastrarlas:
+
+- **`MAINT_MSG_DEFAULT` no está definido** (`app.js:39` y `app.js:548`). La línea 548 está
+  fuera del `try`, así que activar el modo mantenimiento desde el panel lanza un
+  `ReferenceError` **antes** de escribir en Firestore. Es un fallo real, hoy, en la PWA.
+- **`lastMessage.senderUid` se lee pero nunca se escribe** (`app.js:2992` vs
+  `store.js:792`): por eso el globo de no leídos cuenta tu propio último mensaje.
+- **Dos formas distintas de guardar reacciones**: en el feed `{uid: [emoji]}`, en los
+  mensajes `{emoji: [uid]}`. Unificarlas ahora cuesta poco; dentro de un año, no.
+- **Código muerto en `store.js`**: `homeFeed`, `friendsFeed`, `groupFeed`, `watchMyCacas`,
+  `findUserByEmail`, `streaksFrom`, `outboxClear`. Y campos muertos en los datos:
+  `totalCount` (se escribe y no se lee nunca), `privacy`, `telegramUserId` /
+  `telegramUsername`.
+- **El escapado de HTML es inconsistente** — unos sitios escapan, otros interpolan el
+  nombre tal cual. Esto **se arregla solo al portar**: el componente `<Text>` de React
+  Native no interpreta etiquetas. Es la única mejora de seguridad que te regala el cambio.
+- **`groupLocatedCacas` es la llamada más cara de la app**: hasta 3.000 documentos por
+  miembro cada vez que se abre un mapa de grupo. La solución ya está escrita en
+  `FEATURES.md:69` (una subcolección de solo `{lat,lng,ts}`), sin hacer.
+
+### 11.3 Las reglas de Firestore, lo que queda flojo
+
+Las reglas se portan tal cual —misma base de datos— así que lo flojo sigue flojo. Con la
+app en tiendas públicas, esto deja de ser una nota al margen:
+
+- `users/{uid}` y `users/{uid}/cacas` los puede leer **cualquier usuario autenticado**. Hay
+  dos `// TODO` en el propio fichero reconociéndolo. Es lo que hace funcionar los mapas de
+  amigos, así que arreglarlo no es trivial: hay que pasar la comprobación de amistad a las
+  reglas o denormalizar lo que se comparte.
+- `groups` también es legible por cualquiera, **incluido el código de invitación**.
+- La cláusula de «salir del grupo» solo comprueba *qué campo* cambia, no *a quién* se
+  saca: un miembro puede expulsar a cualquier otro.
+- La cláusula de reacciones deja reescribir el mapa `reactions` **entero**, no solo la
+  entrada propia.
+- La privacidad de las conexiones de tuberías (`canSeeSync`) se aplica **solo al pintar**,
+  no en las reglas. Está documentado como limitación en `NOTIFICATIONS.md:119`.
+
+### 11.4 Assets que sobran (12 MB de repo, y no hacían falta)
+
+| fichero | peso | qué pasa |
+|---|---|---|
+| `logo-c.png` | 1,85 MB | **no lo referencia nadie** |
+| `bristol images/` | 7,5 MB | los originales de 1 MB; lo que se usa son los `assets/bristol-N.png` de ~43 KB |
+| `icon-512.png` | 315 KB | se puede comprimir mucho |
+| `assets/heatmap-promo.jpg` | 198 KB | era del aviso que ya caducó |
+
+Casi 10 MB de los 12 que pesa el repo. En la web da igual porque no se descargan; en
+nativo **todo lo que metas en `assets/` va dentro del paquete** que se instala la gente.
+Limpiarlo antes de empezar es media hora y te ahorra arrastrarlo.

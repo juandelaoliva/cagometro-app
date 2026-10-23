@@ -408,7 +408,9 @@ resultados desde la segunda semana.
 - [x] Pestaña Amigos: solicitudes entrantes/salientes (aceptar, rechazar, cancelar) con insignia, ranking y A-Z, añadir
   por email, ficha ligera con quitar amigo (solo sin grupo en común) y enlace de invitación. Verificada en emulador
   la parte de aceptar; **pendiente de probar a mano**: cancelar/rechazar, mensajes del formulario, ficha y compartir.
-- Grupos con rankings (y su pestaña).
+- [x] Pestaña Grupos: lista, crear, unirse con código (con confirmación), detalle con clasificación semana/mes/año,
+  estadísticas, gráfica por persona y mes, compartir código y salir. Verificada en emulador. **Pendiente de Grupos**:
+  invitar a un amigo, administrar (renombrar/expulsar/eliminar) e invitaciones recibidas; mapa y chat son Fase 3.
 - Ajustes, incluidas las preferencias de notificación.
 - **Aquí ya la usas tú a diario.**
 

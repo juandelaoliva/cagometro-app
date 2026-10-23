@@ -390,11 +390,14 @@ resultados desde la segunda semana.
 - [x] Firebase conectado (SDK web v13, sesión persistente) e inicio de sesión con correo.
 - [x] `store.js` portado a `store.ts` y probado contra los emuladores (33 pruebas, con las reglas
   nuevas y con las actuales). **Leer datos reales desde un dispositivo sigue pendiente.**
-- [ ] Primera compilación de desarrollo en tu móvil. Con iPhone hace falta la cuenta de Apple
-  Developer (build en la nube) o un Mac con Xcode (build local con tu Apple ID).
-- [ ] Inicio de sesión con Google y/o Apple.
-- [ ] Identificadores de la app (`ios.bundleIdentifier`, `android.package`): hay que decidirlos antes
-  del primer build y luego no se cambian.
+- [x] Primera compilación de desarrollo, **en un emulador de Android** (`npx expo run:android`):
+  registro, inicio, sesión que sobrevive a cerrar la app y cerrar sesión, contra los emuladores de
+  Firebase con las reglas endurecidas.
+- [ ] Primera compilación en **iPhone**: hace falta la cuenta de Apple Developer (build en la nube) o
+  un Mac con Xcode (build local con tu Apple ID). El simulador de iOS también necesita un Mac.
+- [ ] Inicio de sesión con **Google y Apple** (Google primero; Apple cuando haya cuenta de desarrollador).
+- [x] Identificadores de la app: `com.juandelaoliva.cagometro` (iOS y Android). Provisional hasta el
+  primer build de tienda: después no se pueden cambiar.
 
 ### Fase 2 · El núcleo
 - Contador, sumar, deshacer, cacas olvidadas.

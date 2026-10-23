@@ -207,6 +207,8 @@ const _es = {
   'menu.undo': 'Deshacer última (−1)',
   'menu.cancel': 'Cancelar',
   'menu.more.aria': 'Más opciones',
+  'time.now': 'ahora',
+  'time.minago': 'hace {n} min',
 
   // ── Sheet: caca olvidada ──
   'late.title': '💩 Caca olvidada',
@@ -736,6 +738,8 @@ const _en = {
   'menu.undo': 'Undo last (−1)',
   'menu.cancel': 'Cancel',
   'menu.more.aria': 'More options',
+  'time.now': 'now',
+  'time.minago': '{n} min ago',
 
   // ── Sheet: caca olvidada ──
   'late.title': '💩 Forgotten poop',

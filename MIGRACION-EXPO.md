@@ -402,7 +402,9 @@ resultados desde la segunda semana.
 ### Fase 2 · El núcleo *(en curso)*
 - [x] Contador, sumar, deshacer, cacas olvidadas, chips de hoy/semana/racha y cola sin conexión: hecho y
   verificado en un emulador de Android (sin la ubicación al sumar, que es de la Fase 3).
-- Feed con reacciones.
+- [x] Feed con reacciones: listener en tiempo real, los 6 tipos de evento (suma, olvidada, hito, deshacer, reinicio,
+  conexión/combo), filtros por alcance y grupo, búsqueda, «cargar más», selector de 12 emojis y quién reaccionó.
+  Verificado en un emulador de Android con datos sembrados.
 - Amigos y grupos con rankings.
 - Ajustes, incluidas las preferencias de notificación.
 - **Aquí ya la usas tú a diario.**
@@ -570,6 +572,10 @@ Firestore** y saca de ahí todas las estadísticas gracias a los contadores
 desnormalizados. Ese diseño se porta intacto y es parte de por qué la app es barata.
 
 ### 11.2 La deuda que te llevas puesta
+
+- **La hora relativa del feed está escrita a pelo en español** (`fmtWhen` y `fmtFull`, `app.js`): «ahora», «hace N min» y
+  los meses. Un usuario en inglés la ve en castellano. El puerto usa las claves `time.now` y `time.minago` (ya añadidas a
+  `i18n.js`) y `Intl` para los meses; la PWA aún no las usa.
 
 - **La racha de los chips se rompe con el cambio de hora** (`loadActivity` y `bumpChipsLocal`, `app.js`): resta
   86 400 000 ms al retroceder día a día, y el día del cambio dura 23 o 25 h, así que da **1 en vez de 3** dos

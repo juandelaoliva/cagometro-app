@@ -399,8 +399,9 @@ resultados desde la segunda semana.
 - [x] Identificadores de la app: `com.juandelaoliva.cagometro` (iOS y Android). Provisional hasta el
   primer build de tienda: después no se pueden cambiar.
 
-### Fase 2 · El núcleo
-- Contador, sumar, deshacer, cacas olvidadas.
+### Fase 2 · El núcleo *(en curso)*
+- [x] Contador, sumar, deshacer, cacas olvidadas, chips de hoy/semana/racha y cola sin conexión: hecho y
+  verificado en un emulador de Android (sin la ubicación al sumar, que es de la Fase 3).
 - Feed con reacciones.
 - Amigos y grupos con rankings.
 - Ajustes, incluidas las preferencias de notificación.
@@ -485,6 +486,18 @@ es la mitad del esfuerzo y se puede posponer sin que nadie se quede sin app.
 
 ## 9. Trampas conocidas
 
+> **Lo que se descubrió al ejecutar la app en un emulador de Android (Fase 2)**, y que las pruebas en Node no
+> podían ver:
+>
+> - **Sin red, las escrituras de Firestore tardan ~9 s en fallar** y las lecturas pueden **colgarse** si no se les
+>   pone tope. En Node, con un puerto cerrado, fallaban al instante.
+> - **Una transacción colgada se confirma sola al volver la red.** Si la caca se había guardado también en la cola
+>   local, se contaba dos veces. Solución: **id de caca generado en el cliente** y comprobar dentro de la
+>   transacción que no exista. Vale la pena trasladarlo a la PWA (su cola usa `navigator.onLine`).
+> - La PWA decide «sin conexión» con `navigator.onLine`; en nativo no existe. `fromCache` del listener de mi
+>   documento es el aviso de conectividad que Firestore ya conoce.
+> - Metro agotó el límite de vigilancias de ficheros de Linux (`ENOSPC`) por las carpetas de compilación de Gradle.
+
 - **Expo Go no sirve para esto.** En cuanto metas notificaciones o mapas necesitas una
   *development build* propia. Cuanto antes la montes, menos tiempo pierdes.
 - **Las dos apps a la vez.** Mientras convivan, cada cambio de datos tiene que valer para
@@ -557,6 +570,10 @@ Firestore** y saca de ahí todas las estadísticas gracias a los contadores
 desnormalizados. Ese diseño se porta intacto y es parte de por qué la app es barata.
 
 ### 11.2 La deuda que te llevas puesta
+
+- **La racha de los chips se rompe con el cambio de hora** (`loadActivity` y `bumpChipsLocal`, `app.js`): resta
+  86 400 000 ms al retroceder día a día, y el día del cambio dura 23 o 25 h, así que da **1 en vez de 3** dos
+  veces al año. Comprobado con `TZ=Europe/Madrid`. El puerto lo calcula por calendario (`src/domain/chips.ts`).
 
 Si la copias sin mirar, la copias. Ninguna de estas es grave, pero el puerto es un buen
 momento para no arrastrarlas:

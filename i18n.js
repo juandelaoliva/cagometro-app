@@ -143,6 +143,9 @@ const _es = {
   'toast.caca.ok': '¡Caca registrada! 💩',
   'toast.caca.nogeo': 'Caca añadida (sin ubicación)',
   'toast.caca.fail': 'No se pudo guardar 😬',
+  'toast.outbox.saved': '💾 Sin conexión — caca guardada, se sincronizará después',
+  'toast.outbox.synced.one': '✅ 1 caca sincronizada',
+  'toast.outbox.synced.many': '✅ {n} cacas sincronizadas',
   'toast.caca.late.ok': 'Caca añadida ✅',
   'toast.caca.late.fail': 'No se pudo añadir',
   'toast.caca.late.invalid': 'Fecha no válida',
@@ -203,6 +206,7 @@ const _es = {
   'menu.stats': 'Ver estadísticas',
   'menu.undo': 'Deshacer última (−1)',
   'menu.cancel': 'Cancelar',
+  'menu.more.aria': 'Más opciones',
 
   // ── Sheet: caca olvidada ──
   'late.title': '💩 Caca olvidada',
@@ -668,6 +672,9 @@ const _en = {
   'toast.caca.ok': 'Poop logged! 💩',
   'toast.caca.nogeo': 'Poop added (no location)',
   'toast.caca.fail': 'Could not save 😬',
+  'toast.outbox.saved': '💾 Offline — poop saved, it will sync later',
+  'toast.outbox.synced.one': '✅ 1 poop synced',
+  'toast.outbox.synced.many': '✅ {n} poops synced',
   'toast.caca.late.ok': 'Poop added ✅',
   'toast.caca.late.fail': 'Could not add',
   'toast.caca.late.invalid': 'Invalid date',
@@ -728,6 +735,7 @@ const _en = {
   'menu.stats': 'View statistics',
   'menu.undo': 'Undo last (−1)',
   'menu.cancel': 'Cancel',
+  'menu.more.aria': 'More options',
 
   // ── Sheet: caca olvidada ──
   'late.title': '💩 Forgotten poop',

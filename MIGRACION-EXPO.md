@@ -308,6 +308,18 @@ Dos trampas de ese camino que hay que conocer desde el principio:
   memoria y se pierde al cerrar la app. Esto hace **más crítico** el outbox de cacas sin
   enviar (§4), que hoy es un `localStorage` síncrono y pasará a `AsyncStorage`, que no lo es.
 
+**Comprobado en el puerto (Fase 1)**, con Expo SDK 58 y Firebase 13.1:
+
+- Expo exige `firebase` 12 o posterior, y `getReactNativePersistence` sigue existiendo en la build
+  de React Native de `firebase/auth`.
+- Metro **no necesita configuración extra**: los bundles de Android, iOS y web se generan tal cual.
+- Los **tipos** sí hay que ayudarlos: `firebase/auth` trae los de web, y `tsconfig.json` apunta
+  `@firebase/auth` a `dist/rn/index.rn.d.ts`.
+- `create-expo-app` sin plantilla genera hoy **SDK 57**: para el 58 hay que pedirlo con
+  `--template default@sdk-58`. Expo Go solo soporta una versión a la vez.
+- Pendiente de validar en dispositivo: que Firestore abra su canal sin forzar *long polling*
+  (el puerto activa `experimentalAutoDetectLongPolling` por precaución).
+
 El inicio de sesión con Google **no se porta**: `signInWithPopup` no existe en nativo. Se
 hace con `expo-auth-session` o el módulo nativo de Google. Es la primera cosa que se rompe
 y conviene resolverla pronto, porque sin ella no puedes ni entrar a probar.
@@ -371,13 +383,18 @@ resultados desde la segunda semana.
 - **Arreglar el README**, que hoy describe un `api.js` con datos simulados que ya no
   existe y va a despistar a Claude en el proyecto nuevo.
 
-### Fase 1 · Esqueleto
-- Crear el proyecto con `npx create-expo-app` y `expo-router`.
-- Cuenta de Apple Developer (99 €/año) y de Google Play (25 $ una vez). **Tramítalas ya**:
+### Fase 1 · Esqueleto *(en curso · repo `../cagometro-native`)*
+- [x] Proyecto con **Expo SDK 58** y `expo-router`, en TypeScript estricto.
+- [ ] Cuenta de Apple Developer (99 €/año) y de Google Play (25 $ una vez). **Tramítalas ya**:
   la de Apple puede tardar días en verificarse y bloquea todo lo demás.
-- Firebase conectado, inicio de sesión con correo funcionando.
-- `store.js` portado y leyendo datos de verdad.
-- Primera compilación de desarrollo instalada en tu móvil.
+- [x] Firebase conectado (SDK web v13, sesión persistente) e inicio de sesión con correo.
+- [x] `store.js` portado a `store.ts` y probado contra los emuladores (33 pruebas, con las reglas
+  nuevas y con las actuales). **Leer datos reales desde un dispositivo sigue pendiente.**
+- [ ] Primera compilación de desarrollo en tu móvil. Con iPhone hace falta la cuenta de Apple
+  Developer (build en la nube) o un Mac con Xcode (build local con tu Apple ID).
+- [ ] Inicio de sesión con Google y/o Apple.
+- [ ] Identificadores de la app (`ios.bundleIdentifier`, `android.package`): hay que decidirlos antes
+  del primer build y luego no se cambian.
 
 ### Fase 2 · El núcleo
 - Contador, sumar, deshacer, cacas olvidadas.

@@ -405,7 +405,10 @@ resultados desde la segunda semana.
 - [x] Feed con reacciones: listener en tiempo real, los 6 tipos de evento (suma, olvidada, hito, deshacer, reinicio,
   conexión/combo), filtros por alcance y grupo, búsqueda, «cargar más», selector de 12 emojis y quién reaccionó.
   Verificado en un emulador de Android con datos sembrados.
-- Amigos y grupos con rankings.
+- [x] Pestaña Amigos: solicitudes entrantes/salientes (aceptar, rechazar, cancelar) con insignia, ranking y A-Z, añadir
+  por email, ficha ligera con quitar amigo (solo sin grupo en común) y enlace de invitación. Verificada en emulador
+  la parte de aceptar; **pendiente de probar a mano**: cancelar/rechazar, mensajes del formulario, ficha y compartir.
+- Grupos con rankings (y su pestaña).
 - Ajustes, incluidas las preferencias de notificación.
 - **Aquí ya la usas tú a diario.**
 

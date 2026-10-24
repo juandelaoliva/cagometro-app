@@ -415,7 +415,8 @@ resultados desde la segunda semana.
 - [x] Cabecera común (marca + campana) y centro de notificaciones: solicitudes, invitaciones a grupo, reacciones a tus
   cacas y conexiones de tus grupos, con el número de lo nuevo. Verificado en emulador. Sin hacer: chat (Fase 3) y el
   botón de ajustes (con su pantalla).
-- Ajustes, incluidas las preferencias de notificación.
+- [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.
+  Verificado en emulador. **Pendiente de Ajustes**: notificaciones (con sus categorías), ubicación, vibración y Bristol (Fase 3).
 - **Aquí ya la usas tú a diario.**
 
 ### Fase 3 · Lo nativo

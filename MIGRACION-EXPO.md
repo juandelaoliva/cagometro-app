@@ -415,6 +415,8 @@ resultados desde la segunda semana.
 - [x] Cabecera común (marca + campana) y centro de notificaciones: solicitudes, invitaciones a grupo, reacciones a tus
   cacas y conexiones de tus grupos, con el número de lo nuevo. Verificado en emulador. Sin hacer: chat (Fase 3) y el
   botón de ajustes (con su pantalla).
+- [x] Pestaña Perfil: tarjeta, tus grupos, selector de año y «Todos», casillas (medias, racha, récord) y gráficas por mes/año,
+  hora y día de la semana. Verificada en emulador. **Pendiente de Perfil**: el mapa de tus cacas (Fase 4) y la escala de Bristol (Fase 3).
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.
   Verificado en emulador. **Pendiente de Ajustes**: notificaciones (con sus categorías), ubicación, vibración y Bristol (Fase 3).
 - **Aquí ya la usas tú a diario.**

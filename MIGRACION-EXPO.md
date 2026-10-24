@@ -412,6 +412,9 @@ resultados desde la segunda semana.
   estadísticas, gráfica por persona y mes, compartir código, invitar a un amigo, salir y administrar (renombrar,
   expulsar, eliminar; solo quien creó el grupo). Verificada en emulador. **Pendiente de Grupos**: invitaciones recibidas
   (con la campana de la cabecera); mapa y chat son Fase 3.
+- [x] Cabecera común (marca + campana) y centro de notificaciones: solicitudes, invitaciones a grupo, reacciones a tus
+  cacas y conexiones de tus grupos, con el número de lo nuevo. Verificado en emulador. Sin hacer: chat (Fase 3) y el
+  botón de ajustes (con su pantalla).
 - Ajustes, incluidas las preferencias de notificación.
 - **Aquí ya la usas tú a diario.**
 
@@ -586,6 +589,9 @@ desnormalizados. Ese diseño se porta intacto y es parte de por qué la app es b
 - **La racha de los chips se rompe con el cambio de hora** (`loadActivity` y `bumpChipsLocal`, `app.js`): resta
   86 400 000 ms al retroceder día a día, y el día del cambio dura 23 o 25 h, así que da **1 en vez de 3** dos
   veces al año. Comprobado con `TZ=Europe/Madrid`. El puerto lo calcula por calendario (`src/domain/chips.ts`).
+- **La campana puede nombrar a quien no es tu amigo** (`detectSyncNotifs`, `app.js`): avisa de las conexiones de tus
+  compañeros de grupo sin aplicar `canSeeSync`, la regla de privacidad que sí usa el feed (solo si eres amigo de TODOS
+  los participantes). El puerto (`src/domain/notifications.ts`) la aplica.
 
 Si la copias sin mirar, la copias. Ninguna de estas es grave, pero el puerto es un buen
 momento para no arrastrarlas:

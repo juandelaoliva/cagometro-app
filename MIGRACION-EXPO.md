@@ -452,6 +452,9 @@ resultados desde la segunda semana.
 - [x] Conexión de tuberías y celebraciones: detectar al sumar, escribir el documento compartido (con reintentos), aviso con confeti y
   vibración (conexión, combo desde 3, hito) y los dos avisos push (participantes y grupo). Verificada en emulador; las reglas están
   cubiertas por 21 pruebas. **Pendiente de la Fase 3**: Bristol y el chat.
+- [x] Chat, primera etapa: lista de conversaciones, conversación en vivo (30 mensajes + cargar anteriores), enviar con aviso push, no leídos
+  (globo en la cabecera), silenciar, nueva conversación y accesos desde persona y grupo. Verificado en emulador. **Pendiente (segunda etapa)**:
+  responder, reaccionar a un mensaje, ver quién reaccionó y saltar a una cita. Pendiente también: Bristol.
 - **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
   ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.
@@ -641,6 +644,7 @@ momento para no arrastrarlas:
   `ReferenceError` **antes** de escribir en Firestore. Es un fallo real, hoy, en la PWA.
 - **`lastMessage.senderUid` se lee pero nunca se escribe** (`app.js:2992` vs
   `store.js:792`): por eso el globo de no leídos cuenta tu propio último mensaje.
+  _(La app nativa ya lo escribe; falta arreglarlo en `store.js` de la PWA.)_
 - **Dos formas distintas de guardar reacciones**: en el feed `{uid: [emoji]}`, en los
   mensajes `{emoji: [uid]}`. Unificarlas ahora cuesta poco; dentro de un año, no.
 - **Código muerto en `store.js`**: `homeFeed`, `friendsFeed`, `groupFeed`, `watchMyCacas`

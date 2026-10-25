@@ -447,6 +447,8 @@ resultados desde la segunda semana.
   en común y eliminar amigo. Verificada en emulador. **Pendiente**: su mapa (Fase 4) y su chat (Fase 3).
 - [x] Notificaciones push, parte de la app (permiso, token, interruptor y categorías, aviso, abrir por tipo, quitar el dispositivo al
   cerrar sesión). Verificado en emulador salvo el envío real. **Pendiente (te toca a ti)**: ver «Notificaciones nativas: estado y contrato».
+- [x] Ubicación al sumar (modo elegir/siempre, «Sumar con ubicación» del menú) y vibración al pulsar. Verificadas en emulador (la ubicación
+  con precisión alta; **con «equilibrada», la de producción, falta probarla en un móvil real**). Pendiente de la Fase 3: Bristol y el chat.
 - **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
   ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.

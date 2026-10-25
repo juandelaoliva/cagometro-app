@@ -421,7 +421,28 @@ resultados desde la segunda semana.
   Firebase con las reglas endurecidas.
 - [ ] Primera compilación en **iPhone**: hace falta la cuenta de Apple Developer (build en la nube) o
   un Mac con Xcode (build local con tu Apple ID). El simulador de iOS también necesita un Mac.
-- [ ] Inicio de sesión con **Google y Apple** (Google primero; Apple cuando haya cuenta de desarrollador).
+- [ ] Inicio de sesión con **Google y Apple**. **Google (Android): código hecho y probado** (botón, módulo nativo, conversión del `idToken`);
+  **falta la configuración de la consola** (abajo) y poner el ID de cliente web en `GOOGLE_WEB_CLIENT_ID`. Apple y Google en iPhone, cuando haya
+  cuenta de desarrollador y Mac.
+
+#### Acceso con Google en Android: pasos de la consola de Firebase
+
+1. **Firebase → ⚙ Configuración del proyecto → General → «Tus apps» → Añadir app → Android.**
+   - Nombre del paquete: `com.juandelaoliva.cagometro` (exactamente así).
+   - Apodo: el que quieras. **Huella digital del certificado SHA-1** (de la clave de desarrollo de esta máquina):
+     `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`
+   - Pulsa **Registrar app**. El paso de descargar `google-services.json` **se puede saltar**: esta app no lo usa (ver `CLAUDE.md`). Sigue con «Siguiente» hasta terminar.
+2. **Firebase → Authentication → Método de acceso → Google** (ya está activado por la PWA). Despliégalo y copia el **ID de cliente web**
+   (sección «Configuración del SDK web»; acaba en `.apps.googleusercontent.com`). Es un identificador público, no un secreto.
+3. Pásame ese ID (o ponlo tú en `GOOGLE_WEB_CLIENT_ID`, `src/auth/google.ts`) y recompilo.
+4. Prueba en el móvil con la cuenta de Google de la PWA: debe entrar en **la misma cuenta y con los mismos datos** (mismo `uid`).
+
+Si al pulsar el botón sale «El acceso con Google no está bien configurado…», es el `DEVELOPER_ERROR`: la huella o el paquete no coinciden con lo
+registrado, o el registro aún no se ha propagado (puede tardar unos minutos). Cada clave de firma distinta necesita su propia huella: Firebase admite
+varias en la misma app.
+
+**Aviso sobre la clave de firma:** la de desarrollo (la de arriba) es la **misma para todos los proyectos de Expo** y es pública. Sirve para probar,
+pero para repartir el APK a otras personas hay que firmar con una clave **propia** y registrar su huella (y quitar esta). Se hace en el punto del APK.
 - [x] Identificadores de la app: `com.juandelaoliva.cagometro` (iOS y Android). Provisional hasta el
   primer build de tienda: después no se pueden cambiar.
 

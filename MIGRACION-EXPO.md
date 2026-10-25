@@ -360,6 +360,32 @@ cambia es el token que guarda cada dispositivo y la llamada final de la Pi. La P
 que distinguir tokens web (FCM) de tokens nativos (Expo) mientras convivan las dos apps:
 guárdalos en campos distintos desde el primer día.
 
+#### Notificaciones nativas: estado y contrato con la Pi
+
+**Hecho en la app nativa** (`../cagometro-native`, `src/push/`): permiso del sistema, token de Expo de cada dispositivo guardado en
+`users/{uid}/private/push.expoTokens` (el campo `tokens` queda para los web/FCM), interruptor general y las 5 categorías en Ajustes
+(`notifications` y `notifPrefs.*`, los mismos campos que la PWA), aviso «No te pierdas nada» (3 veces como máximo, 7 días entre una y
+otra), al tocar una notificación se abre la pantalla de su tipo, y **al cerrar sesión se quita ese dispositivo de la cuenta** (si no, la
+siguiente persona que entrase en el móvil recibiría los avisos de la anterior). El cliente no sale de aquí sin esto.
+
+**Lo que NO se puede comprobar sin tus cuentas** (por eso el interruptor no se enciende si no hay token, en vez de fingir):
+1. **Proyecto de EAS**: `npx eas-cli init` crea el proyecto y su `projectId`; va en `app.json` → `expo.extra.eas.projectId`.
+2. **Android**: una app de Android en el proyecto de Firebase (`com.juandelaoliva.cagometro`), su `google-services.json` en
+   `expo.android.googleServicesFile`, y la clave de cuenta de servicio de FCM v1 subida a Expo (`eas credentials`).
+3. **iPhone**: la clave de APNs, que EAS crea con tu cuenta de Apple Developer.
+4. Un **móvil real**: los simuladores y emuladores no obtienen token de Expo.
+
+**Lo que tiene que cambiar la Pi** (`cagometro-push`, fuera de este repo; no se despliega desde aquí):
+- Al entregar un `pushQueue`, además de los tokens FCM (`private/push.tokens`) leer `private/push.expoTokens` y enviarlos por
+  `POST https://exp.host/--/api/v2/push/send` (hasta 100 mensajes por llamada) con
+  `{ to, title, body, sound: 'default', channelId: 'default', priority: 'high', data: { type } }`.
+  **`data.type` es imprescindible**: es lo que usa la app para abrir la pantalla correcta (`friend_request`/`friend_accepted` →
+  Amigos, `overtake`/`group_invite` → Grupos, el resto → Inicio). El service worker de la PWA no manda nada parecido.
+- Comprobar los recibos (a los ~15 min, `POST /--/api/v2/push/getReceipts`): quitar con `arrayRemove` de `expoTokens` los que
+  devuelvan `DeviceNotRegistered`.
+- Todo lo demás se queda igual: respetar `users/{toUid}.notifications`, agrupar las reacciones (20 s), 1 adelantamiento por persona
+  y día, y los recordatorios (`reminders.js`) también por las dos vías.
+
 ---
 
 ## 6. El plan, por fases

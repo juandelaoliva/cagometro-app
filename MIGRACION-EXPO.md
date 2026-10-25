@@ -452,9 +452,9 @@ resultados desde la segunda semana.
 - [x] Conexión de tuberías y celebraciones: detectar al sumar, escribir el documento compartido (con reintentos), aviso con confeti y
   vibración (conexión, combo desde 3, hito) y los dos avisos push (participantes y grupo). Verificada en emulador; las reglas están
   cubiertas por 21 pruebas. **Pendiente de la Fase 3**: Bristol y el chat.
-- [x] Chat, primera etapa: lista de conversaciones, conversación en vivo (30 mensajes + cargar anteriores), enviar con aviso push, no leídos
-  (globo en la cabecera), silenciar, nueva conversación y accesos desde persona y grupo. Verificado en emulador. **Pendiente (segunda etapa)**:
-  responder, reaccionar a un mensaje, ver quién reaccionó y saltar a una cita. Pendiente también: Bristol.
+- [x] Chat: lista de conversaciones, conversación en vivo (30 mensajes + cargar anteriores), enviar con aviso push, no leídos (globo en la cabecera),
+  silenciar, nueva conversación, accesos desde persona y grupo, **responder** (deslizar o menú), **reaccionar** (6 emojis), **quién reaccionó** y
+  **saltar a una cita** (hasta 5 páginas de historial). Verificado en emulador. Pendiente: Bristol.
 - **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
   ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.

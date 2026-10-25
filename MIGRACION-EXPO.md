@@ -455,6 +455,9 @@ resultados desde la segunda semana.
 - [x] Chat: lista de conversaciones, conversación en vivo (30 mensajes + cargar anteriores), enviar con aviso push, no leídos (globo en la cabecera),
   silenciar, nueva conversación, accesos desde persona y grupo, **responder** (deslizar o menú), **reaccionar** (6 emojis), **quién reaccionó** y
   **saltar a una cita** (hasta 5 páginas de historial). Verificado en emulador. Pendiente: Bristol.
+- [x] Escala de Bristol: pregunta tras el +1 (modo en Ajustes o «Sumar con Bristol»), tipos con ilustración, características y nota, recorrido de
+  bienvenida y «Salud intestinal» en el Perfil. Verificada en emulador. Con esto **la Fase 3 queda hecha en la app**, salvo lo que espera a tus cuentas
+  (push real, acceso con Google/Apple).
 - **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
   ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.

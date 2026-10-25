@@ -417,6 +417,10 @@ resultados desde la segunda semana.
   botón de ajustes (con su pantalla).
 - [x] Pestaña Perfil: tarjeta, tus grupos, selector de año y «Todos», casillas (medias, racha, récord) y gráficas por mes/año,
   hora y día de la semana. Verificada en emulador. **Pendiente de Perfil**: el mapa de tus cacas (Fase 4) y la escala de Bristol (Fase 3).
+- [x] Ficha de persona (desde el feed y desde Amigos): cifras, comparación contigo, gráficas por mes/hora/día de la semana, grupos
+  en común y eliminar amigo. Verificada en emulador. **Pendiente**: su mapa (Fase 4) y su chat (Fase 3).
+- **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
+  ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.
   Verificado en emulador. **Pendiente de Ajustes**: notificaciones (con sus categorías), ubicación, vibración y Bristol (Fase 3).
 - **Aquí ya la usas tú a diario.**

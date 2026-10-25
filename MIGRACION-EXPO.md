@@ -445,6 +445,8 @@ resultados desde la segunda semana.
   hora y día de la semana. Verificada en emulador. **Pendiente de Perfil**: el mapa de tus cacas (Fase 4) y la escala de Bristol (Fase 3).
 - [x] Ficha de persona (desde el feed y desde Amigos): cifras, comparación contigo, gráficas por mes/hora/día de la semana, grupos
   en común y eliminar amigo. Verificada en emulador. **Pendiente**: su mapa (Fase 4) y su chat (Fase 3).
+- [x] Notificaciones push, parte de la app (permiso, token, interruptor y categorías, aviso, abrir por tipo, quitar el dispositivo al
+  cerrar sesión). Verificado en emulador salvo el envío real. **Pendiente (te toca a ti)**: ver «Notificaciones nativas: estado y contrato».
 - **Núcleo de la Fase 2 completo.** Lo que queda hasta «aquí ya la usas tú a diario»: lo nativo de la Fase 3 (notificaciones push,
   ubicación, vibración, Bristol, chat) y el acceso con Google/Apple.
 - [x] Ajustes (avatar de la cabecera): nombre, color, privacidad del mapa, idioma, reiniciar contador y cerrar sesión.

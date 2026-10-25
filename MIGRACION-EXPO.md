@@ -433,7 +433,7 @@ resultados desde la segunda semana.
   Verificado en un emulador de Android con datos sembrados.
 - [x] Pestaña Amigos: solicitudes entrantes/salientes (aceptar, rechazar, cancelar) con insignia, ranking y A-Z, añadir
   por email, ficha ligera con quitar amigo (solo sin grupo en común) y enlace de invitación. Verificada en emulador
-  la parte de aceptar; **pendiente de probar a mano**: cancelar/rechazar, mensajes del formulario, ficha y compartir.
+  la parte de aceptar; **también verificados a mano en emulador**: cancelar y rechazar solicitudes, los cuatro mensajes del formulario (sin usuario, ya sois amigos, eres tú, enviada), la ficha y la hoja de compartir el enlace.
 - [x] Pestaña Grupos: lista, crear, unirse con código (con confirmación), detalle con clasificación semana/mes/año,
   estadísticas, gráfica por persona y mes, compartir código, invitar a un amigo, salir y administrar (renombrar,
   expulsar, eliminar; solo quien creó el grupo). Verificada en emulador. **Pendiente de Grupos**: invitaciones recibidas

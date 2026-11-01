@@ -682,7 +682,8 @@ $("yearRecapGotIt").addEventListener("click", ()=>{ $("yearRecapSheet").hidden =
 /* ---------- recap mensual: el mes pasado, contado como una historia ----------
    Nadie lo genera: cada móvil calcula el suyo (recap.js) la primera vez que se abre,
    con las mismas lecturas que ya hace la app, y lo guarda en el propio móvil. El día 1
-   de cada mes aparece solo, en la campana y en Inicio. */
+   de cada mes aparece solo, en la campana y en Inicio. Siempre se puede volver a ver
+   desde la campana y desde el perfil. */
 const _mesRecap = () => mesDelRecap();
 const _nombreMes = m => new Date(m.y, m.m, 1).toLocaleDateString(getLang()==="en"?"en-GB":"es-ES", { month:"long" });
 // ¿hay recap tuyo? Basta con haber registrado algo el mes pasado (contador: cero lecturas)
@@ -690,14 +691,33 @@ const _tieneRecap = () => (me?.countsByMonth?.[_mesRecap().key] || 0) > 0;
 // visto/no visto vive en TU doc, no en el móvil: un aviso con la puerta en localStorage
 // reaparece en cada dispositivo nuevo, que es justo lo que pasó con los avisos viejos
 const _recapPendiente = () => _tieneRecap() && me?.recapSeen !== _mesRecap().key;
+// La tarjeta de Inicio dura hasta el día 5, aunque ya lo hayas visto, salvo que la
+// quites con la ✕. Quitarla también va a tu doc (recapHomeDismissed), por lo mismo.
+const RECAP_HOME_HASTA = 5;
+const _recapEnInicio = () => _tieneRecap() && new Date().getDate() <= RECAP_HOME_HASTA
+  && me?.recapHomeDismissed !== _mesRecap().key;
 function renderRecapEntry(){
-  const card=$("recapHomeCard"); if(!card) return;
-  card.hidden = !_recapPendiente();
-  if(card.hidden) return;
-  $("recapHomeTitle").textContent = t('recap.notif.title', { month: _nombreMes(_mesRecap()) });
-  $("recapHomeSub").textContent = t('recap.home.sub');
+  const month=_nombreMes(_mesRecap());
+  const home=$("recapHomeWrap");
+  home.hidden = !_recapEnInicio();
+  if(!home.hidden){
+    $("recapHomeTitle").textContent = t('recap.notif.title', { month });
+    $("recapHomeSub").textContent = t('recap.home.sub');
+  }
+  // en el perfil, todo el mes
+  const prof=$("recapProfileCard");
+  prof.hidden = !_tieneRecap();
+  if(!prof.hidden){
+    $("recapProfileTitle").textContent = t('recap.profile.title', { month });
+    $("recapProfileSub").textContent = t('recap.notif.sub');
+  }
 }
 $("recapHomeCard").addEventListener("click", ()=>openMyRecap());
+$("recapProfileCard").addEventListener("click", ()=>openMyRecap());
+$("recapHomeDismiss").addEventListener("click", ()=>{
+  $("recapHomeWrap").hidden = true;
+  updateMe(uid, { recapHomeDismissed: _mesRecap().key }).catch(()=>{});
+});
 
 // Caché en el móvil. Lleva el contador del mes con el que se calculó: si después entra
 // una caca olvidada o se deshace una, el contador cambia y se recalcula solo.

@@ -115,12 +115,16 @@
             <div class="chip"><b id="statStreak">0</b><span data-i18n="chip.racha">racha</span></div>
           </div>
         </section>
-        <!-- recap del mes pasado: se ve hasta que lo abres (luego sigue en la campana) -->
-        <button class="recap-card" id="recapHomeCard" hidden>
-          <span class="recap-card__e">🎉</span>
-          <span><span class="recap-card__t" id="recapHomeTitle"></span><span class="recap-card__s" id="recapHomeSub"></span></span>
-          <span class="recap-card__go">›</span>
-        </button>
+        <!-- recap del mes pasado: hasta el día 5 o hasta que lo quitas con la ✕
+             (luego sigue en la campana y en el perfil) -->
+        <div class="recap-wrap" id="recapHomeWrap" hidden>
+          <button class="recap-card" id="recapHomeCard">
+            <span class="recap-card__e">🎉</span>
+            <span><span class="recap-card__t" id="recapHomeTitle"></span><span class="recap-card__s" id="recapHomeSub"></span></span>
+            <span class="recap-card__go">›</span>
+          </button>
+          <button class="recap-card__x" id="recapHomeDismiss" data-i18n="recap.home.dismiss" data-i18n-attr="aria-label" aria-label="Quitar aviso">✕</button>
+        </div>
         <!-- La imagen es una COLUMNA de la tarjeta entera, no del cuerpo: así cubre todo
              el alto (título incluido). Al plegar se encoge a 0 y el "¿Sabías que?",
              que vive en la columna derecha, se desliza solo hasta el borde izquierdo. -->
@@ -258,6 +262,13 @@
           <div class="pcard__total"><b id="pTotal">0</b> <span data-i18n="perfil.unit">cacas este año</span></div>
           <div class="pcard__sub" id="pLifetime"></div>
         </div>
+
+        <!-- recap del mes pasado: aquí todo el mes, para volver a verlo cuando quieras -->
+        <button class="recap-card recap-card--profile" id="recapProfileCard" hidden>
+          <span class="recap-card__e">🎉</span>
+          <span><span class="recap-card__t" id="recapProfileTitle"></span><span class="recap-card__s" id="recapProfileSub"></span></span>
+          <span class="recap-card__go">›</span>
+        </button>
 
         <div class="psg-row psg-row--wrap" id="pGroups"></div>
 

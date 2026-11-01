@@ -1018,6 +1018,12 @@ body.chat-mode .tabbar{display:none}
 .recap-card__s{display:block;font-size:13px;font-weight:600;opacity:.75;margin-top:2px}
 .recap-card__go{margin-left:auto;font-size:22px;opacity:.7}
 .recap-card--group{margin:0 0 14px;background:var(--mint)}
+.recap-card--profile{margin:0 0 14px}
+/* la ✕ va fuera del botón (no se puede anidar un botón en otro), montada en la esquina */
+.recap-wrap{position:relative;margin-top:14px}
+.recap-wrap .recap-card{margin-top:0}
+.recap-card__x{position:absolute;top:-8px;right:-8px;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  font-size:13px;line-height:1;background:var(--paper);color:var(--ink);border:1.5px solid var(--ink);box-shadow:0 4px 10px -4px rgba(36,27,18,.4)}
 .reqlist li.notif-annc.notif-annc--recap{background:linear-gradient(135deg,#2a2017,#3b2a1c);border-color:transparent;color:var(--paper)}
 .reqlist li.notif-annc--recap .nm b{color:var(--paper)}
 .reqlist li.notif-annc--recap .nm small{color:rgba(251,246,236,.75)}

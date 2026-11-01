@@ -427,6 +427,18 @@ export async function myActivity(uid, n = 200){
   const snap = await getDocs(query(collection(db,"users",uid,"cacas"), orderBy("ts","desc"), limit(n)));
   return snap.docs.map(d => ({ id:d.id, ...d.data() }));
 }
+// Recap mensual: las cacas de un mes (las de cualquiera: las reglas dejan leerlas)
+export async function cacasEntre(uid, from, to){
+  const snap = await getDocs(query(collection(db,"users",uid,"cacas"), where("ts",">=",from), where("ts","<",to), orderBy("ts")));
+  return snap.docs.map(d => ({ id:d.id, uid, ...d.data() }));
+}
+// ...y el feed de un mes. Es la consulta de watchActivity acotada por fechas, así que
+// tira del mismo índice (audience + ts) y no hace falta crear otro.
+export async function actividadEntre(uid, from, to){
+  const snap = await getDocs(query(collection(db,"activity"), where("audience","array-contains",uid),
+    where("ts",">=",from), where("ts","<",to), orderBy("ts","desc"), limit(3000)));
+  return snap.docs.map(d => ({ id:d.id, ...d.data() }));
+}
 // Asigna una ubicación (lat/lng) a una o varias cacas YA existentes (sin crear
 // cacas nuevas → no altera el contador). Escribe en lote los docs indicados.
 export async function setCacaLocations(uid, cacaIds, loc){

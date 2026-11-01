@@ -115,6 +115,12 @@
             <div class="chip"><b id="statStreak">0</b><span data-i18n="chip.racha">racha</span></div>
           </div>
         </section>
+        <!-- recap del mes pasado: se ve hasta que lo abres (luego sigue en la campana) -->
+        <button class="recap-card" id="recapHomeCard" hidden>
+          <span class="recap-card__e">🎉</span>
+          <span><span class="recap-card__t" id="recapHomeTitle"></span><span class="recap-card__s" id="recapHomeSub"></span></span>
+          <span class="recap-card__go">›</span>
+        </button>
         <!-- La imagen es una COLUMNA de la tarjeta entera, no del cuerpo: así cubre todo
              el alto (título incluido). Al plegar se encoge a 0 y el "¿Sabías que?",
              que vive en la columna derecha, se desliza solo hasta el borde izquierdo. -->
@@ -210,6 +216,11 @@
         </div>
 
         <div id="groupDetail" hidden>
+          <button class="recap-card recap-card--group" id="groupRecapCard" hidden>
+            <span class="recap-card__e">📊</span>
+            <span><span class="recap-card__t" id="groupRecapTitle"></span><span class="recap-card__s" id="groupRecapSub"></span></span>
+            <span class="recap-card__go">›</span>
+          </button>
           <div class="block">
             <div class="block__head"><h2 id="groupDetailName" data-i18n="grupos.ranking.title">Clasificación</h2><div style="display:flex;gap:8px;align-items:center"><button class="link" id="inviteToGroupBtn" data-i18n="grupos.invite.friend.btn">Invitar amigo</button><button class="link" id="shareCode">🔗 Código</button><button class="link" id="groupAdminBtn" hidden style="font-size:18px;line-height:1;padding:2px 4px" title="Administrar grupo">⚙️</button></div></div>
             <div class="segctl" id="rankPeriod">
@@ -825,6 +836,17 @@
     <div class="celebrate__inner"><div class="celebrate__poo">💩🚽💩</div><div class="celebrate__text" id="syncTitle" data-i18n="sync.title">¡Conexión de tuberías!</div><div class="celebrate__sub" id="syncSub"></div></div>
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- recap mensual: lo rellena recap-player.js -->
+  <div class="rc-story" id="recapStory" hidden>
+    <div class="rc-frame" id="rcFrame">
+      <div class="rc-bars" id="rcBars"></div>
+      <span class="rc-paused" id="rcPaused"></span>
+      <button class="rc-x" id="rcClose" aria-label="Cerrar">✕</button>
+      <div class="rc-stage" id="rcStage"></div>
+      <div class="rc-toast" id="rcToast" role="status" aria-live="polite"></div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

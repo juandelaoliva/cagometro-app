@@ -1,8 +1,8 @@
 /* Cagómetro service worker — app shell (network-first) + actualización controlada */
-const CACHE = "cagometro-20261015-120000";
+const CACHE = "cagometro-20261101-224321";
 const ASSETS = [
   "./", "./index.html", "./styles.css",
-  "./app.js", "./store.js", "./firebase.js", "./i18n.js", "./funfacts.js",
+  "./app.js", "./store.js", "./firebase.js", "./i18n.js", "./funfacts.js", "./recap.js", "./recap-player.js",
   "./firebase-bundle.js",
   "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png",
   "./assets/bristol-1.png", "./assets/bristol-2.png", "./assets/bristol-3.png",

@@ -1095,6 +1095,7 @@ function _feedItem(c,i){
       <div class="feed__line">${head} ${nBadge}</div>
       ${syncTrail?`<div class="feed__sub">${syncTrail}</div>`:""}
       ${c.late?`<div class="feed__sub">📅 ${fmtFull(c.forTs ?? c.ts)}</div>`:""}
+      ${c.late&&c.offline===true?`<div class="feed__sub">${t('feed.late.offline')}</div>`:""}
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
       ${reactable?reactionsRow(c):""}
     </div>

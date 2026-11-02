@@ -27,10 +27,19 @@ const uid = {};   // nombre → uid de Auth
 const peek = async fn => { let out; await testEnv.withSecurityRulesDisabled(async c => { out = await fn(c.firestore()); }); return out; };
 const exists = (...path) => peek(async db => (await getDoc(doc(db, ...path))).exists());
 const data = (...path) => peek(async db => (await getDoc(doc(db, ...path))).data());
+// Las reglas nuevas exigen email VERIFICADO para entrar en `userLookup` (si no, cualquiera reclamaría el email de
+// otro). Una persona real lo tiene al entrar con Google o tras confirmar el correo: aquí se crea la cuenta ya verificada.
+async function verifiedAccount(email) {
+  const api = "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1", json = { "content-type": "application/json" };
+  const r = await fetch(`${api}/accounts:signUp?key=x`, { method: "POST", headers: json, body: JSON.stringify({ email, password: PW, returnSecureToken: true }) });
+  if (!r.ok) throw new Error(`no se pudo crear ${email}: ${await r.text()}`);
+  const { localId } = await r.json();
+  await fetch(`${api}/projects/demo-cagometro/accounts:update`, { method: "POST", headers: { ...json, Authorization: "Bearer owner" }, body: JSON.stringify({ localId, emailVerified: true }) });
+}
 async function login(name) {
   await S.signOutUser();
   const email = `${name}@x.com`;
-  try { await S.signIn(email, PW); } catch { await S.signUp(email, PW, name); }
+  try { await S.signIn(email, PW); } catch { await verifiedAccount(email); await S.signIn(email, PW); }
   uid[name] = auth.currentUser.uid;
   return uid[name];
 }

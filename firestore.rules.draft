@@ -21,6 +21,19 @@ rules_version = '2';
 //      «salir» solo te saca a ti (hoy un miembro puede expulsar a cualquiera).
 //   6. users: el propio usuario puede borrar su doc (borrado de cuenta, requisito de Apple).
 //
+// AUDITORÍA (2026-11): 8 ataques que funcionaban contra la primera versión de este borrador y
+// ya están cerrados (rules-tests/rules.test.js, bloque «auditoría»):
+//   A1 crear un grupo con otra persona dentro y hacerse «amigo aceptado» → leer su ubicación
+//      (un grupo nace solo con su creador; entrar exige código o invitación de un miembro; el
+//      creador del grupo ya no puede añadir gente, solo quitarla)
+//   A2 un amigo borraba/falsificaba las reacciones de otros en una caca (solo la propia)
+//   A3 abrir un chat privado con cualquiera y escribirle (solo entre amigos aceptados)
+//   A4 un no-miembro tocaba las reacciones de un mensaje ajeno (solo miembros del chat)
+//   A5 unirse a un grupo expulsando a otro a la vez (solo puedes añadirte a ti)
+//   A6 colarse en la audiencia de una conexión de tuberías ajena
+//   A7 reclamar el email de otra persona en userLookup sin verificarlo (email_verified)
+//   A8 push con texto libre a quien solo tiene una solicitud pendiente (solo friend_request)
+//
 // CAMBIOS DE CLIENTE (HECHOS en store.js / app.js / i18n.js; pendientes de desplegar)
 //   · findUserByEmail lee `userLookup/{email}` → {uid} y, para el nombre, `publicProfiles`.
 //     Conserva como respaldo la consulta antigua (solo vale con las reglas actuales).
@@ -60,9 +73,14 @@ rules_version = '2';
 //   · Borrado de cuenta: `messages` sigue con `allow delete: if false`. O se cambia la
 //     regla, o el borrado anonimiza los mensajes (sin poder editarlos tampoco con las
 //     reglas actuales; haría falta Admin SDK desde la Pi).
-//   · Unirse a un grupo no comprueba el código: la regla solo ve que te añades a ti. En
-//     la práctica el gid solo se conoce vía inviteCodes o por ser miembro, pero no es
-//     hermético. Lo hermético es mediar con Admin SDK.
+//   · Unirse a un grupo SÍ comprueba ya el código (`joinCode`) o una invitación pendiente
+//     (ver AUDITORÍA). Con reglas no hay forma de limitar los intentos: un código de 6
+//     caracteres se podría probar a fuerza bruta (inviable en la práctica, pero sin límite).
+//   · `chats/.../messages` reacciones: los clientes escriben {emoji: [uids]}; las reglas no
+//     pueden comprobar que alguien solo se toca a sí mismo (sí que sea miembro del chat).
+//   · `activity` (conexión de tuberías): quien ya la ve puede añadir uids a `audience`; las
+//     reglas no pueden comprobar que sean amigos suyos.
+//   · DM: se abre solo entre amigos aceptados, pero si luego dejáis de serlo, el chat sigue.
 //   · privacidad de `sync` (canSeeSync) sigue aplicándose solo al pintar.
 // ═══════════════════════════════════════════════════════════════════════════════
 service cloud.firestore {
@@ -94,7 +112,23 @@ service cloud.firestore {
     // Solo cambia el mapa `reactions`, y solo la entrada del que reacciona.
     function onlyMyReaction() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-          && request.resource.data.reactions.diff(resource.data.reactions).affectedKeys().hasOnly([request.auth.uid]);
+          && request.resource.data.reactions.diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // Invitación a un grupo dirigida a mí (id = gid_uid, ver groupInviteId en store.js) y aún pendiente.
+    // Solo la puede crear un MIEMBRO del grupo (ver groupInvites), así que no se puede fabricar.
+    function inviteDoc(gid) { return /databases/$(database)/documents/groupInvites/$(gid + '_' + request.auth.uid); }
+    function hasInviteTo(gid) {
+      return exists(inviteDoc(gid))
+          && get(inviteDoc(gid)).data.toUid == request.auth.uid
+          && get(inviteDoc(gid)).data.status == 'pending';
+    }
+
+    // Quién es «el otro» en un chat privado de dos.
+    function otherOf(m) { return m[0] == request.auth.uid ? m[1] : m[0]; }
+    // Los miembros nuevos de un chat de grupo tienen que ser miembros DEL GRUPO.
+    function membersWithinGroup(gid, m) {
+      return m.toSet().difference(get(/databases/$(database)/documents/groups/$(gid)).data.members.toSet()).size() == 0;
     }
 
     // --- users ---
@@ -108,10 +142,8 @@ service cloud.firestore {
         allow create: if isOwner(uid)
                        && request.resource.data.uid == uid
                        && request.resource.data.ts is number;
-        // el dueño edita su caca; un amigo solo puede tocar `reactions`
-        allow update: if isOwner(uid)
-                       || (areFriends(uid)
-                           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']));
+        // el dueño edita su caca; un amigo solo puede tocar SU entrada de `reactions`
+        allow update: if isOwner(uid) || (areFriends(uid) && onlyMyReaction());
         allow delete: if isOwner(uid) || isAdmin();
       }
       match /private/{doc} {
@@ -126,6 +158,7 @@ service cloud.firestore {
       allow get:    if signedIn();
       allow list:   if false;
       allow create, update: if signedIn()
+                       && request.auth.token.email_verified == true     // sin verificar, cualquiera podría reclamar el email de otro
                        && emailKey == request.auth.token.email.lower()
                        && request.resource.data.keys().hasOnly(['uid'])
                        && request.resource.data.uid == request.auth.uid;
@@ -172,7 +205,9 @@ service cloud.firestore {
                      && request.resource.data.title.size() <= 120
                      && request.resource.data.body.size() <= 300
                      && (request.resource.data.toUid == request.auth.uid
-                         || hasFriendship(request.resource.data.toUid));
+                         || areFriends(request.resource.data.toUid)
+                         // con una solicitud aún PENDIENTE solo cabe el aviso de la propia solicitud
+                         || (request.resource.data.type == 'friend_request' && hasFriendship(request.resource.data.toUid)));
       allow read, update, delete: if false;
     }
 
@@ -188,8 +223,11 @@ service cloud.firestore {
                      || (signedIn() && request.auth.uid in resource.data.audience && onlyMyReaction())
                      // unirse a una conexión de tuberías: solo sumar, nunca quitar a otro
                      || (signedIn()
+                         // quien puede VER la conexión (audiencia) o es amigo de su fundador; nunca un extraño
+                         && (request.auth.uid in resource.data.audience || areFriends(resource.data.uid))
                          && request.auth.uid in request.resource.data.participantUids
                          && request.resource.data.participantUids.hasAll(resource.data.participantUids)
+                         && request.resource.data.audience.hasAll(resource.data.audience)
                          && request.resource.data.diff(resource.data).affectedKeys()
                               .hasOnly(['participants','participantUids','lastTs','audience']));
       allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
@@ -224,16 +262,30 @@ service cloud.firestore {
 
     match /groupInvites/{inviteId} {
       allow read:   if signedIn() && (resource == null || request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid);
-      allow create: if signedIn() && request.auth.uid == request.resource.data.fromUid;
+      allow create: if signedIn() && request.auth.uid == request.resource.data.fromUid
+                     && isGroupMember(request.resource.data.gid)
+                     && inviteId == request.resource.data.gid + '_' + request.resource.data.toUid;
       allow update: if signedIn() && request.auth.uid == resource.data.toUid
                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.fromUid && resource.data.status != "pending");
     }
 
-    // --- chat (sin cambios) ---
+    // --- chat ---
+    // DM: el id es el pairKey y solo se abre entre AMIGOS ACEPTADOS. Grupo: el id es el del
+    // grupo y solo lo crea un miembro. La lista `members` no se puede ampliar a gente de fuera.
     match /chats/{chatId} {
-      allow read, update: if signedIn() && (request.auth.uid in resource.data.members || isGroupMember(chatId));
-      allow create:       if signedIn() && request.auth.uid in request.resource.data.members;
+      allow read:   if signedIn() && (request.auth.uid in resource.data.members || isGroupMember(chatId));
+      allow create: if signedIn() && (
+                         (request.resource.data.members.size() == 2
+                          && request.auth.uid in request.resource.data.members
+                          && chatId == pairKey(request.resource.data.members[0], request.resource.data.members[1])
+                          && areFriends(otherOf(request.resource.data.members)))
+                         || (isGroupMember(chatId) && membersWithinGroup(chatId, request.resource.data.members)));
+      allow update: if signedIn() && (
+                         (request.auth.uid in resource.data.members
+                          && request.resource.data.members.toSet() == resource.data.members.toSet())
+                         // chat de grupo: se resincroniza `members` con el grupo (entra gente nueva)
+                         || (isGroupMember(chatId) && membersWithinGroup(chatId, request.resource.data.members)));
 
       match /messages/{msgId} {
         allow read:   if signedIn() && (request.auth.uid in
@@ -244,7 +296,11 @@ service cloud.firestore {
                          && (request.auth.uid in
                             get(/databases/$(database)/documents/chats/$(chatId)).data.members
                             || isGroupMember(chatId));
+        // reaccionar: solo miembros del chat. (Las reacciones son {emoji: [uids]}: las reglas no
+        // pueden comprobar que alguien solo se añade/quita a sí mismo.)
         allow update: if signedIn()
+                         && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
+                             || isGroupMember(chatId))
                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
         // TODO(borrado de cuenta): decidir entre permitir borrar los propios o anonimizar.
         allow delete: if false;
@@ -254,19 +310,26 @@ service cloud.firestore {
     // --- groups ---
     match /groups/{gid} {
       allow read:   if signedIn() && (request.auth.uid in resource.data.members || isAdmin());
-      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      // un grupo nace SOLO con su creador: a los demás se les mete por código o por invitación
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid
+                     && request.resource.data.members == [request.auth.uid];
       allow update: if isAdmin()
-                     || (signedIn() && request.auth.uid == resource.data.createdBy)   // admin del grupo: renombrar, expulsar…
+                     // admin del grupo: renombrar y expulsar, NUNCA añadir gente (eso sería hacerse «amigo» de cualquiera)
+                     || (signedIn() && request.auth.uid == resource.data.createdBy
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members'])
+                         && request.resource.data.members.toSet().difference(resource.data.members.toSet()).size() == 0)
                      // miembro: solo SALIR, es decir, quitarse a sí mismo y a nadie más
                      || (signedIn() && request.auth.uid in resource.data.members
                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])
                          && request.resource.data.members.toSet()
                               == resource.data.members.toSet().difference([request.auth.uid].toSet()))
-                     // unirse: añadirse a sí mismo (ver «decisiones abiertas»: no comprueba el código)
-                     || (signedIn() && request.auth.uid in request.resource.data.members
-                         && !(request.auth.uid in resource.data.members)
-                         && request.resource.data.members.size() == resource.data.members.size() + 1
-                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']));
+                     // unirse: añadirse a sí mismo y a nadie más, y DEMOSTRAR que se conoce el código
+                     // (el cliente manda `joinCode`) o que un miembro nos ha invitado
+                     || (signedIn() && !(request.auth.uid in resource.data.members)
+                         && request.resource.data.members.toSet() == resource.data.members.toSet().union([request.auth.uid].toSet())
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'joinCode'])
+                         && (request.resource.data.get('joinCode', '') == resource.data.get('inviteCode', '-')
+                             || hasInviteTo(gid)));
       allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.createdBy);
     }
   }

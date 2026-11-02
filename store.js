@@ -650,10 +650,17 @@ async function befriendGroupMates(uid, gid, members){
 
 // Unirse a un grupo por su id. Con las reglas nuevas un no-miembro NO puede leer el grupo,
 // así que se entra primero y se lee después (ya como miembro) para saber con quién hacerse amigo.
-async function joinGroupById(uid, gid){
+// `code` = el código de invitación con el que se entra (las reglas exigen demostrarlo; una invitación
+// pendiente de un miembro también vale y entonces no hace falta).
+async function joinGroupById(uid, gid, code){
   const ref = doc(db,"groups",gid);
-  try{ await updateDoc(ref, { members: arrayUnion(uid) }); }
-  catch(e){
+  // Con las reglas ANTERIORES el campo `joinCode` se deniega: se reintenta sin él (el cliente sigue
+  // funcionando antes de desplegar las reglas nuevas, que lo exigen).
+  const attempt = fields => updateDoc(ref, { members: arrayUnion(uid), ...fields });
+  try{
+    try{ await attempt(code ? { joinCode: code } : {}); }
+    catch(e){ if (code && denied(e)) await attempt({}); else throw e; }
+  }catch(e){
     // Si ya eras miembro, arrayUnion no cambia nada y la regla de «unirse» no lo admite; si
     // el grupo no existe, tampoco. Lo distingue la lectura de abajo.
     if (!denied(e) && e?.code !== "not-found") throw e;
@@ -680,7 +687,7 @@ export async function joinGroup(uid, code){
     }catch(e){ if (!denied(e)) throw e; }
   }
   if (!gid) throw new Error("no-group");
-  return joinGroupById(uid, gid);
+  return joinGroupById(uid, gid, c);
 }
 export const leaveGroup = (gid, uid) => updateDoc(doc(db,"groups",gid), { members: arrayRemove(uid) });
 export const renameGroup = (gid, name) => updateDoc(doc(db,"groups",gid), { name: name.trim() });

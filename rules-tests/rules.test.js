@@ -218,8 +218,9 @@ describe("groups", () => {
   it("el creador sí puede expulsar", async () => {
     await assertSucceeds(updateDoc(doc(as("alice"), "groups", "g1"), { members: ["alice"] }));
   });
-  it("unirse: se permite añadirse a uno mismo (limitación conocida: no comprueba el código)", async () => {
-    await assertSucceeds(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"] }));
+  it("unirse: añadirse a uno mismo exige el código (antes: limitación conocida, ya cerrada)", async () => {
+    await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"] }));
+    await assertSucceeds(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"], joinCode: "ABC123" }));
   });
   it("unirse: no se puede añadir a OTRA persona", async () => {
     await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "dave"] }));
@@ -250,11 +251,11 @@ describe("userLookup e inviteCodes", () => {
     await assertFails(getDocs(collection(as("carol"), "userLookup")));
   });
   it("userLookup: cada uno escribe su entrada, con el email de su token", async () => {
-    const me = as("alice", { email: "Alice@x.com" });
+    const me = as("alice", { email: "Alice@x.com", email_verified: true });
     await assertSucceeds(setDoc(doc(me, "userLookup", "alice@x.com"), { uid: "alice" }));
   });
   it("userLookup: no se puede registrar el email de otro ni suplantar el uid", async () => {
-    const me = as("carol", { email: "carol@x.com" });
+    const me = as("carol", { email: "carol@x.com", email_verified: true });
     await assertFails(setDoc(doc(me, "userLookup", "alice@x.com"), { uid: "carol" }));
     await assertFails(setDoc(doc(me, "userLookup", "carol@x.com"), { uid: "alice" }));
   });
@@ -266,5 +267,126 @@ describe("userLookup e inviteCodes", () => {
   it("inviteCodes: cualquiera con sesión lo lee por clave", async () => {
     await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "inviteCodes", "ABC123"), { gid: "g1", createdBy: "alice" }); });
     await assertSucceeds(getDoc(doc(as("carol"), "inviteCodes", "ABC123")));
+  });
+});
+
+// ─── AUDITORÍA (2026-11): cada ataque que funcionaba contra la primera versión del borrador ───
+// «ataque» = debe FALLAR; «legítimo» = debe seguir funcionando.
+describe("auditoría: grupos (A1, A5)", () => {
+  it("ataque A1: crear un grupo con otra persona dentro", async () => {
+    await assertFails(setDoc(doc(as("carol"), "groups", "gX"), { name: "x", createdBy: "carol", members: ["carol", "alice"] }));
+  });
+  it("ataque A1: el creador de un grupo ajeno no puede añadirse gente después", async () => {
+    await assertFails(updateDoc(doc(as("alice"), "groups", "g1"), { members: ["alice", "bob", "carol"] }));
+  });
+  it("ataque A1: sin código ni invitación no se entra a un grupo", async () => {
+    await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"] }));
+    await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"], joinCode: "MALO00" }));
+  });
+  it("ataque A1: tampoco con una invitación fabricada por alguien de fuera", async () => {
+    await assertFails(setDoc(doc(as("carol"), "groupInvites", "g1_carol"), { gid: "g1", fromUid: "carol", toUid: "carol", status: "pending" }));
+  });
+  it("ataque A5: unirse con código expulsando a otro miembro", async () => {
+    await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "carol", "dave"], joinCode: "ABC123" }));
+  });
+  it("ataque A5: unirse con código añadiendo además a otra persona", async () => {
+    await assertFails(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol", "dave"], joinCode: "ABC123" }));
+  });
+  it("legítimo: crear un grupo con uno mismo", async () => {
+    await assertSucceeds(setDoc(doc(as("carol"), "groups", "gC"), { name: "mío", createdBy: "carol", members: ["carol"], inviteCode: "CAR123" }));
+  });
+  it("legítimo: unirse con el código correcto (solo uno mismo)", async () => {
+    await assertSucceeds(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"], joinCode: "ABC123" }));
+  });
+  it("legítimo: unirse con una invitación pendiente de un miembro (sin código)", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), "groupInvites", "g1_carol"), { gid: "g1", fromUid: "alice", toUid: "carol", status: "pending" }));
+    await assertSucceeds(updateDoc(doc(as("carol"), "groups", "g1"), { members: ["alice", "bob", "carol"] }));
+  });
+  it("legítimo: el creador renombra y expulsa; un miembro puede salir", async () => {
+    await assertSucceeds(updateDoc(doc(as("alice"), "groups", "g1"), { name: "nuevo" }));
+    await assertSucceeds(updateDoc(doc(as("alice"), "groups", "g1"), { members: ["alice"] }));
+    await assertSucceeds(updateDoc(doc(as("eve"), "groups", "g2"), { members: ["alice"] }));
+  });
+});
+
+describe("auditoría: reacciones (A2, A4)", () => {
+  it("ataque A2: un amigo no puede tocar las reacciones de otros en una caca", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await updateDoc(doc(c.firestore(), "users", "alice", "cacas", "c1"), { reactions: { eve: ["👏"] } }); });
+    await assertFails(updateDoc(doc(as("bob"), "users", "alice", "cacas", "c1"), { reactions: { bob: ["💩"] } }));
+  });
+  it("legítimo: un amigo reacciona con SU entrada (también si la caca no tenía `reactions`)", async () => {
+    await assertSucceeds(updateDoc(doc(as("bob"), "users", "alice", "cacas", "c1"), { "reactions.bob": ["💩"] }));
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", "alice", "cacas", "c2"), { uid: "alice", ts: 2 }); });
+    await assertSucceeds(updateDoc(doc(as("bob"), "users", "alice", "cacas", "c2"), { "reactions.bob": ["👏"] }));
+  });
+  it("ataque A4: alguien de fuera no reacciona a un mensaje ajeno", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => {
+      await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] });
+      await setDoc(doc(c.firestore(), "chats", "alice_bob", "messages", "m1"), { senderUid: "alice", text: "hola", reactions: {} });
+    });
+    await assertFails(updateDoc(doc(as("carol"), "chats", "alice_bob", "messages", "m1"), { reactions: { "🖕": ["carol"] } }));
+    await assertSucceeds(updateDoc(doc(as("bob"), "chats", "alice_bob", "messages", "m1"), { "reactions.👍": ["bob"] }));
+  });
+});
+
+describe("auditoría: chats (A3)", () => {
+  it("ataque A3: abrir un chat privado con alguien que no es amigo", async () => {
+    await assertFails(setDoc(doc(as("carol"), "chats", "alice_carol"), { type: "dm", members: ["alice", "carol"] }));
+  });
+  it("ataque A3: tampoco con una solicitud solo pendiente", async () => {
+    await assertFails(setDoc(doc(as("dave"), "chats", "alice_dave"), { type: "dm", members: ["alice", "dave"] }));
+  });
+  it("ataque A3: un id de chat que no corresponde a sus miembros", async () => {
+    await assertFails(setDoc(doc(as("alice"), "chats", "spam"), { type: "dm", members: ["alice", "bob"] }));
+  });
+  it("legítimo: DM entre amigos aceptados y mensaje", async () => {
+    await assertSucceeds(setDoc(doc(as("alice"), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }, { merge: true }));
+    await assertSucceeds(setDoc(doc(as("bob"), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }, { merge: true }));   // reabrirlo
+    await assertSucceeds(addDoc(collection(as("alice"), "chats", "alice_bob", "messages"), { senderUid: "alice", text: "hey" }));
+  });
+  it("ataque: ampliar `members` de un DM con un tercero", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }); });
+    await assertFails(updateDoc(doc(as("alice"), "chats", "alice_bob"), { members: ["alice", "bob", "carol"] }));
+  });
+  it("chat de grupo: lo crea un miembro, `members` no sale del grupo, y se resincroniza", async () => {
+    await assertFails(setDoc(doc(as("carol"), "chats", "g1"), { type: "group", members: ["carol"] }));              // no es miembro
+    await assertSucceeds(setDoc(doc(as("alice"), "chats", "g1"), { type: "group", members: ["alice", "bob"] }, { merge: true }));
+    await assertFails(setDoc(doc(as("alice"), "chats", "g1"), { type: "group", members: ["alice", "bob", "carol"] }, { merge: true }));
+  });
+});
+
+describe("auditoría: conexión de tuberías (A6)", () => {
+  const join = (uid, extra = []) => ({ participantUids: ["alice", uid], participants: [{ uid: "alice" }, { uid }], audience: ["alice", "bob", uid, ...extra], lastTs: 2 });
+  it("ataque A6: un extraño no puede colarse en la audiencia", async () => {
+    await assertFails(updateDoc(doc(as("carol"), "activity", "s1"), join("carol", ["dave"])));
+  });
+  it("ataque A6: quitar a gente de la audiencia", async () => {
+    await assertFails(updateDoc(doc(as("bob"), "activity", "s1"), { participantUids: ["alice", "bob"], participants: [{ uid: "alice" }, { uid: "bob" }], audience: ["bob"], lastTs: 2 }));
+  });
+  it("legítimo: alguien de la audiencia se une", async () => {
+    await assertSucceeds(updateDoc(doc(as("bob"), "activity", "s1"), join("bob")));
+  });
+  it("legítimo: un amigo del fundador que aún no estaba en la audiencia también", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "friendships", "alice_zed"), { uids: ["alice", "zed"], status: "accepted" }); });
+    await assertSucceeds(updateDoc(doc(as("zed"), "activity", "s1"), join("zed")));
+  });
+});
+
+describe("auditoría: email y push (A7, A8)", () => {
+  it("ataque A7: reclamar un email SIN verificar", async () => {
+    await assertFails(setDoc(doc(as("carol", { email: "carol@x.com", email_verified: false }), "userLookup", "carol@x.com"), { uid: "carol" }));
+    await assertFails(setDoc(doc(as("carol", { email: "carol@x.com" }), "userLookup", "carol@x.com"), { uid: "carol" }));
+  });
+  it("legítimo: con email verificado (Google, o tras verificarlo)", async () => {
+    await assertSucceeds(setDoc(doc(as("carol", { email: "carol@x.com", email_verified: true }), "userLookup", "carol@x.com"), { uid: "carol" }));
+  });
+  const push = (from, to, type) => ({ fromUid: from, toUid: to, type, title: "t", body: "b", sent: false, ts: 1 });
+  it("ataque A8: con solicitud pendiente solo cabe el aviso de la propia solicitud", async () => {
+    await assertFails(addDoc(collection(as("dave"), "pushQueue"), push("dave", "alice", "sync")));
+    await assertFails(addDoc(collection(as("dave"), "pushQueue"), push("dave", "alice", "chat_message")));
+  });
+  it("legítimo: el aviso de la solicitud pendiente; y a amigos aceptados, cualquier tipo", async () => {
+    await assertSucceeds(addDoc(collection(as("dave"), "pushQueue"), push("dave", "alice", "friend_request")));
+    await assertSucceeds(addDoc(collection(as("bob"), "pushQueue"), push("bob", "alice", "reaction")));
   });
 });

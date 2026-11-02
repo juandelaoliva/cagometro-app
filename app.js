@@ -17,11 +17,14 @@ import {
   watchChats, watchMessages, loadOlderMessages, reactToMessage, notifyNewMessage, setChatMuted,
   replySnapshot,
   getGroup,
-  saveBristol, setBristolMode, setBristolOnboarded, STATS_V
+  saveBristol, setBristolMode, setBristolOnboarded, STATS_V,
+  cacasEntre, actividadEntre
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
 import { FUN_FACTS } from "./funfacts.js";
+import { RECAP_V, mesDelRecap, mesAnterior, recapPersonal, recapGrupo } from "./recap.js";
+import * as Recap from "./recap-player.js";
 
 const $ = id => document.getElementById(id);
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
@@ -375,6 +378,7 @@ function showApp(){
     lastTotal=total;
     syncDeviceInfo();
     maybeShowYearRecap();
+    renderRecapEntry(); renderNotifBadge();
   });
   $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
   loadActivity();
@@ -675,12 +679,131 @@ function maybeShowYearRecap(){
 }
 $("yearRecapGotIt").addEventListener("click", ()=>{ $("yearRecapSheet").hidden = true; });
 
+/* ---------- recap mensual: el mes pasado, contado como una historia ----------
+   Nadie lo genera: cada móvil calcula el suyo (recap.js) la primera vez que se abre,
+   con las mismas lecturas que ya hace la app, y lo guarda en el propio móvil. El día 1
+   de cada mes aparece solo, en la campana y en Inicio. Siempre se puede volver a ver
+   desde la campana y desde el perfil. */
+const _mesRecap = () => mesDelRecap();
+const _nombreMes = m => new Date(m.y, m.m, 1).toLocaleDateString(getLang()==="en"?"en-GB":"es-ES", { month:"long" });
+// ¿hay recap tuyo? Basta con haber registrado algo el mes pasado (contador: cero lecturas)
+const _tieneRecap = () => (me?.countsByMonth?.[_mesRecap().key] || 0) > 0;
+// visto/no visto vive en TU doc, no en el móvil: un aviso con la puerta en localStorage
+// reaparece en cada dispositivo nuevo, que es justo lo que pasó con los avisos viejos
+const _recapPendiente = () => _tieneRecap() && me?.recapSeen !== _mesRecap().key;
+// La tarjeta de Inicio dura hasta el día 5, aunque ya lo hayas visto, salvo que la
+// quites con la ✕. Quitarla también va a tu doc (recapHomeDismissed), por lo mismo.
+const RECAP_HOME_HASTA = 5;
+const _recapEnInicio = () => _tieneRecap() && new Date().getDate() <= RECAP_HOME_HASTA
+  && me?.recapHomeDismissed !== _mesRecap().key;
+function renderRecapEntry(){
+  const month=_nombreMes(_mesRecap());
+  const home=$("recapHomeWrap");
+  home.hidden = !_recapEnInicio();
+  if(!home.hidden){
+    $("recapHomeTitle").textContent = t('recap.notif.title', { month });
+    $("recapHomeSub").textContent = t('recap.home.sub');
+  }
+  // en el perfil, todo el mes
+  const prof=$("recapProfileCard");
+  prof.hidden = !_tieneRecap();
+  if(!prof.hidden){
+    $("recapProfileTitle").textContent = t('recap.profile.title', { month });
+    $("recapProfileSub").textContent = t('recap.notif.sub');
+  }
+}
+$("recapHomeCard").addEventListener("click", ()=>openMyRecap());
+$("recapProfileCard").addEventListener("click", ()=>openMyRecap());
+$("recapHomeDismiss").addEventListener("click", ()=>{
+  $("recapHomeWrap").hidden = true;
+  updateMe(uid, { recapHomeDismissed: _mesRecap().key }).catch(()=>{});
+});
+
+// Caché en el móvil. Lleva el contador del mes con el que se calculó: si después entra
+// una caca olvidada o se deshace una, el contador cambia y se recalcula solo.
+const _recapKey = k => `cago_recap_${RECAP_V}_${k}`;
+function _recapLee(k, cnt){ try{ const v=JSON.parse(localStorage.getItem(_recapKey(k))||"null"); return v && v._cnt===cnt ? v : null; }catch{ return null; } }
+function _recapGuarda(k, v){ try{ localStorage.setItem(_recapKey(k), JSON.stringify(v)); }catch{} }
+// el feed del mes (~600 lecturas) se comparte entre tu recap y los de tus grupos
+let _actMes=null;
+function _actividadDelMes(mes){
+  const k = uid+"_"+mes.key;
+  if(_actMes?.k !== k){
+    const p = actividadEntre(uid, mes.from, mes.to);
+    _actMes = { k, p };
+    p.catch(()=>{ if(_actMes?.p===p) _actMes=null; });   // si falla, el siguiente intento vuelve a leer
+  }
+  return _actMes.p;
+}
+
+async function openMyRecap(){
+  if(!uid || !me || !_tieneRecap()) return;
+  const mes=_mesRecap(), cnt=me.countsByMonth?.[mes.key]||0, k=`${uid}_${mes.key}`;
+  if(me.recapSeen !== mes.key) updateMe(uid, { recapSeen: mes.key }).catch(()=>{});
+  const opts = { hayGrupos: myGroupsCache.length>0, onAccion: a => { if(a==="grupos") setView("grupos"); } };
+  const cache=_recapLee(k, cnt);
+  if(cache){ Recap.abrir(cache, opts); return; }
+  Recap.abrirCargando(t('recap.loading.me', { month: _nombreMes(mes) }));
+  try{
+    // amigos y grupos salen del grafo que ya carga la app; si aún no está, se leen aquí
+    // (si no, un toque muy rápido al arrancar dejaría guardado un puesto sin amigos)
+    let amigos=_friendsDocs, grupos=myGroupsCache;
+    if(!_graphAt) [amigos, grupos] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
+    const [cacas, activity] = await Promise.all([ cacasEntre(uid, mes.from, mes.to), _actividadDelMes(mes) ]);
+    // los miembros de tus grupos casi siempre son ya amigos (unirse a un grupo te hace
+    // amigo de todos); los pocos que no, se leen sueltos para el puesto en el grupo
+    const usuarios = new Map(amigos.map(a=>[a.id,a]));
+    const faltan=[...new Set(grupos.flatMap(g=>g.members||[]))].filter(m=>m!==uid && !usuarios.has(m));
+    (await Promise.all(faltan.map(m=>getUser(m).catch(()=>null)))).forEach(u=>{ if(u) usuarios.set(u.id,u); });
+    const data = recapPersonal({ uid, nombre: me.displayName||"", mes, cacas, activity, amigos, grupos,
+      usuarios: Object.fromEntries(usuarios), anterior: me.countsByMonth?.[mesAnterior(mes).key]||0 });
+    data._cnt=cnt; _recapGuarda(k, data);
+    if(Recap.estaAbierto()) Recap.abrir(data, opts);   // si lo cerró mientras cargaba, no se reabre
+  }catch(e){
+    console.error("recap:", e);
+    if(Recap.estaAbierto()) Recap.abrirError(t('recap.error'));
+  }
+}
+
+// la tarjeta del grupo: sale si el grupo registró algo el mes pasado (con los docs que
+// ya ha leído la clasificación, sin lecturas extra)
+function _pintaRecapGrupo(group, board){
+  const card=$("groupRecapCard"); if(!card || activeGroup!==group) return;
+  const mes=_mesRecap();
+  const cnt=board.reduce((s,u)=>s+(u.countsByMonth?.[mes.key]||0), 0);
+  card.hidden = !cnt;
+  if(!cnt) return;
+  $("groupRecapTitle").textContent=t('recap.group.card', { month:_nombreMes(mes), group:group.name });
+  $("groupRecapSub").textContent=t('recap.group.sub');
+  card.onclick=()=>openGroupRecap(group, board, cnt);
+}
+async function openGroupRecap(group, board, cnt){
+  const mes=_mesRecap(), k=`g_${group.id}_${mes.key}`;
+  const cache=_recapLee(k, cnt);
+  if(cache){ Recap.abrir(cache); return; }
+  Recap.abrirCargando(t('recap.loading.group', { month:_nombreMes(mes), group:group.name }));
+  try{
+    const [porMiembro, activity] = await Promise.all([
+      Promise.all((group.members||[]).map(m=>cacasEntre(m, mes.from, mes.to).catch(()=>[]))),
+      _actividadDelMes(mes),
+    ]);
+    const data = recapGrupo({ grupo:group, mes, cacas:porMiembro.flat(),
+      usuarios:Object.fromEntries(board.map(u=>[u.id,u])), activity });
+    data._cnt=cnt; _recapGuarda(k, data);
+    if(Recap.estaAbierto()) Recap.abrir(data);
+  }catch(e){
+    console.error("recap grupo:", e);
+    if(Recap.estaAbierto()) Recap.abrirError(t('recap.error'));
+  }
+}
+
 function paintProgress(total){ const lo=prevMilestone(total),hi=nextMilestone(total);
   $("meProgressFill").style.width=Math.min(100,Math.round(((total-lo)/(hi-lo||1))*100))+"%";
   $("meProgressLabel").textContent=t('progress.label',{n:hi-total,milestone:hi}); }
 
 let homeFeedData=[], feedShown=0; const FEED_PAGE=20;
 let _graph={ audience:[], groups:[] };   // grafo social cacheado para escribir eventos de actividad
+let _friendsDocs=[];                     // docs de tus amigos (los guarda el grafo; el recap saca de aquí el puesto)
 // metadatos para el evento de actividad (lo escribe el store de forma transaccional)
 const actMeta = () => ({
   name: me?.displayName||"", color: me?.color||colorForUid(uid),
@@ -744,6 +867,7 @@ async function loadActivity(mode){
       _graphPromise = new Promise(r => { resolveGraph = r; });
       try{
         const [friends, groups] = await Promise.all([ getFriends(uid), myGroups(uid) ]);
+        _friendsDocs = friends;
         friendNames={}; friends.forEach(f=>{ friendNames[f.id]=f.displayName; });
         _myGroupIds = new Set(groups.map(g=>g.id)); myGroupsCache=groups;
         _graph = {
@@ -1255,8 +1379,9 @@ $("heatAnncTry").addEventListener("click", ()=>{ $("heatAnncSheet").hidden=true;
    Se quitó entero en vez de dejarlo apagado porque su puerta era localStorage, así que
    volvía a saltar en cada dispositivo nuevo por muy viejo que fuera el anuncio. */
 $("notifBody").addEventListener("click", e=>{
-  if(!e.target.closest("[data-annc]")) return;
-  $("notifSheet").hidden=true; openHeatAnnc();
+  const a=e.target.closest("[data-annc]"); if(!a) return;
+  $("notifSheet").hidden=true;
+  if(a.dataset.annc==="recap") openMyRecap(); else openHeatAnnc();
 });
 function _closeNotifPrompt(action){
   $("notifPromptSheet").hidden=true;
@@ -1301,7 +1426,7 @@ function startNotifications(){
 }
 function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; notifSync=[]; syncBaseline=null; unseenSync=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
-function renderNotifBadge(){ const annc=(_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0; const n=notifReqs.length+notifGroupInvites.length+unseenRx+unseenSync+annc; const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
+function renderNotifBadge(){ const annc=(_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0; const n=notifReqs.length+notifGroupInvites.length+unseenRx+unseenSync+annc+(_recapPendiente()?1:0); const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
 const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
@@ -1320,6 +1445,8 @@ function renderNotifSheet(){
     return `<li class="notif-rx"><span class="notif-rx__e">🔗</span><span class="feed__txt">${txt}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`;
   }).join("");
   let html="";
+  // el recap del mes pasado: arriba del todo y todo el mes, para poder volver a verlo
+  if(_tieneRecap()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc notif-annc--recap" data-annc="recap"><span class="notif-annc__e">🎉</span><span class="nm"><b>${t('recap.notif.title',{month:_nombreMes(_mesRecap())})}</b><small>${t('recap.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(_heatAnncActive()) html+=`<div class="notif-sec"><ul class="reqlist"><li class="notif-annc" data-annc="heat"><span class="notif-annc__e">🔥</span><span class="nm"><b>${t('heatannc.notif.title')}</b><small>${t('heatannc.notif.sub')}</small></span><span class="notif-annc__go">›</span></li></ul></div>`;
   if(reqs)    html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.requests')}</h4><ul class="reqlist">${reqs}</ul></div>`;
   if(ginvites)html+=`<div class="notif-sec"><h4 class="notif-h">${t('notif.section.groupinvites')}</h4><ul class="reqlist">${ginvites}</ul></div>`;
@@ -1883,7 +2010,9 @@ async function openGroup(group){
   $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
   $("groupDetailName").textContent=group.name;
   $("groupAdminBtn").hidden = (group.createdBy !== uid);
+  $("groupRecapCard").hidden = true;            // que no se vea la del grupo anterior mientras carga
   const board=await groupLeaderboard(group);
+  _pintaRecapGrupo(group, board);
   const year=new Date().getFullYear(), curMonth=new Date().getMonth();
   const ws=new Date(); ws.setHours(0,0,0,0); ws.setDate(ws.getDate()-((ws.getDay()+6)%7)); const weekStart=ws.getTime();
 
@@ -2179,7 +2308,7 @@ document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState=
 window.addEventListener("focus", refreshActiveView);
 
 /* ---------- botón atrás (Android/web): cierra capas → va a Inicio ---------- */
-const OVERLAY_IDS=["yearRecapSheet","settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","chatSettingsSheet","menuSheet","mapSheet","friendInviteSheet"];
+const OVERLAY_IDS=["recapStory","yearRecapSheet","settingsSheet","adminSheet","notifSheet","psSheet","reactSheet","lateSheet","locateSheet","chatSettingsSheet","menuSheet","mapSheet","friendInviteSheet"];
 function closeOverlays(){ let any=false; for(const id of OVERLAY_IDS){ const e=$(id); if(e && !e.hidden){ e.hidden=true; any=true; } } return any; }
 const curView = () => document.querySelector(".view.is-active")?.dataset.view;
 // "trap": una entrada extra en el historial para capturar el back y no salir de la PWA
@@ -2261,7 +2390,7 @@ if(_standalone){
   // Incluye el chat (.chat-view): mientras esté abierto, el pull-to-refresh NO debe
   // intervenir, porque su preventDefault() bloquearía el scroll interno de la lista
   // de mensajes al intentar subir (dedo hacia abajo).
-  const overlayOpen=()=> !!document.querySelector(".sheet:not([hidden]),.mapsheet:not([hidden]),.gate:not([hidden]),.chat-view:not([hidden])");
+  const overlayOpen=()=> !!document.querySelector(".sheet:not([hidden]),.mapsheet:not([hidden]),.gate:not([hidden]),.chat-view:not([hidden]),.rc-story:not([hidden])");
   const reset=()=>{ ptr.classList.remove("refreshing"); ptr.style.transition="transform .25s,opacity .25s"; ptr.style.transform="translateY(-54px)"; ptr.style.opacity="0"; };
   document.addEventListener("touchstart", e=>{
     if(e.touches.length!==1 || !uid || !atTop() || overlayOpen()){ active=false; return; }
@@ -2774,7 +2903,7 @@ function applyLang(){
   const _l=getLang();
   document.querySelectorAll("#langSel button,#gateLangSel button").forEach(x=>x.classList.toggle("on",x.dataset.lang===_l));
   // re-run dynamic painters if already mounted
-  if(uid){ paintProgress(yearCountOf(me)); renderFeedChips(); renderFeed(); renderLocSel(me?.locationMode); }
+  if(uid){ paintProgress(yearCountOf(me)); renderFeedChips(); renderFeed(); renderLocSel(me?.locationMode); renderRecapEntry(); }
 }
 
 applyMode();

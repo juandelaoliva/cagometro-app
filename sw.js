@@ -14,7 +14,9 @@ const ASSETS = [
 self.addEventListener("install", e => {
   // Precarga el shell, pero NO hace skipWaiting automático: el cliente decide
   // cuándo activar la versión nueva (evita servir un shell mezclado/a medias).
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).catch(()=>{}));
+  // `cache:"reload"`: se salta la caché HTTP del navegador (GitHub Pages sirve con max-age=600): sin esto, un móvil que abrió la app hace menos de 10 min
+  // guardaría en la caché NUEVA los archivos VIEJOS y la actualización no se vería hasta pasado ese rato.
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: "reload" })))).catch(()=>{}));
 });
 
 self.addEventListener("message", e => {
@@ -34,7 +36,7 @@ self.addEventListener("fetch", e => {
   if (e.request.method !== "GET") return;
   if (url.origin !== location.origin) return;   // Firebase/Google CDN → directo a red
   e.respondWith(
-    fetch(e.request).then(res => {
+    fetch(e.request, { cache: "no-cache" }).then(res => {          // revalida con el servidor (barato: 304) en vez de fiarse de la caché HTTP de 10 min
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(e.request, copy));
       return res;

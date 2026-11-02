@@ -7,7 +7,8 @@ cd "$(dirname "$0")"
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 # bump del nombre de caché del SW → fuerza un service worker nuevo en los clientes
-sed -i '' -E "s/const CACHE = \"cagometro-[^\"]*\";/const CACHE = \"cagometro-${STAMP}\";/" sw.js
+# (-i.bak + rm: funciona igual con el sed de macOS y el de Linux)
+sed -i.bak -E "s/const CACHE = \"cagometro-[^\"]*\";/const CACHE = \"cagometro-${STAMP}\";/" sw.js && rm -f sw.js.bak
 
 git add -A
 git commit -q -m "${1:-deploy} (sw ${STAMP})"

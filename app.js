@@ -77,6 +77,9 @@ const SMALL_MS = [10,25,50,75];
 const isMilestone = n => SMALL_MS.includes(n) || (n>=100 && n%50===0);
 const nextMilestone = n => { for(const m of SMALL_MS) if(m>n) return m; return n<100 ? 100 : (Math.floor(n/50)+1)*50; };
 const prevMilestone = n => { let p=0; for(const m of SMALL_MS) if(m<=n) p=m; if(n>=100) p=Math.max(p, Math.floor(n/50)*50); return p; };
+// Escapado para meter TEXTO AJENO (nombres, mensajes…) en innerHTML o en un atributo entre comillas. Todo lo que viene de Firestore lo puede haber escrito
+// cualquier usuario: sin esto, un nombre como <img src=x onerror=…> se ejecutaría en el móvil de quien lo vea (XSS).
+const _aesc = s => String(s??"").replace(/[<>&"']/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
 const initial = s => (s||"?").trim().charAt(0).toUpperCase();
 const DAY = 86400000;
 const startOfToday = () => { const d=new Date(); d.setHours(0,0,0,0); return d.getTime(); };
@@ -91,7 +94,7 @@ function liveStreak(streak, lastCacaTs){
   const diffDays = Math.round((startOfToday()-d.getTime())/DAY);
   return diffDays<=1 ? streak : 0;
 }
-const av = (name,color) => `<span class="av" style="background:${color||'#6E3F1C'}">${initial(name)}</span>`;
+const av = (name,color) => `<span class="av" style="background:${_aesc(color||'#6E3F1C')}">${_aesc(initial(name))}</span>`;
 const _meses=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 function fmtWhen(ts){
   const diff=Date.now()-ts;
@@ -461,7 +464,7 @@ $("gateLangSel").addEventListener("click", _onLangClick);
 /* ---------- panel admin (solo ADMIN_UID; reglas lo respaldan) ---------- */
 // ── Panel de administración (solo admin) ────────────────────────────────────
 let _adminData=null, _adminTab="users", _adminQuery="";
-const _aesc = s => String(s??"").replace(/[<>&"]/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+// (_aesc vive arriba, junto a `initial`)
 const _aName = id => _adminData?.usersById?.[id]?.displayName || (id||"?").slice(0,6);
 const _ayn = v => v ? "✅" : "❌";
 const _aDate = ts => { if(!ts) return "nunca"; try{ return fmtFull(ts); }catch{ return "—"; } };
@@ -513,7 +516,7 @@ function _adminUserCard(u){
   const fChips=friends.map(fu=>`<span class="admin-chip">${_aesc(_aName(fu))}</span>`).join("") || `<span class="admin-muted">—</span>`;
   return `<div class="admin-user">
     <div class="adminrow adminrow--head" data-atoggle="${u.id}">
-      <span class="av" style="background:${u.color||colorForUid(u.id)}">${initial(u.displayName)}</span>
+      <span class="av" style="background:${_aesc(u.color||colorForUid(u.id))}">${_aesc(initial(u.displayName))}</span>
       <div class="adminrow__txt"><b>${_aesc(u.displayName||"?")}</b><small>${_aesc(u.email||"—")} · ${yearCountOf(u)} 💩</small></div>
       <span class="admin-chevron">▾</span>
     </div>
@@ -533,7 +536,7 @@ function _adminUserCard(u){
       <div class="admin-kv admin-kv--wrap"><span>👥 Amigos (${friends.length})</span><div class="admin-chips">${fChips}</div></div>
       <div class="admin-kv admin-kv--wrap"><span>🏆 Grupos (${groups.length})</span><div class="admin-chips">${gChips}</div></div>
       ${u.id===uid?`<span class="adminrow__you">${t('admin.users.you')}</span>`
-        :`<button class="btn-ghost btn-ghost--danger" data-wipe="${u.id}" data-name="${(u.displayName||"").replace(/"/g,"")}">${t('admin.users.wipe')}</button>`}
+        :`<button class="btn-ghost btn-ghost--danger" data-wipe="${u.id}" data-name="${_aesc(u.displayName||"")}">${t('admin.users.wipe')}</button>`}
     </div>
   </div>`;
 }
@@ -972,7 +975,7 @@ function feedGroups(){
 function renderFeedChips(){
   const base=[["all",t('feedchip.all')],["me",t('feedchip.me')],["friends",t('feedchip.friends')]];
   const chips=base.map(([k,l])=>`<button class="ychip ${feedScope===k?'on':''}" data-fscope="${k}">${l}</button>`)
-    .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${g.gid}">🏆 ${g.name}</button>`));
+    .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${_aesc(g.gid)}">🏆 ${_aesc(g.name)}</button>`));
   $("feedChips").innerHTML=chips.join("");
 }
 // una conexión/combo solo la ves si eres participante o amigo de TODOS los participantes
@@ -1009,7 +1012,7 @@ $("feedSearchBtn").addEventListener("click", ()=>{
   else if(feedQ){ feedQ=""; inp.value=""; feedShown=FEED_PAGE; renderFeed(); }   // al cerrar, limpia el filtro
 });
 // Solo etiqueta de grupo (todo el que aparece en tu actividad ya es amigo)
-const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${c.name}</span>` : "";
+const _ctxChip=c=> c.type==="group" ? `<span class="cc cc--group">${_aesc(c.name)}</span>` : "";
 // normaliza el valor de reacción de un usuario (compat: datos antiguos eran string)
 const asArr = v => Array.isArray(v) ? v : (v ? [v] : []);
 // fila de reacciones (chips agregados por emoji + botón para reaccionar)
@@ -1033,7 +1036,7 @@ function _feedItem(c,i){
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
   let head, nBadge="", sys=false, reactable=true, syncHi=false, syncTrail="";
-  const _n=`<b>${c.name}</b>`, _wn=`<b>${c.withName}</b>`;
+  const _n=`<b>${_aesc(c.name)}</b>`, _wn=`<b>${_aesc(c.withName)}</b>`;
   if(c.kind==="undo"){
     head = mine ? t('feed.undo.mine') : t('feed.undo.other',{name:_n}); sys=true; reactable=false;
   } else if(c.kind==="reset"){
@@ -1051,7 +1054,7 @@ function _feedItem(c,i){
         if(!prev || (p.joinedTs||0) < (prev.joinedTs||0)) byU.set(p.uid, p);
       }
       const ordered=[...byU.values()].sort((a,b)=>(a.joinedTs||0)-(b.joinedTs||0));
-      const pName=p=> p.uid===uid ? t('rx.me') : (friendNames[p.uid]||p.name||t('fallback.someone'));
+      const pName=p=> p.uid===uid ? t('rx.me') : _aesc(friendNames[p.uid]||p.name||t('fallback.someone'));
       const others=ordered.filter(p=>p.uid!==uid).map(pName);
       const iAmIn=c.participantUids.includes(uid);
       if(n>=3){
@@ -1087,7 +1090,7 @@ function _feedItem(c,i){
   const isHito = c.kind!=="undo"&&c.kind!=="reset"&&c.kind!=="sync"&&!c.late&&isMilestone(c.n);
   const cls = `feed__item${isHito?' feed__item--hito':''}${syncHi?' feed__item--sync':''}${sys?' feed__item--sys':''}`;
   return `<li class="${cls}" data-i="${i}">
-    <span class="av" style="background:${c.color}">${initial(c.name)}</span>
+    <span class="av" style="background:${_aesc(c.color)}">${_aesc(initial(c.name))}</span>
     <div class="feed__body">
       <div class="feed__line">${head} ${nBadge}</div>
       ${syncTrail?`<div class="feed__sub">${syncTrail}</div>`:""}
@@ -1179,7 +1182,7 @@ async function showReactors(chip){
   if(anon>0) txt += (txt?" y ":"") + (anon===1?t('rx.anon.one'):t('rx.anon.many',{n:anon}));
   if(!txt) txt=t('rx.nobody');
   const tip=document.createElement("div"); tip.className="rxtip";
-  tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${txt}`;
+  tip.innerHTML=`<span class="rxtip__e">${_aesc(emoji)}</span> ${_aesc(txt)}`;
   document.body.appendChild(tip);
   const rect=chip.getBoundingClientRect();
   tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, rect.left)) + "px";
@@ -1439,9 +1442,9 @@ async function resolveName(ru){
   catch{ return t('fallback.someone'); }
 }
 function renderNotifSheet(){
-  const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${r.name}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${r.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
-  const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${inv.groupName}</b><small>${t('notif.groupinvite.from',{name:inv.fromName})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
-  const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_notifName(v.reactorUid)}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
+  const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${_aesc(r.name)}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${_aesc(r.id)}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
+  const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${_aesc(inv.groupName)}</b><small>${t('notif.groupinvite.from',{name:_aesc(inv.fromName)})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
+  const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_aesc(_notifName(v.reactorUid))}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
   const sy=notifSync.slice(0,20).map(v=>{
     const txt = v.n>=3 ? t('notif.sync.many',{n:v.n, names:v.names.slice(0,3).join(", ")})
                        : t('notif.sync.two',{a:v.names[0]||t('fallback.someone'), b:v.names[1]||t('fallback.someone')});
@@ -1513,7 +1516,7 @@ async function openPersonSheet(entry, opts={}){
     const w=(a,b)=>a>b?"cmp-win":"", wt=(a,b)=>a>b?"cmp-win":"";
     cmpEl.hidden=false;
     cmpEl.innerHTML=`
-      <div class="cmp-names"><span>${myName}</span><span>${theirName}</span></div>
+      <div class="cmp-names"><span>${_aesc(myName)}</span><span>${_aesc(theirName)}</span></div>
       <div class="cmp-row"><span class="cmp-val ${w(myMon,monthly[cm])}">${myMon}<span class="cmp-meta">${t('person.cmp.month')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(monthly[cm],myMon)}">${monthly[cm]}<span class="cmp-meta">${t('person.cmp.month')}</span></span></div>
       <div class="cmp-row"><span class="cmp-val ${w(myYear,year)}">${myYear}<span class="cmp-meta">${t('person.cmp.year')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(year,myYear)}">${year}<span class="cmp-meta">${t('person.cmp.year')}</span></span></div>
       <div class="cmp-row"><span class="cmp-val ${w(+myAvg,+theirAvg)}">${myAvg}<span class="cmp-meta">${t('person.cmp.avg')}</span></span><span class="cmp-sep">vs</span><span class="cmp-val ${w(+theirAvg,+myAvg)}">${theirAvg}<span class="cmp-meta">${t('person.cmp.avg')}</span></span></div>
@@ -1538,11 +1541,11 @@ async function openPersonSheet(entry, opts={}){
   const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
   $("psGroupsWrap").hidden = !shared.length;
-  $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${g.id}">🏆 ${g.name}</button>`).join("");
+  $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${_aesc(g.id)}">🏆 ${_aesc(g.name)}</button>`).join("");
   // Mapa + Chat: dos tarjetas lado a lado (como en grupos). El mapa se atenúa si el
   // amigo no comparte su mapa (shareMap off).
   const mapCard = u?.shareMap !== false
-    ? `<button class="gact" id="psFriendMap" data-uid="${entry.uid}" data-name="${(entry.name||"").replace(/"/g,"")}" data-color="${entry.color||u?.color||""}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
+    ? `<button class="gact" id="psFriendMap" data-uid="${_aesc(entry.uid)}" data-name="${_aesc(entry.name||"")}" data-color="${_aesc(entry.color||u?.color||"")}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
     : `<button class="gact gact--off" disabled><span class="gact__ico">🔒</span><span>${t('person.map.privshort')}</span></button>`;
   const chatCard = `<button class="gact" data-pschat="1"><span class="gact__ico">💬</span><span>${t('chat.open.short')}</span></button>`;
   $("psActions").innerHTML = mapCard + chatCard;
@@ -1890,7 +1893,7 @@ function renderFriendsList(){
   const board=[{id:uid,displayName:me?.displayName,color:me?.color,countsByYear:me?.countsByYear}, ..._friends];
   if(friendSort==="alpha") board.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"","es",{sensitivity:"base"}));
   else board.sort((a,b)=>yearCountOf(b)-yearCountOf(a));
-  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${yearCountOf(r)}</span></li>`).join("")
+  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${_aesc(r.displayName||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${yearCountOf(r)}</span></li>`).join("")
     : `<li class="gempty">${t('amigos.empty')}</li>`;
 }
 async function renderAmigos(){
@@ -1903,12 +1906,12 @@ async function renderAmigos(){
   $("reqBlock").hidden = !pending.length;
   const incHtml=await Promise.all(incoming.map(async f=>{
     const other=await getUserLite(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.wantsyou')}</small></span>
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${_aesc(other?.displayName||"?")}<small>${t('amigos.req.wantsyou')}</small></span>
       <button class="btn-accept" data-accept="${f.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
   }));
   const outHtml=await Promise.all(outgoing.map(async f=>{
     const other=await getUserLite(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${other?.displayName||"?"}<small>${t('amigos.req.pending')}</small></span>
+    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${_aesc(other?.displayName||"?")}<small>${t('amigos.req.pending')}</small></span>
       <button class="btn-decline" data-cancel="${f.id}" aria-label="${t('amigos.req.cancel')}" title="${t('amigos.req.cancel')}">✕</button></li>`;
   }));
   $("reqList").innerHTML=[...incHtml,...outHtml].join("");
@@ -1988,7 +1991,7 @@ async function renderGrupos(){
     $("groupList").innerHTML = n ? groups.map(g=>`
       <li data-gid="${g.id}">
         <div class="ghead" data-gtoggle="${g.id}">
-          <span class="gname">${g.name}</span>
+          <span class="gname">${_aesc(g.name)}</span>
           <span class="gmeta">${(g.members||[]).length} 👤</span>
           <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
@@ -2037,7 +2040,7 @@ async function openGroup(group){
     const m=metricOf(period);
     const ranked=[...board].sort((a,b)=>m(b)-m(a));
     const yr=period!=='year';
-    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${r.displayName||"?"}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${yearCountOf(r)} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
+    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${_aesc(r.displayName||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${yearCountOf(r)} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
       || `<p class="notif-empty">${t('grupos.rank.empty')}</p>`;
   }
   const seg=$("rankPeriod");
@@ -2073,7 +2076,7 @@ function renderGroupStack(arr){
     let segs="";
     for(let i=11;i>=0;i--){ const v=m.months[i]; if(!v)continue; const h=Math.round(v/max*H);
       segs += `<div class="seg" style="height:${h}px;background:${MONTH_COLORS[i]}">${h>=15?`<span>${v}</span>`:""}</div>`; }
-    return `<div class="stackcol"><div class="stackbar">${segs}</div><div class="stacklbl">${m.name}<small>${m.total}</small></div></div>`;
+    return `<div class="stackcol"><div class="stackbar">${segs}</div><div class="stacklbl">${_aesc(m.name)}<small>${m.total}</small></div></div>`;
   }).join("") || `<p class="notif-empty">${t('grupos.stack.empty')}</p>`;
   // leyenda: solo meses con datos en el grupo
   const used=new Set(); arr.forEach(m=>m.months.forEach((v,i)=>{ if(v)used.add(i); }));
@@ -2102,7 +2105,7 @@ function tzParts(ts,tz){ const p=tzFmt(tz).formatToParts(new Date(ts)); const g=
 
 async function renderProfileGroups(){
   const gs = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
-  $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${g.id}">🏆 ${g.name}</button>`).join("");
+  $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${_aesc(g.id)}">🏆 ${_aesc(g.name)}</button>`).join("");
 }
 $("pGroups").addEventListener("click", e=>{
   const b=e.target.closest("[data-pgid]"); if(!b)return;
@@ -2559,7 +2562,7 @@ async function openMap(friend){
   const pColor = friend ? (friend.color||colorForUid(friend.uid)) : (me?.color||colorForUid(uid));
   const icon=pinIcon(pColor);
   _markers=pts.map(c=>{
-    const m=L.marker([c.lat,c.lng],{icon}).bindPopup(`<b>${pName}</b><br>${fmtFull(c.ts)}`).addTo(_map);
+    const m=L.marker([c.lat,c.lng],{icon}).bindPopup(`<b>${_aesc(pName)}</b><br>${fmtFull(c.ts)}`).addTo(_map);
     m._anio=_anioDe(c.ts); return m;   // el selector de año filtra por esto
   });
   hideMapLoading();
@@ -2612,7 +2615,7 @@ async function openGroupMap(group){
     const icon=pinIcon(info.color);
     _groupMarkers[u2]=info.pts.map(p=>{
       const m=L.marker([p.lat,p.lng],{icon}).addTo(_map);
-      m.bindPopup(`<b>${info.name}</b><br>${fmtFull(p.ts)}`);
+      m.bindPopup(`<b>${_aesc(info.name)}</b><br>${fmtFull(p.ts)}`);
       m._anio=_anioDe(p.ts);           // el selector de año filtra por esto
       _markers.push(m); return m;
     });
@@ -2633,7 +2636,7 @@ function renderMapLegend(byUid){
   $("mapLegendBtn").innerHTML=`👥 <span class="mlb__dots">${dots}</span><span>${t('map.legend.short')} · ${members.length}</span>`;
   $("mapLegendBtn").hidden=false;
   $("mapLegendList").innerHTML=members.map(([u,info])=>
-    `<button class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${u}"><span class="leg-chip__dot" style="background:${info.color}"></span>${info.name} · ${info.pts.length}</button>`
+    `<button class="leg-chip ${_legendHidden.has(u)?'off':''}" data-leguid="${_aesc(u)}"><span class="leg-chip__dot" style="background:${_aesc(info.color)}"></span>${_aesc(info.name)} · ${info.pts.length}</button>`
   ).join("");
 }
 /* Un único sitio donde se decide qué pin se ve. Hay DOS filtros que se combinan: el año
@@ -2952,7 +2955,7 @@ function _renderPickerList(filter=""){
     list.innerHTML=`<li class="notif-empty" style="padding:16px">${q ? "Sin resultados" : t('grupos.invite.friend.empty')}</li>`;
     return;
   }
-  list.innerHTML=shown.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${f.displayName}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${(f.displayName||"").replace(/"/g,"")}">${"Invitar"}</button></li>`).join("");
+  list.innerHTML=shown.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${_aesc(f.displayName)}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${_aesc(f.displayName||"")}">${"Invitar"}</button></li>`).join("");
 }
 async function openGroupInvitePicker(group){
   const sheet=$("groupInvitePickerSheet");
@@ -2999,10 +3002,10 @@ async function openGroupAdminSheet(){
     memberList.innerHTML = members.filter(Boolean).map(m => `
       <li style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
         ${av(m.displayName, m.color)}
-        <span class="nm" style="flex:1">${m.displayName||"—"}</span>
+        <span class="nm" style="flex:1">${_aesc(m.displayName||"—")}</span>
         ${m.id === uid ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Tú${m.id===activeGroup.createdBy?" · Admin":""}</span>`
           : m.id === activeGroup.createdBy ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Admin</span>`
-          : `<button class="btn-ghost btn-ghost--danger" style="font-size:13px;padding:5px 12px" data-kick="${m.id}" data-kick-name="${(m.displayName||"").replace(/"/g,"")}">Expulsar</button>`}
+          : `<button class="btn-ghost btn-ghost--danger" style="font-size:13px;padding:5px 12px" data-kick="${m.id}" data-kick-name="${_aesc(m.displayName||"")}">Expulsar</button>`}
       </li>`).join("");
   } catch(e){ memberList.innerHTML=`<li class="notif-empty" style="padding:12px">Error cargando miembros</li>`; }
 }
@@ -3138,8 +3141,8 @@ function _renderChatList(chats){
     const myLastRead = c.lastReadTs?.[uid]?.toMillis?.() ?? 0;
     const lastTs = c.lastTs?.toMillis?.() ?? (c.lastTs || 0);
     const hasUnread = lastTs > myLastRead && c.lastMessage?.senderUid !== uid;
-    const name = c.type === "group" ? (c.name || "Grupo") : (c.otherName || "Chat");
-    const preview = c.lastMessage ? `${c.lastMessage.senderUid===uid?"Tú: ":""}${c.lastMessage.text}` : t('chat.nomessages');
+    const name = _aesc(c.type === "group" ? (c.name || "Grupo") : (c.otherName || "Chat"));
+    const preview = c.lastMessage ? `${c.lastMessage.senderUid===uid?"Tú: ":""}${_aesc(c.lastMessage.text)}` : t('chat.nomessages');
     const muted = (c.mutedBy||[]).includes(uid);
     return `<li class="chat-item" data-chat="${c.id}">
       ${av(name, c.color||"#888")}
@@ -3194,7 +3197,7 @@ function _msgHtml(m, myUid, prev, next){
   const chips = reactions ? `<div class="msg__reactions">${reactions}</div>` : "";
   const cont = firstOfBlock ? "" : " msg--cont";
   const tail = lastOfBlock ? " msg--tail" : "";
-  const safe = m.text.replace(/</g,"&lt;");
+  const safe = _aesc(m.text);
   const quote = _quoteHtml(m.replyTo, myUid);
 
   if(isMe){   // el "+" a la IZQUIERDA del bocadillo
@@ -3206,8 +3209,8 @@ function _msgHtml(m, myUid, prev, next){
     const mem = _chatMembers[m.senderUid];
     const col = mem?.color || colorForUid(m.senderUid);
     const nm  = mem?.name || m.senderName || "";
-    const name = firstOfBlock ? `<div class="msg__name" style="color:${col}">${nm.replace(/</g,"&lt;")}</div>` : "";
-    const av   = lastOfBlock ? `<span class="msg__av" style="background:${col}">${initial(nm)}</span>` : "";
+    const name = firstOfBlock ? `<div class="msg__name" style="color:${_aesc(col)}">${_aesc(nm)}</div>` : "";
+    const av   = lastOfBlock ? `<span class="msg__av" style="background:${_aesc(col)}">${_aesc(initial(nm))}</span>` : "";
     return `<li class="msg msg--them msg--group${cont}${tail}" data-msg-id="${m.id}">
       <div class="msg__gutter">${av}</div>
       <div class="msg__content"><div class="msg__row"><div class="msg__bubble">${name}${quote}${safe}</div>${addBtn}</div><div class="msg__time">${timeStr}</div>${chips}</div>
@@ -3361,9 +3364,9 @@ function _renderNewList(filter=""){
       html+=`<li class="chat-section-label">${x.type==="group"?"Grupos":"Amigos"}</li>`;
       lastType=x.type;
     }
-    html+=`<li class="chat-item" data-new-chat-uid="${x.uid||""}" data-new-chat-gid="${x.gid||""}" data-new-chat-name="${x.name}">
+    html+=`<li class="chat-item" data-new-chat-uid="${_aesc(x.uid||"")}" data-new-chat-gid="${_aesc(x.gid||"")}" data-new-chat-name="${_aesc(x.name)}">
       ${av(x.name,x.color||"#888")}
-      <div class="chat-item__body"><div class="chat-item__name">${x.name}</div></div>
+      <div class="chat-item__body"><div class="chat-item__name">${_aesc(x.name)}</div></div>
     </li>`;
   }
   list.innerHTML=html;
@@ -3631,7 +3634,7 @@ function showChatReactors(chip){
   const m=_lastMsgs.find(x=>x.id===msgId); if(!m) return;
   const ruids=(m.reactions?.[emoji])||[]; if(!ruids.length) return;
   const tip=document.createElement("div"); tip.className="rxtip";
-  tip.innerHTML=`<span class="rxtip__e">${emoji}</span> ${ruids.map(_chatReactorName).join(", ")}`;
+  tip.innerHTML=`<span class="rxtip__e">${_aesc(emoji)}</span> ${_aesc(ruids.map(_chatReactorName).join(", "))}`;
   document.body.appendChild(tip);
   const rect=chip.getBoundingClientRect();
   tip.style.left = Math.max(10, Math.min(window.innerWidth-10-tip.offsetWidth, rect.left)) + "px";

@@ -9,6 +9,8 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 # bump del nombre de caché del SW → fuerza un service worker nuevo en los clientes
 # (-i.bak + rm: funciona igual con el sed de macOS y el de Linux)
 sed -i.bak -E "s/const CACHE = \"cagometro-[^\"]*\";/const CACHE = \"cagometro-${STAMP}\";/" sw.js && rm -f sw.js.bak
+# misma marca dentro de app.js: se enseña al pie de Ajustes para saber qué versión ejecuta el móvil
+sed -i.bak -E "s/const APP_VERSION = \"[^\"]*\";/const APP_VERSION = \"${STAMP}\";/" app.js && rm -f app.js.bak
 
 git add -A
 git commit -q -m "${1:-deploy} (sw ${STAMP})"

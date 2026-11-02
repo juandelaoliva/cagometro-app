@@ -27,6 +27,9 @@ import { RECAP_V, mesDelRecap, mesAnterior, recapPersonal, recapGrupo } from "./
 import * as Recap from "./recap-player.js";
 
 const $ = id => document.getElementById(id);
+// La marca de versión la escribe deploy.sh en cada despliegue (la misma que el nombre de la caché del service worker). Se ve al pie de Ajustes: sirve para
+// comprobar en el móvil que se está ejecutando la versión que se acaba de publicar.
+const APP_VERSION = "20261102-150043";
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
 
 // ── Modo mantenimiento ─────────────────────────────────────────────────────
@@ -380,7 +383,7 @@ function showApp(){
     maybeShowYearRecap();
     renderRecapEntry(); renderNotifBadge();
   });
-  $("pMode").textContent=IS_LOCAL?"modo local (emulador) · datos de prueba":"";
+  $("pMode").textContent=[IS_LOCAL?"modo local (emulador) · datos de prueba":"", APP_VERSION!=="dev"?"versión "+APP_VERSION:""].filter(Boolean).join(" · ");
   loadActivity();
   processInvite();
   if(navigator.onLine && outboxGet().length) _flushOutbox();

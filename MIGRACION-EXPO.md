@@ -68,7 +68,7 @@ Esto es lo más valioso del documento. Son cuatro carencias **de la app actual**
 puerto, y las cuatro son causa habitual de rechazo. Si las dejas para el final, te comen
 semanas de ida y vuelta con el revisor.
 
-### 3.1 No se puede borrar la cuenta
+### 3.1 No se puede borrar la cuenta  — ✅ hecho en la app nativa (Ajustes → «Eliminar mi cuenta»); en la PWA sigue sin existir
 
 Apple exige que toda app que permita crear una cuenta permita **borrarla desde dentro de
 la app**, no por correo ni por formulario. Hoy no existe: lo único parecido es el «wipe»

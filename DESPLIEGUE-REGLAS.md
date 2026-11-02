@@ -93,3 +93,10 @@ falta uno con `{"firestore":{"rules":"firestore.rules"}}`).
 
 Unirse a un grupo sigue sin comprobar el código en las reglas; el borrado de cuenta, denunciar y
 bloquear, y la política de privacidad son trabajo aparte (ver `MIGRACION-EXPO.md`, Fase 0).
+
+
+## Añadido por el borrado de cuenta (app nativa)
+
+Además de las reglas nuevas, hay que **desplegar los índices**: `firebase deploy --only firestore:indexes`. El borrado de cuenta busca la actividad propia y las
+conexiones de tuberías en las que se participa (`audience` + `uid` y `audience` + `kind`) y, sin esos dos índices compuestos, esa búsqueda falla en producción
+(en el emulador no se nota). Tardan unos minutos en construirse: despliégalos antes de publicar la app.

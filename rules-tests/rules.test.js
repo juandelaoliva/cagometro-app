@@ -390,3 +390,62 @@ describe("auditoría: email y push (A7, A8)", () => {
     await assertSucceeds(addDoc(collection(as("bob"), "pushQueue"), push("bob", "alice", "reaction")));
   });
 });
+
+// ─── BORRADO DE CUENTA: lo que una cuenta puede hacer para irse sin dejar rastro ni romper a los demás ───
+describe("borrado de cuenta", () => {
+  const seedChat = async () => testEnv.withSecurityRulesDisabled(async c => {
+    const db = c.firestore();
+    await setDoc(doc(db, "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] });
+    await setDoc(doc(db, "chats", "alice_bob", "messages", "m1"), { senderUid: "alice", senderName: "Alice", text: "hola", reactions: {} });
+    await setDoc(doc(db, "chats", "alice_bob", "messages", "m2"), { senderUid: "bob", senderName: "Bob", text: "qué tal", reactions: {} });
+  });
+  it("quien escribió un mensaje lo anonimiza: el texto se queda, su uid y nombre no", async () => {
+    await seedChat();
+    await assertSucceeds(updateDoc(doc(as("alice"), "chats", "alice_bob", "messages", "m1"), { senderUid: "deleted", senderName: "" }));
+  });
+  it("…pero no puede cambiar el texto, ni poner otro uid, ni tocar el de otra persona", async () => {
+    await seedChat();
+    await assertFails(updateDoc(doc(as("alice"), "chats", "alice_bob", "messages", "m1"), { text: "editado" }));
+    await assertFails(updateDoc(doc(as("alice"), "chats", "alice_bob", "messages", "m1"), { senderUid: "bob", senderName: "Bob" }));
+    await assertFails(updateDoc(doc(as("alice"), "chats", "alice_bob", "messages", "m1"), { senderUid: "deleted", senderName: "x" }));
+    await assertFails(updateDoc(doc(as("alice"), "chats", "alice_bob", "messages", "m2"), { senderUid: "deleted", senderName: "" }));
+    await assertFails(updateDoc(doc(as("carol"), "chats", "alice_bob", "messages", "m1"), { senderUid: "deleted", senderName: "" }));
+  });
+  it("el creador traspasa el grupo a un miembro y se va; no puede traspasarlo a un extraño", async () => {
+    await assertFails(updateDoc(doc(as("alice"), "groups", "g1"), { createdBy: "carol" }));                  // carol no es miembro
+    await assertSucceeds(updateDoc(doc(as("alice"), "groups", "g1"), { createdBy: "bob" }));
+    await assertSucceeds(updateDoc(doc(as("alice"), "groups", "g1"), { members: ["bob"] }));                 // salir (ya no es creador, pero es miembro)
+  });
+  it("quien no es el creador no puede traspasar el grupo", async () => {
+    await assertFails(updateDoc(doc(as("bob"), "groups", "g1"), { createdBy: "bob" }));
+  });
+  it("un participante sale de una conexión de tuberías; no puede sacar a otro", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => {
+      await setDoc(doc(c.firestore(), "activity", "s2"), {
+        uid: "alice", kind: "sync", audience: ["alice", "bob", "eve"], reactions: {},
+        participants: [{ uid: "alice" }, { uid: "bob" }, { uid: "eve" }], participantUids: ["alice", "bob", "eve"], lastTs: 1,
+      });
+    });
+    await assertFails(updateDoc(doc(as("bob"), "activity", "s2"), { participants: [{ uid: "alice" }, { uid: "bob" }], participantUids: ["alice", "bob"] }));   // sacar a eve
+    await assertSucceeds(updateDoc(doc(as("eve"), "activity", "s2"), { participants: [{ uid: "alice" }, { uid: "bob" }], participantUids: ["alice", "bob"] }));
+    await assertFails(updateDoc(doc(as("carol"), "activity", "s2"), { participants: [], participantUids: [] }));                                         // un extraño
+  });
+  it("el destinatario puede quitar una invitación a un grupo; un extraño no", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "groupInvites", "g1_dave"), { gid: "g1", fromUid: "alice", toUid: "dave", status: "pending" }); });
+    await assertFails(deleteDoc(doc(as("carol"), "groupInvites", "g1_dave")));
+    await assertSucceeds(deleteDoc(doc(as("dave"), "groupInvites", "g1_dave")));
+  });
+  it("cada uno puede borrar lo suyo: perfil, cacas, perfil público y su entrada de búsqueda", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => {
+      await setDoc(doc(c.firestore(), "publicProfiles", "alice"), { displayName: "alice" });
+      await setDoc(doc(c.firestore(), "userLookup", "alice@x.com"), { uid: "alice" });
+    });
+    const a = as("alice");
+    await assertSucceeds(deleteDoc(doc(a, "users", "alice", "cacas", "c1")));
+    await assertSucceeds(deleteDoc(doc(a, "publicProfiles", "alice")));
+    await assertSucceeds(deleteDoc(doc(a, "userLookup", "alice@x.com")));
+    await assertSucceeds(deleteDoc(doc(a, "friendships", "alice_bob")));
+    await assertSucceeds(deleteDoc(doc(a, "users", "alice")));
+    await assertFails(deleteDoc(doc(as("carol"), "users", "bob")));                                           // la de otro, no
+  });
+});

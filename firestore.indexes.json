@@ -4,8 +4,42 @@
       "collectionGroup": "activity",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "audience", "arrayConfig": "CONTAINS" },
-        { "fieldPath": "ts", "order": "DESCENDING" }
+        {
+          "fieldPath": "audience",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "ts",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "audience",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "uid",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "activity",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "audience",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "kind",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

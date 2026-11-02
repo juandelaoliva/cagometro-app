@@ -221,6 +221,10 @@ service cloud.firestore {
       allow update: if (signedIn() && resource.data.uid == request.auth.uid)
                      // reaccionar: estar en la audiencia y tocar solo tu entrada
                      || (signedIn() && request.auth.uid in resource.data.audience && onlyMyReaction())
+                     // salir de una conexión de tuberías (borrado de cuenta): solo se quita a sí mismo
+                     || (signedIn() && request.auth.uid in resource.data.get('participantUids', [])
+                         && request.resource.data.participantUids.toSet() == resource.data.participantUids.toSet().difference([request.auth.uid].toSet())
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants', 'participantUids']))
                      // unirse a una conexión de tuberías: solo sumar, nunca quitar a otro
                      || (signedIn()
                          // quien puede VER la conexión (audiencia) o es amigo de su fundador; nunca un extraño
@@ -267,7 +271,8 @@ service cloud.firestore {
                      && inviteId == request.resource.data.gid + '_' + request.resource.data.toUid;
       allow update: if signedIn() && request.auth.uid == resource.data.toUid
                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
-      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.fromUid && resource.data.status != "pending");
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == resource.data.fromUid)
+                     || (signedIn() && request.auth.uid == resource.data.toUid);       // retirarla, o limpiarla al borrar la cuenta
     }
 
     // --- chat ---
@@ -302,6 +307,11 @@ service cloud.firestore {
                          && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members
                              || isGroupMember(chatId))
                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']);
+        // borrado de cuenta: su autor los ANONIMIZA (el texto se queda; ya no lleva su uid ni su nombre). Nada más se puede tocar.
+        allow update: if signedIn() && resource.data.senderUid == request.auth.uid
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['senderUid', 'senderName'])
+                         && request.resource.data.senderUid == 'deleted'
+                         && request.resource.data.senderName == '';
         // TODO(borrado de cuenta): decidir entre permitir borrar los propios o anonimizar.
         allow delete: if false;
       }
@@ -316,8 +326,10 @@ service cloud.firestore {
       allow update: if isAdmin()
                      // admin del grupo: renombrar y expulsar, NUNCA añadir gente (eso sería hacerse «amigo» de cualquiera)
                      || (signedIn() && request.auth.uid == resource.data.createdBy
-                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members'])
-                         && request.resource.data.members.toSet().difference(resource.data.members.toSet()).size() == 0)
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'members', 'createdBy'])
+                         && request.resource.data.members.toSet().difference(resource.data.members.toSet()).size() == 0
+                         // traspasar: solo a alguien que ya es miembro
+                         && (request.resource.data.createdBy == resource.data.createdBy || request.resource.data.createdBy in resource.data.members))
                      // miembro: solo SALIR, es decir, quitarse a sí mismo y a nadie más
                      || (signedIn() && request.auth.uid in resource.data.members
                          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members'])

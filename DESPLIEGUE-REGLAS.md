@@ -100,3 +100,12 @@ bloquear, y la política de privacidad son trabajo aparte (ver `MIGRACION-EXPO.m
 Además de las reglas nuevas, hay que **desplegar los índices**: `firebase deploy --only firestore:indexes`. El borrado de cuenta busca la actividad propia y las
 conexiones de tuberías en las que se participa (`audience` + `uid` y `audience` + `kind`) y, sin esos dos índices compuestos, esa búsqueda falla en producción
 (en el emulador no se nota). Tardan unos minutos en construirse: despliégalos antes de publicar la app.
+
+
+## Estado del despliegue (2026-11-02)
+
+- Cliente nuevo publicado (versión `20261102-150043`), relleno aplicado (145 operaciones; 44 usuarios, 13 grupos) e índices creados.
+- **Reglas endurecidas desplegadas a las 15:06** (`firestore.rules` = `firestore.rules.draft`). Comprobación en producción con una cuenta desechable sin
+  relación con nadie: 403 al leer perfil y cacas de otra persona, al listar usuarios, grupos y actividad, al crear una amistad aceptada y al crear un grupo
+  con otra persona dentro; 200 al leer un perfil público y la configuración global.
+- Marcha atrás: republicar `~/firestore.rules.antiguas` (reglas de arranque anteriores; copia del 2026-11-02).

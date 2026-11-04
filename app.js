@@ -42,7 +42,7 @@ let maintOn = false;
 function applyMaintenance(on, msg){
   maintOn = !!on;
   const bar = $("maintBar");
-  if(bar){ bar.innerHTML = (msg && String(msg).trim()) ? msg : MAINT_MSG_DEFAULT; bar.hidden = !maintOn; }
+  if(bar){ bar.innerHTML = (msg && String(msg).trim()) ? msg : t('maint.default'); bar.hidden = !maintOn; }
   const t = $("maintToggle"); if(t) t.checked = maintOn;
 }
 applyMaintenance(MAINT_FORCE, t('maint.default'));
@@ -469,6 +469,14 @@ const _aName = id => _adminData?.usersById?.[id]?.displayName || (id||"?").slice
 const _ayn = v => v ? "✅" : "❌";
 const _aDate = ts => { if(!ts) return "nunca"; try{ return fmtFull(ts); }catch{ return "—"; } };
 const _aPromptAction = a => ({enabled:"activó ✅", dismissed:"descartó", blocked:"bloqueado (navegador)"}[a] || "sin acción");
+// Categorías de aviso que ha silenciado (`notifPrefs.<cat> === false`). Esta función se LLAMABA desde la tarjeta de usuario del panel desde el 15 de
+// octubre pero nunca se definió: al pintar cualquier usuario saltaba un ReferenceError y la pestaña «Usuarios» se quedaba en «no se pudo cargar».
+const _aCatName = { chats:"chat", sync:"tuberías", milestones:"hitos", reactions:"reacciones", overtake:"adelantamientos" };
+const _aSilenciadas = u => {
+  if(u.notifications===false) return "todas (interruptor general)";
+  const off = NOTIF_CATS.filter(c => (u.notifPrefs||{})[c]===false).map(c => _aCatName[c]||c);
+  return off.length ? off.join(", ") : "ninguna";
+};
 // ¿puede recibir push? iOS necesita PWA instalada; Android/escritorio no.
 const _aCanNotify = u => {
   if(!u.platform) return "— (sin datos)";
@@ -583,7 +591,7 @@ $("adminSheet").addEventListener("click", e=>{ if(e.target===$("adminSheet")) $(
 $("maintToggle").addEventListener("change", async e=>{
   if(uid!==ADMIN_UID){ e.target.checked=maintOn; return; }
   const on=e.target.checked;
-  applyMaintenance(on, MAINT_MSG_DEFAULT);                 // efecto inmediato en este dispositivo
+  applyMaintenance(on, t('maint.default'));                 // efecto inmediato en este dispositivo
   try{ await setMaintenance(on, t('maint.default')); toast(on?t('toast.maint.on'):t('toast.maint.off')); }
   catch(err){ toast(t('toast.maint.fail')); console.error(err); }
 });

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Política de privacidad · El Cagómetro</title>
+  <meta name="description" content="Política de privacidad de El Cagómetro: qué datos tratamos, para qué y cómo eliminar tu cuenta y tus datos." />
+  <meta name="robots" content="index" />
+  <meta name="theme-color" content="#FBF6EC" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --paper:#FBF6EC; --paper-2:#F4EAD8; --card:#FFFFFF; --ink:#241B12; --ink-soft:#7A6A58;
+      --brand:#6E3F1C; --brand-2:#9A5A2A; --gold:#E59A2E; --gold-soft:#F7DCA8;
+      --line:rgba(36,27,18,.10);
+      --font-d:"Fraunces",Georgia,serif;
+      --font-b:"Hanken Grotesk",-apple-system,system-ui,sans-serif;
+    }
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-b);font-size:17px;line-height:1.7;
+      padding:0 16px env(safe-area-inset-bottom)}
+    html[lang="es"] [data-lang="en"], html[lang="en"] [data-lang="es"]{display:none}
+    .wrap{max-width:680px;margin:0 auto;padding:20px 0 64px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
+    .top a{color:var(--brand);font-weight:600;text-decoration:none}
+    .top a:hover{text-decoration:underline}
+    .lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--card);overflow:hidden}
+    .lang button{font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:var(--ink-soft);padding:6px 14px;cursor:pointer}
+    .lang button[aria-pressed="true"]{background:var(--brand);color:#fff}
+    h1{font-family:var(--font-d);font-weight:900;font-size:clamp(30px,7vw,42px);line-height:1.15;margin:0 0 8px;color:var(--brand)}
+    h2{font-family:var(--font-d);font-weight:600;font-size:23px;line-height:1.25;margin:40px 0 10px;scroll-margin-top:16px}
+    .date{color:var(--ink-soft);font-size:15px;margin:0 0 24px}
+    p,ul{margin:0 0 14px}
+    ul{padding-left:22px} li{margin-bottom:6px}
+    a{color:var(--brand-2)}
+    nav.toc{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 20px;margin:0 0 8px}
+    nav.toc strong{font-family:var(--font-d);font-weight:600}
+    nav.toc ol{margin:8px 0 0;padding-left:22px;font-size:16px;line-height:1.6}
+    .note{background:var(--gold-soft);border-radius:14px;padding:12px 16px;margin:0 0 14px}
+    .delete{background:var(--card);border:2px solid var(--gold);border-radius:18px;padding:4px 20px 8px;margin-top:40px}
+    .delete h2{margin-top:16px}
+    .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);font-size:15px;color:var(--ink-soft)}
+    code{font-size:.92em;background:var(--paper-2);padding:1px 5px;border-radius:6px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="./index.html"><span data-lang="es">&larr; Volver a El Cagómetro</span><span data-lang="en">&larr; Back to El Cagómetro</span></a>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-set="es" aria-pressed="true">ES</button>
+      <button type="button" data-set="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+<main data-lang="es">
+<h1>Política de privacidad</h1>
+<p class="date">Última actualización: 4 de noviembre de 2026</p>
+<nav class="toc" aria-label="Índice"><strong>Índice</strong><ol>
+<li><a href="#responsable">Quién es el responsable</a></li>
+<li><a href="#datos">Qué datos tratamos y para qué</a></li>
+<li><a href="#quien-ve">Quién ve qué</a></li>
+<li><a href="#terceros">Terceros que intervienen</a></li>
+<li><a href="#conservacion">Conservación</a></li>
+<li><a href="#eliminar-cuenta">Cómo eliminar tu cuenta y tus datos</a></li>
+<li><a href="#derechos">Tus derechos</a></li>
+<li><a href="#seguridad">Seguridad</a></li>
+<li><a href="#edad">Edad mínima</a></li>
+<li><a href="#cambios">Cambios y contacto</a></li>
+</ol></nav>
+
+<h2 id="responsable">1. Quién es el responsable</h2>
+<p>El responsable del tratamiento de tus datos en El Cagómetro (la web/PWA y la app nativa para iOS y Android) es Juan de la Oliva, persona física, con residencia en España. Contacto: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> (dirección provisional; si cambia, se actualizará aquí).</p>
+<p>Esta política explica qué datos personales tratamos, para qué, con quién se comparten y cómo ejercer tus derechos.</p>
+
+<h2 id="datos">2. Qué datos tratamos y para qué</h2>
+<ul>
+<li><strong>Cuenta:</strong> email, nombre y foto que nos facilita el proveedor de acceso (Google o Apple) e identificador de usuario. El nombre puedes cambiarlo. Sirven para crear y mantener tu cuenta y para que tus amigos puedan encontrarte por email.</li>
+<li><strong>Cacas y estadísticas:</strong> cada registro guarda fecha, hora y zona horaria; con ellos se calculan tus contadores, rachas y estadísticas.</li>
+<li><strong>Ubicación precisa (opcional):</strong> solo si tú lo activas en los ajustes («nunca», «elegir cada vez» o «siempre»). Se guarda al sumar una caca, para pintarla en tu mapa. Puedes compartir ese mapa con tus amigos y hay un interruptor para hacerlo privado.</li>
+<li><strong>Contenido que generas:</strong> mensajes de chat (individuales y de grupo), reacciones, nombres de grupo y actividad del feed.</li>
+<li><strong>Escala de Bristol (opcional):</strong> el tipo y las etiquetas que añadas. Es un dato de salud. Es siempre privado: solo lo ves tú. Solo lo tratamos si decides usarlo y con tu consentimiento, que puedes retirar dejando de usarlo o borrándolo.</li>
+<li><strong>Notificaciones push:</strong> el token de tu dispositivo (Expo/FCM/APNs), para enviarte avisos.</li>
+<li><strong>Bloqueos:</strong> la lista de usuarios que has bloqueado.</li>
+<li><strong>Denuncias que envías:</strong> quién denuncia (<code>reporterUid</code>), el objetivo denunciado, el motivo, una nota opcional y, si es un mensaje, una copia de su texto. Solo las ve el administrador, para moderar.</li>
+</ul>
+<p>Tratamos estos datos para prestarte el servicio que solicitas al crear tu cuenta, y para moderar contenido y mantener la seguridad. La ubicación y la escala de Bristol se basan además en tu consentimiento.</p>
+<p><strong>No hay publicidad, ni analítica, ni seguimiento entre apps, ni venta de datos.</strong></p>
+
+<h2 id="quien-ve">3. Quién ve qué</h2>
+<ul>
+<li>Tus <strong>amigos aceptados</strong> ven tu perfil y tus estadísticas, y tu mapa si decides compartirlo.</li>
+<li>El <strong>contenido del chat</strong> solo lo ven los miembros de ese chat.</li>
+<li>La <strong>escala de Bristol</strong> no la ve nadie más que tú.</li>
+<li>El <strong>administrador</strong> puede ver cuentas y denuncias para moderar.</li>
+</ul>
+
+<h2 id="terceros">4. Terceros que intervienen</h2>
+<ul>
+<li><strong>Google Firebase</strong> (Authentication y Firestore): autenticación y almacenamiento de los datos.</li>
+<li><strong>Google y Apple:</strong> inicio de sesión, opcional según el proveedor que elijas.</li>
+<li><strong>Expo</strong> (servicio de notificaciones push de la app nativa) y <strong>Apple/Google</strong> (APNs/FCM): para entregarte las notificaciones.</li>
+<li><strong>OpenStreetMap:</strong> los mapas piden teselas a sus servidores, que ven la IP de tu dispositivo y la zona que estás mirando, pero no tu cuenta.</li>
+</ul>
+<p><strong>Transferencias internacionales:</strong> los servidores de Google pueden estar fuera del Espacio Económico Europeo; en ese caso se aplican las garantías habituales, como las cláusulas contractuales tipo.</p>
+
+<h2 id="conservacion">5. Conservación</h2>
+<p>Conservamos tus datos mientras exista tu cuenta. Al eliminarla se borran según se explica a continuación.</p>
+
+<section class="delete" aria-labelledby="eliminar-cuenta">
+<h2 id="eliminar-cuenta">6. Cómo eliminar tu cuenta y tus datos</h2>
+<p><strong>En la app:</strong> Ajustes &rarr; «Eliminar mi cuenta». Esto borra:</p>
+<ul>
+<li>tus cacas, tu perfil, tus amistades y tus datos privados (incluida la escala de Bristol);</li>
+<li>los grupos que creaste: se traspasan a otro miembro o se borran;</li>
+<li>tus mensajes de chat: se <strong>anonimizan</strong>, es decir, se quedan sin nombre ni identificador.</li>
+</ul>
+<p>Los registros de denuncias ya enviadas pueden conservarse, sin vincularlos a tu perfil, por motivos de seguridad.</p>
+<p><strong>Por correo:</strong> también puedes pedirnos la eliminación escribiendo a <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> desde el email de tu cuenta.</p>
+</section>
+
+<h2 id="derechos">7. Tus derechos</h2>
+<p>Según el RGPD puedes ejercer los derechos de acceso, rectificación, supresión, limitación, portabilidad y oposición, y retirar tu consentimiento en cualquier momento (sin que ello afecte a lo ya tratado). Escríbenos a <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a>. Si crees que no hemos tratado bien tus datos, puedes reclamar ante la Agencia Española de Protección de Datos: <a href="https://www.aepd.es" rel="noopener">www.aepd.es</a>.</p>
+
+<h2 id="seguridad">8. Seguridad</h2>
+<p>Los datos viajan cifrados, el acceso a ellos está limitado por reglas de seguridad en el servidor y no manejamos tus contraseñas en claro: las gestiona Firebase Authentication. Ningún sistema es infalible, pero nos tomamos en serio protegerlos.</p>
+
+<h2 id="edad">9. Edad mínima</h2>
+<p>Debes tener al menos 13 años, o la edad que exija la ley de tu país si es mayor (por ejemplo, 16 en parte de la Unión Europea, donde por debajo de esa edad hace falta el consentimiento de madre, padre o tutor). Si crees que un menor ha creado una cuenta sin cumplirlo, avísanos y la eliminaremos.</p>
+
+<h2 id="cambios">10. Cambios y contacto</h2>
+<p>Si hacemos cambios importantes, te avisaremos en la app. La fecha de arriba indica la última versión. Para cualquier duda: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a>.</p>
+<p class="foot">Consulta también las <a href="./terminos.html">Condiciones de uso</a>.</p>
+</main>
+<main data-lang="en">
+<h1>Privacy policy</h1>
+<p class="date">Last updated: 4 November 2026</p>
+<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol>
+<li><a href="#en-controller">Who is responsible</a></li>
+<li><a href="#en-data">What data we process and why</a></li>
+<li><a href="#en-who-sees">Who sees what</a></li>
+<li><a href="#en-third">Third parties involved</a></li>
+<li><a href="#en-retention">Retention</a></li>
+<li><a href="#delete-account">How to delete your account and data</a></li>
+<li><a href="#en-rights">Your rights</a></li>
+<li><a href="#en-security">Security</a></li>
+<li><a href="#en-age">Minimum age</a></li>
+<li><a href="#en-changes">Changes and contact</a></li>
+</ol></nav>
+
+<h2 id="en-controller">1. Who is responsible</h2>
+<p>The data controller for El Cagómetro (the web/PWA and the native iOS and Android app) is Juan de la Oliva, an individual based in Spain. Contact: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> (a provisional address; if it changes, it will be updated here).</p>
+<p>This policy explains what personal data we process, why, who it is shared with and how to exercise your rights.</p>
+
+<h2 id="en-data">2. What data we process and why</h2>
+<ul>
+<li><strong>Account:</strong> email, name and photo provided by your sign-in provider (Google or Apple), and a user identifier. You can edit your name. They are used to create and maintain your account and so friends can find you by email.</li>
+<li><strong>Poops and statistics:</strong> each entry stores date, time and time zone; these are used to compute your counters, streaks and statistics.</li>
+<li><strong>Precise location (optional):</strong> only if you turn it on in settings (“never”, “ask each time” or “always”). It is saved when you add a poop, to place it on your map. You can share that map with friends, and there is a switch to keep it private.</li>
+<li><strong>Content you create:</strong> chat messages (one-to-one and group), reactions, group names and feed activity.</li>
+<li><strong>Bristol scale (optional):</strong> the type and labels you add. This is health data. It is always private: only you can see it. We process it only if you choose to use it and on your consent, which you can withdraw by stopping use or deleting it.</li>
+<li><strong>Push notifications:</strong> your device token (Expo/FCM/APNs), to send you alerts.</li>
+<li><strong>Blocks:</strong> the list of users you have blocked.</li>
+<li><strong>Reports you submit:</strong> who reported (<code>reporterUid</code>), the reported target, the reason, an optional note and, for a message, a copy of its text. Only the administrator sees them, for moderation.</li>
+</ul>
+<p>We process this data to provide the service you request when you create an account, and to moderate content and keep the service safe. Location and the Bristol scale are also based on your consent.</p>
+<p><strong>There is no advertising, no analytics, no cross-app tracking and no selling of data.</strong></p>
+
+<h2 id="en-who-sees">3. Who sees what</h2>
+<ul>
+<li>Your <strong>accepted friends</strong> see your profile and statistics, and your map if you choose to share it.</li>
+<li><strong>Chat content</strong> is visible only to the members of that chat.</li>
+<li>The <strong>Bristol scale</strong> is visible to no one but you.</li>
+<li>The <strong>administrator</strong> can see accounts and reports in order to moderate.</li>
+</ul>
+
+<h2 id="en-third">4. Third parties involved</h2>
+<ul>
+<li><strong>Google Firebase</strong> (Authentication and Firestore): authentication and data storage.</li>
+<li><strong>Google and Apple:</strong> sign-in, optional depending on the provider you pick.</li>
+<li><strong>Expo</strong> (push notification service of the native app) and <strong>Apple/Google</strong> (APNs/FCM): to deliver notifications to you.</li>
+<li><strong>OpenStreetMap:</strong> maps request tiles from its servers, which see your device’s IP address and the area you are viewing, but not your account.</li>
+</ul>
+<p><strong>International transfers:</strong> Google’s servers may be located outside the European Economic Area; in that case the usual safeguards apply, such as standard contractual clauses.</p>
+
+<h2 id="en-retention">5. Retention</h2>
+<p>We keep your data for as long as your account exists. When you delete it, data is removed as described below.</p>
+
+<section class="delete" aria-labelledby="delete-account">
+<h2 id="delete-account">6. How to delete your account and data</h2>
+<p><strong>In the app:</strong> Settings &rarr; “Delete my account”. This removes:</p>
+<ul>
+<li>your poops, profile, friendships and private data (including the Bristol scale);</li>
+<li>groups you created: they are handed over to another member or deleted;</li>
+<li>your chat messages: they are <strong>anonymised</strong>, meaning they are left without name or identifier.</li>
+</ul>
+<p>Records of reports already submitted may be kept, not linked to your profile, for security reasons.</p>
+<p><strong>By email:</strong> you can also ask us to delete it by writing to <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> from your account email.</p>
+</section>
+
+<h2 id="en-rights">7. Your rights</h2>
+<p>Under the GDPR you may exercise your rights of access, rectification, erasure, restriction, portability and objection, and withdraw your consent at any time (without affecting processing already carried out). Write to <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a>. If you believe your data has not been handled properly, you can lodge a complaint with the Spanish Data Protection Agency (AEPD): <a href="https://www.aepd.es" rel="noopener">www.aepd.es</a>.</p>
+
+<h2 id="en-security">8. Security</h2>
+<p>Data is encrypted in transit, access to it is restricted by server-side security rules, and we never handle your passwords in plain text: Firebase Authentication manages them. No system is perfect, but we take protecting your data seriously.</p>
+
+<h2 id="en-age">9. Minimum age</h2>
+<p>You must be at least 13, or the age required by the law of your country if higher (for example, 16 in parts of the European Union, where below that age a parent or guardian’s consent is needed). If you believe a minor has created an account without meeting this, tell us and we will delete it.</p>
+
+<h2 id="en-changes">10. Changes and contact</h2>
+<p>If we make important changes, we will let you know in the app. The date above shows the latest version. Any questions: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a>.</p>
+<p class="foot">See also the <a href="./terminos.html">Terms of use</a>.</p>
+</main>
+</div>
+<script>
+(function(){
+  var T={es:"Política de privacidad · El Cagómetro",en:"Privacy policy · El Cagómetro"};
+  var h=document.documentElement,KEY="cagometro-legal-lang";
+  function get(){try{var v=localStorage.getItem(KEY);if(v==="es"||v==="en")return v}catch(e){}
+    return /^en/i.test(navigator.language||"")?"en":"es"}
+  function jump(){var x=location.hash;if(!x)return;
+    var m={"#eliminar-cuenta":"#delete-account","#delete-account":"#eliminar-cuenta"};
+    var id=x.slice(1),el=document.getElementById(id);
+    if((!el||el.offsetParent===null)&&m[x]){el=document.getElementById(m[x].slice(1))}
+    if(el&&el.offsetParent!==null)el.scrollIntoView()}
+  function set(l,save){h.lang=l;document.title=T[l];
+    var b=document.querySelectorAll(".lang button");
+    for(var i=0;i<b.length;i++)b[i].setAttribute("aria-pressed",String(b[i].getAttribute("data-set")===l));
+    if(save){try{localStorage.setItem(KEY,l)}catch(e){}}
+    jump()}
+  var b=document.querySelectorAll(".lang button");
+  for(var i=0;i<b.length;i++)b[i].addEventListener("click",function(){set(this.getAttribute("data-set"),true)});
+  window.addEventListener("hashchange",jump);
+  set(get(),false);
+})();
+</script>
+</body>
+</html>

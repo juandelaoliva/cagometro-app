@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Condiciones de uso · El Cagómetro</title>
+  <meta name="description" content="Condiciones de uso de El Cagómetro: conducta, moderación, datos de salud y tus derechos." />
+  <meta name="robots" content="index" />
+  <meta name="theme-color" content="#FBF6EC" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png" />
+  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;0,9..144,900;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --paper:#FBF6EC; --paper-2:#F4EAD8; --card:#FFFFFF; --ink:#241B12; --ink-soft:#7A6A58;
+      --brand:#6E3F1C; --brand-2:#9A5A2A; --gold:#E59A2E; --gold-soft:#F7DCA8;
+      --line:rgba(36,27,18,.10);
+      --font-d:"Fraunces",Georgia,serif;
+      --font-b:"Hanken Grotesk",-apple-system,system-ui,sans-serif;
+    }
+    *{box-sizing:border-box}
+    html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+    body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-b);font-size:17px;line-height:1.7;
+      padding:0 16px env(safe-area-inset-bottom)}
+    html[lang="es"] [data-lang="en"], html[lang="en"] [data-lang="es"]{display:none}
+    .wrap{max-width:680px;margin:0 auto;padding:20px 0 64px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:28px}
+    .top a{color:var(--brand);font-weight:600;text-decoration:none}
+    .top a:hover{text-decoration:underline}
+    .lang{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--card);overflow:hidden}
+    .lang button{font:inherit;font-size:14px;font-weight:700;border:0;background:none;color:var(--ink-soft);padding:6px 14px;cursor:pointer}
+    .lang button[aria-pressed="true"]{background:var(--brand);color:#fff}
+    h1{font-family:var(--font-d);font-weight:900;font-size:clamp(30px,7vw,42px);line-height:1.15;margin:0 0 8px;color:var(--brand)}
+    h2{font-family:var(--font-d);font-weight:600;font-size:23px;line-height:1.25;margin:40px 0 10px;scroll-margin-top:16px}
+    .date{color:var(--ink-soft);font-size:15px;margin:0 0 24px}
+    p,ul{margin:0 0 14px}
+    ul{padding-left:22px} li{margin-bottom:6px}
+    a{color:var(--brand-2)}
+    nav.toc{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 20px;margin:0 0 8px}
+    nav.toc strong{font-family:var(--font-d);font-weight:600}
+    nav.toc ol{margin:8px 0 0;padding-left:22px;font-size:16px;line-height:1.6}
+    .note{background:var(--gold-soft);border-radius:14px;padding:12px 16px;margin:0 0 14px}
+    .delete{background:var(--card);border:2px solid var(--gold);border-radius:18px;padding:4px 20px 8px;margin-top:40px}
+    .delete h2{margin-top:16px}
+    .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);font-size:15px;color:var(--ink-soft)}
+    code{font-size:.92em;background:var(--paper-2);padding:1px 5px;border-radius:6px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a href="./index.html"><span data-lang="es">&larr; Volver a El Cagómetro</span><span data-lang="en">&larr; Back to El Cagómetro</span></a>
+    <div class="lang" role="group" aria-label="Idioma / Language">
+      <button type="button" data-set="es" aria-pressed="true">ES</button>
+      <button type="button" data-set="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+<main data-lang="es">
+<h1>Condiciones de uso</h1>
+<p class="date">Última actualización: 4 de noviembre de 2026</p>
+<nav class="toc" aria-label="Índice"><strong>Índice</strong><ol>
+<li><a href="#servicio">Qué es El Cagómetro</a></li>
+<li><a href="#edad">Edad mínima</a></li>
+<li><a href="#cuenta">Tu cuenta y su seguridad</a></li>
+<li><a href="#conducta">Contenido y conducta</a></li>
+<li><a href="#moderacion">Denuncias, bloqueo y moderación</a></li>
+<li><a href="#salud">Ubicación y datos de salud</a></li>
+<li><a href="#disponibilidad">Disponibilidad y responsabilidad</a></li>
+<li><a href="#terminacion">Terminación</a></li>
+<li><a href="#ley">Ley aplicable</a></li>
+<li><a href="#contacto">Contacto</a></li>
+</ol></nav>
+
+<h2 id="servicio">1. Qué es El Cagómetro</h2>
+<p>El Cagómetro es un contador social de cacas: sumas las tuyas, sigues a tus amigos, os escribís en chats y grupos y ves mapas y resúmenes. Está disponible como web/PWA y como app nativa para iOS y Android. Al usarlo aceptas estas condiciones; si no estás de acuerdo, no lo uses. El tratamiento de tus datos se explica en la <a href="./privacidad.html">Política de privacidad</a>.</p>
+
+<h2 id="edad">2. Edad mínima</h2>
+<p>Debes tener al menos 13 años, o la edad que exija la ley de tu país si es mayor (por ejemplo, 16 en parte de la Unión Europea, con consentimiento de madre, padre o tutor por debajo de esa edad).</p>
+
+<h2 id="cuenta">3. Tu cuenta y su seguridad</h2>
+<p>Accedes con Google o Apple. Eres responsable de lo que ocurra desde tu cuenta, de mantener seguro el acceso a tu proveedor de inicio de sesión y de avisarnos si crees que alguien la usa sin permiso. Una cuenta es personal: no suplantes a otras personas.</p>
+
+<h2 id="conducta">4. Contenido y conducta</h2>
+<p>Lo que escribes y compartes es tuyo y es tu responsabilidad. Las cacas y el humor escatológico son el tema de la app, pero hay límites. Está prohibido:</p>
+<ul>
+<li>acosar, insultar, amenazar o ensañarse con personas;</li>
+<li>suplantar la identidad de otra persona;</li>
+<li>publicar contenido ilegal o sexual explícito;</li>
+<li>enviar spam o publicidad no solicitada;</li>
+<li>revelar datos personales de otros sin su permiso (doxxing).</li>
+</ul>
+
+<h2 id="moderacion">5. Denuncias, bloqueo y moderación</h2>
+<p>Cualquier usuario puede <strong>denunciar</strong> usuarios, mensajes y grupos, y <strong>bloquear</strong> a otros usuarios. El administrador revisa las denuncias y puede eliminar contenido o suspender cuentas. Aplicamos tolerancia cero con el contenido ofensivo o abusivo. Actuamos en un plazo razonable; nuestro objetivo es hacerlo en 24 horas, aunque no podemos garantizarlo en todos los casos.</p>
+
+<h2 id="salud">6. Ubicación y datos de salud</h2>
+<p>La ubicación precisa y la escala de Bristol son opcionales y las usas a tu criterio. La escala de Bristol es meramente informativa y <strong>no es consejo médico</strong>: si tienes dudas sobre tu salud, consulta a un profesional sanitario. Más detalles en la <a href="./privacidad.html">Política de privacidad</a>.</p>
+
+<h2 id="disponibilidad">7. Disponibilidad y responsabilidad</h2>
+<p>El servicio se ofrece «tal cual», sin garantías de disponibilidad continua ni de ausencia de errores. En la medida en que la ley lo permita, no respondemos de daños indirectos ni de pérdidas derivadas del uso del servicio o de su interrupción, ni del contenido que publiquen otros usuarios. Esto no limita derechos que la ley te reconozca como consumidor y que no puedan excluirse.</p>
+
+<h2 id="terminacion">8. Terminación</h2>
+<p>Puedes borrar tu cuenta cuando quieras desde la app (Ajustes &rarr; «Eliminar mi cuenta») o pidiéndolo por correo; consulta <a href="./privacidad.html#eliminar-cuenta">cómo eliminar tu cuenta y tus datos</a>. Podemos suspender o cerrar cuentas que incumplan estas condiciones.</p>
+
+<h2 id="ley">9. Ley aplicable</h2>
+<p>Estas condiciones se rigen por la ley española. Si eres consumidor, se respetan los derechos y el fuero que te reconozca la normativa imperativa de tu lugar de residencia.</p>
+
+<h2 id="contacto">10. Contacto</h2>
+<p>Juan de la Oliva, responsable del servicio: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> (dirección provisional). Si hacemos cambios importantes en estas condiciones, te avisaremos en la app.</p>
+<p class="foot">Consulta también la <a href="./privacidad.html">Política de privacidad</a>.</p>
+</main>
+<main data-lang="en">
+<h1>Terms of use</h1>
+<p class="date">Last updated: 4 November 2026</p>
+<nav class="toc" aria-label="Contents"><strong>Contents</strong><ol>
+<li><a href="#en-service">What El Cagómetro is</a></li>
+<li><a href="#en-age">Minimum age</a></li>
+<li><a href="#en-account">Your account and its security</a></li>
+<li><a href="#en-conduct">Content and conduct</a></li>
+<li><a href="#en-moderation">Reports, blocking and moderation</a></li>
+<li><a href="#en-health">Location and health data</a></li>
+<li><a href="#en-availability">Availability and liability</a></li>
+<li><a href="#en-termination">Termination</a></li>
+<li><a href="#en-law">Governing law</a></li>
+<li><a href="#en-contact">Contact</a></li>
+</ol></nav>
+
+<h2 id="en-service">1. What El Cagómetro is</h2>
+<p>El Cagómetro is a social poop counter: you log yours, follow your friends, chat in one-to-one and group chats, and see maps and recaps. It is available as a web/PWA and as a native iOS and Android app. By using it you accept these terms; if you disagree, please do not use it. How your data is handled is explained in the <a href="./privacidad.html">Privacy policy</a>.</p>
+
+<h2 id="en-age">2. Minimum age</h2>
+<p>You must be at least 13, or the age required by the law of your country if higher (for example, 16 in parts of the European Union, with parent or guardian consent below that age).</p>
+
+<h2 id="en-account">3. Your account and its security</h2>
+<p>You sign in with Google or Apple. You are responsible for what happens from your account, for keeping access to your sign-in provider secure, and for telling us if you think someone is using it without permission. An account is personal: do not impersonate others.</p>
+
+<h2 id="en-conduct">4. Content and conduct</h2>
+<p>What you write and share is yours and your responsibility. Poop and toilet humour are the whole point of the app, but there are limits. The following is prohibited:</p>
+<ul>
+<li>harassing, insulting, threatening or piling on people;</li>
+<li>impersonating another person;</li>
+<li>posting illegal or sexually explicit content;</li>
+<li>sending spam or unsolicited advertising;</li>
+<li>revealing other people’s personal information without their permission (doxxing).</li>
+</ul>
+
+<h2 id="en-moderation">5. Reports, blocking and moderation</h2>
+<p>Any user can <strong>report</strong> users, messages and groups, and <strong>block</strong> other users. The administrator reviews reports and may remove content or suspend accounts. We apply zero tolerance to offensive or abusive content. We act within a reasonable time; our goal is 24 hours, although we cannot guarantee it in every case.</p>
+
+<h2 id="en-health">6. Location and health data</h2>
+<p>Precise location and the Bristol scale are optional and used at your discretion. The Bristol scale is purely informational and <strong>is not medical advice</strong>: if you have concerns about your health, consult a healthcare professional. More details in the <a href="./privacidad.html">Privacy policy</a>.</p>
+
+<h2 id="en-availability">7. Availability and liability</h2>
+<p>The service is provided “as is”, with no guarantee of uninterrupted availability or of being error-free. To the extent permitted by law, we are not liable for indirect damages or losses arising from use of the service or its interruption, nor for content posted by other users. This does not limit any consumer rights that the law grants you and that cannot be excluded.</p>
+
+<h2 id="en-termination">8. Termination</h2>
+<p>You can delete your account at any time in the app (Settings &rarr; “Delete my account”) or by asking by email; see <a href="./privacidad.html#delete-account">how to delete your account and data</a>. We may suspend or close accounts that breach these terms.</p>
+
+<h2 id="en-law">9. Governing law</h2>
+<p>These terms are governed by Spanish law. If you are a consumer, the mandatory rights and jurisdiction provided by the law of your place of residence are respected.</p>
+
+<h2 id="en-contact">10. Contact</h2>
+<p>Juan de la Oliva, service provider: <a href="mailto:juandelaoliva1@gmail.com">juandelaoliva1@gmail.com</a> (provisional address). If we make important changes to these terms, we will let you know in the app.</p>
+<p class="foot">See also the <a href="./privacidad.html">Privacy policy</a>.</p>
+</main>
+</div>
+<script>
+(function(){
+  var T={es:"Condiciones de uso · El Cagómetro",en:"Terms of use · El Cagómetro"};
+  var h=document.documentElement,KEY="cagometro-legal-lang";
+  function get(){try{var v=localStorage.getItem(KEY);if(v==="es"||v==="en")return v}catch(e){}
+    return /^en/i.test(navigator.language||"")?"en":"es"}
+  function jump(){var x=location.hash;if(!x)return;
+    var m={"#eliminar-cuenta":"#delete-account","#delete-account":"#eliminar-cuenta"};
+    var id=x.slice(1),el=document.getElementById(id);
+    if((!el||el.offsetParent===null)&&m[x]){el=document.getElementById(m[x].slice(1))}
+    if(el&&el.offsetParent!==null)el.scrollIntoView()}
+  function set(l,save){h.lang=l;document.title=T[l];
+    var b=document.querySelectorAll(".lang button");
+    for(var i=0;i<b.length;i++)b[i].setAttribute("aria-pressed",String(b[i].getAttribute("data-set")===l));
+    if(save){try{localStorage.setItem(KEY,l)}catch(e){}}
+    jump()}
+  var b=document.querySelectorAll(".lang button");
+  for(var i=0;i<b.length;i++)b[i].addEventListener("click",function(){set(this.getAttribute("data-set"),true)});
+  window.addEventListener("hashchange",jump);
+  set(get(),false);
+})();
+</script>
+</body>
+</html>

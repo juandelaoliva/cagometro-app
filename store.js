@@ -506,6 +506,7 @@ async function _delAll(q){   // borra en lotes los docs de una consulta
 // Vacía por completo los datos de un usuario (NO borra su cuenta de Auth: eso es Admin SDK).
 export async function adminWipeUser(targetUid){
   await _delAll(query(collection(db,"users",targetUid,"cacas"), limit(300)));
+  await _delAll(query(collection(db,"users",targetUid,"blocked"), limit(300)));
   await _delAll(query(collection(db,"activity"), where("uid","==",targetUid), limit(300)));
   await _delAll(query(collection(db,"friendships"), where("uids","array-contains",targetUid), limit(300)));
   // sacarlo de todos los grupos
@@ -994,3 +995,43 @@ export async function notifyNewMessage(chatId, senderUid, senderName, text, memb
     ).catch(()=>{})
   ));
 }
+
+// ── Denunciar y bloquear ─────────────────────────────────────────────────────
+// Lo pide Apple (guía 1.2) para el contenido de otras personas. Las denuncias solo las lee el admin
+// (reglas) y le llega un aviso. Bloquear OCULTA a esa persona (eso lo hace el cliente) y las reglas
+// cortan entre los dos los DM, las invitaciones, las solicitudes y sus avisos; la amistad se queda.
+export const ADMIN_UID = "OQxbpTTQqBbWsykiU7JKcUdZ7z32";   // el mismo de isAdmin() en las reglas
+export const REPORT_REASONS = ["spam","acoso","ofensivo","suplantacion","otro"];
+const REPORT_NOTE_MAX = 500;
+const REPORT_KIND_ES = { user:"usuario", message:"mensaje", group:"grupo" };
+// Recorte por caracteres completos (un emoji no se parte en dos), como cuentan las reglas.
+const clip = (s, n) => [...(s || "")].slice(0, n).join("");
+
+// `target` = { kind, targetUid, refId, reason, note?, chatId?, text? }:
+//   user    → refId = targetUid
+//   message → refId = id del mensaje, chatId, y su `text` TAL CUAL: el admin no puede leer los chats, así que
+//             la denuncia lo lleva copiado (las reglas comprueban que es el de verdad y de quien dices)
+//   group   → refId = gid, targetUid = quien lo creó
+export async function reportTarget(uid, target){
+  const { kind, targetUid, refId, reason, chatId, text } = target;
+  const note = clip((target.note || "").trim(), REPORT_NOTE_MAX);
+  const ref = await addDoc(collection(db,"reports"), {
+    reporterUid: uid, targetUid, kind, refId, reason,
+    ...(kind === "message" ? { chatId, text } : {}),
+    ...(note ? { note } : {}),            // campo opcional
+    ts: serverTimestamp(), status: "open",
+  });
+  enqueuePush(uid, ADMIN_UID, "report", "Nueva denuncia 🚩",
+    `${REPORT_KIND_ES[kind] || kind} · ${reason}${note ? ` · ${clip(note, 200)}` : ""}`).catch(()=>{});
+  return ref.id;
+}
+
+// Se guarda el nombre para poder listar a los bloqueados sin leer sus perfiles.
+export async function blockUser(uid, otherUid, name){
+  if (otherUid === uid) throw new Error("self");
+  await setDoc(doc(db,"users",uid,"blocked",otherUid), { ts: serverTimestamp(), name: clip(name, 100) });
+}
+export const unblockUser = (uid, otherUid) => deleteDoc(doc(db,"users",uid,"blocked",otherUid));
+// [{ uid, name, ts }] de quienes he bloqueado, en vivo.
+export const watchBlocked = (uid, cb) =>
+  onSnapshot(collection(db,"users",uid,"blocked"), s => cb(s.docs.map(d => ({ uid: d.id, ...d.data() }))));

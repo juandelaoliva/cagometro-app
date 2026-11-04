@@ -449,3 +449,166 @@ describe("borrado de cuenta", () => {
     await assertFails(deleteDoc(doc(as("carol"), "users", "bob")));                                           // la de otro, no
   });
 });
+
+// ─── DENUNCIAR Y BLOQUEAR (Apple, guía 1.2): denuncias que solo ve el admin; el bloqueo se cumple en el servidor ───
+describe("denuncias", () => {
+  const rep = (from, over = {}) => ({
+    reporterUid: from, targetUid: "alice", kind: "user", refId: "alice", reason: "acoso", ts: serverTimestamp(), status: "open", ...over,
+  });
+  const report = (from, over) => addDoc(collection(as(from), "reports"), rep(from, over));
+  const seedMsg = async () => testEnv.withSecurityRulesDisabled(async c => {
+    await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] });
+    await setDoc(doc(c.firestore(), "chats", "alice_bob", "messages", "m1"), { senderUid: "alice", senderName: "alice", text: "hola, idiota", reactions: {} });
+  });
+  const msg = { kind: "message", refId: "m1", chatId: "alice_bob", text: "hola, idiota" };
+
+  it("denunciar a una persona: sí, también a un desconocido y con nota", async () => {
+    await assertSucceeds(report("bob"));
+    await assertSucceeds(report("carol", { reason: "suplantacion", note: "x".repeat(500) }));
+  });
+  it("denunciar un mensaje: sí, con su texto real, siendo del chat", async () => {
+    await seedMsg();
+    await assertSucceeds(report("bob", msg));
+  });
+  it("mensaje: no con un texto inventado, ni contra quien no lo escribió, ni desde fuera del chat", async () => {
+    await seedMsg();
+    await assertFails(report("bob", { ...msg, text: "te voy a matar" }));
+    await assertFails(report("bob", { ...msg, targetUid: "carol" }));
+    await assertFails(report("bob", { kind: "message", refId: "m1", chatId: "alice_bob" }));   // sin el texto copiado
+    await assertFails(report("bob", { ...msg, refId: "noexiste" }));
+    await assertFails(report("carol", msg));
+  });
+  it("grupo: sí siendo miembro y contra quien lo creó; no desde fuera ni contra otro", async () => {
+    await assertSucceeds(report("bob", { kind: "group", refId: "g1" }));
+    await assertFails(report("carol", { kind: "group", refId: "g1" }));
+    await assertFails(report("bob", { kind: "group", refId: "g1", targetUid: "eve" }));
+    await assertFails(report("bob", { kind: "group", refId: "g1", chatId: "g1" }));
+  });
+  it("usuario: refId tiene que ser la persona denunciada", async () => {
+    await assertFails(report("bob", { refId: "eve" }));
+    await assertFails(report("bob", { chatId: "alice_bob" }));
+  });
+  it("no: a uno mismo, a nombre de otro, campos de más, motivo o tipo inválido, nota larga, otro estado u otra hora", async () => {
+    await assertFails(report("alice"));                                       // targetUid == quien denuncia
+    await assertFails(addDoc(collection(as("carol"), "reports"), rep("bob")));
+    await assertFails(report("bob", { extra: 1 }));
+    await assertFails(report("bob", { reason: "me cae mal" }));
+    await assertFails(report("bob", { kind: "caca" }));
+    await assertFails(report("bob", { note: "x".repeat(501) }));
+    await assertFails(report("bob", { status: "resolved" }));
+    await assertFails(report("bob", { ts: 1 }));
+  });
+  it("solo el admin lee y gestiona las denuncias: ni el denunciante ni el denunciado", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "reports", "r1"), rep("bob", { ts: 1 })); });
+    for (const u of ["bob", "alice", "carol"]) {
+      await assertFails(getDoc(doc(as(u), "reports", "r1")));
+      await assertFails(updateDoc(doc(as(u), "reports", "r1"), { status: "dismissed" }));
+      await assertFails(deleteDoc(doc(as(u), "reports", "r1")));
+    }
+    await assertFails(getDocs(collection(as("bob"), "reports")));
+    await assertSucceeds(getDocs(query(collection(as(ADMIN), "reports"), where("status", "==", "open"))));
+    await assertSucceeds(updateDoc(doc(as(ADMIN), "reports", "r1"), { status: "resolved" }));
+    await assertSucceeds(deleteDoc(doc(as(ADMIN), "reports", "r1")));
+  });
+  it("el aviso de denuncia va al admin sin ser su amigo; a nadie más", async () => {
+    const push = (from, to, type) => ({ fromUid: from, toUid: to, type, title: "Nueva denuncia", body: "acoso", sent: false, ts: 1 });
+    await assertSucceeds(addDoc(collection(as("carol"), "pushQueue"), push("carol", ADMIN, "report")));
+    await assertFails(addDoc(collection(as("bob"), "pushQueue"), push("bob", "alice", "report")));       // amigo, pero no admin
+    await assertFails(addDoc(collection(as("carol"), "pushQueue"), push("carol", ADMIN, "reaction")));   // al admin, lo demás sigue pidiendo amistad
+  });
+});
+
+describe("bloqueos: la lista", () => {
+  const blk = (name = "x") => ({ ts: serverTimestamp(), name });
+  it("cada uno bloquea, lee y desbloquea lo suyo", async () => {
+    const a = as("alice");
+    await assertSucceeds(setDoc(doc(a, "users", "alice", "blocked", "carol"), blk("carol")));
+    await assertSucceeds(getDocs(collection(a, "users", "alice", "blocked")));
+    await assertSucceeds(deleteDoc(doc(a, "users", "alice", "blocked", "carol")));
+  });
+  it("nadie más ve ni toca tu lista, ni siquiera un amigo (que sí lee tu perfil)", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", "alice", "blocked", "carol"), { ts: 1, name: "carol" }); });
+    await assertFails(getDoc(doc(as("bob"), "users", "alice", "blocked", "carol")));
+    await assertFails(getDocs(collection(as("bob"), "users", "alice", "blocked")));
+    await assertFails(deleteDoc(doc(as("carol"), "users", "alice", "blocked", "carol")));      // el bloqueado no se desbloquea
+    await assertFails(setDoc(doc(as("carol"), "users", "alice", "blocked", "bob"), blk()));
+  });
+  it("no: bloquearse a uno mismo, otros campos o un nombre enorme", async () => {
+    const a = as("alice");
+    await assertFails(setDoc(doc(a, "users", "alice", "blocked", "alice"), blk()));
+    await assertFails(setDoc(doc(a, "users", "alice", "blocked", "carol"), { ...blk(), extra: 1 }));
+    await assertFails(setDoc(doc(a, "users", "alice", "blocked", "carol"), blk("x".repeat(101))));
+  });
+  it("el admin la lee y la borra (vaciar una cuenta)", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", "alice", "blocked", "carol"), { ts: 1, name: "carol" }); });
+    await assertSucceeds(getDocs(collection(as(ADMIN), "users", "alice", "blocked")));
+    await assertSucceeds(deleteDoc(doc(as(ADMIN), "users", "alice", "blocked", "carol")));
+  });
+});
+
+// alice bloquea a bob (amigos, con DM y grupo g1) y a carol (desconocida).
+describe("bloqueos: se cumplen en el servidor", () => {
+  const block = (owner, other) => testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", owner, "blocked", other), { ts: 1, name: other }); });
+  const dm = () => testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }); });
+  const say = (uid, chatId) => addDoc(collection(as(uid), "chats", chatId, "messages"), { senderUid: uid, text: "hola" });
+  const pending = (from, to) => setDoc(doc(as(from), "friendships", [from, to].sort().join("_")),
+    { uids: [from, to].sort(), status: "pending", requestedBy: from, createdAt: serverTimestamp() });
+  const invite = (from, to, gid) => setDoc(doc(as(from), "groupInvites", `${gid}_${to}`), { gid, fromUid: from, toUid: to, status: "pending" });
+  const push = (from, to) => addDoc(collection(as(from), "pushQueue"), { fromUid: from, toUid: to, type: "reaction", title: "t", body: "b", sent: false, ts: 1 });
+
+  it("DM: el bloqueado no escribe, y quien bloquea tampoco", async () => {
+    await dm(); await block("alice", "bob");
+    await assertFails(say("bob", "alice_bob"));
+    await assertFails(say("alice", "alice_bob"));
+  });
+  it("DM: tampoco se abre un chat nuevo entre los dos", async () => {
+    await block("alice", "bob");
+    await assertFails(setDoc(doc(as("bob"), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }));
+    await assertFails(setDoc(doc(as("alice"), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] }));
+  });
+  it("DM: un `type` falso no se salta el bloqueo (se reconoce por sus miembros)", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "group", members: ["alice", "bob"] }); });
+    await block("alice", "bob");
+    await assertFails(say("bob", "alice_bob"));
+  });
+  it("chat de grupo: el bloqueo no impide escribir (ahí solo oculta, en el cliente)", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "chats", "g1"), { type: "group", members: ["alice", "bob"] }); });
+    await block("alice", "bob");
+    await assertSucceeds(say("bob", "g1"));
+  });
+  it("invitar a un grupo: ni el bloqueado ni quien bloquea", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "groups", "gC"), { name: "c", createdBy: "carol", members: ["carol"] }); });
+    await block("alice", "carol");
+    await assertFails(invite("alice", "carol", "g1"));
+    await assertFails(invite("carol", "alice", "gC"));
+  });
+  it("pedir amistad (también por enlace): ni el bloqueado ni quien bloquea", async () => {
+    await block("alice", "carol");
+    await assertFails(pending("carol", "alice"));
+    await assertFails(pending("alice", "carol"));
+  });
+  it("avisos push: el bloqueado no te manda ninguno; tú a él sí", async () => {
+    await block("alice", "bob");
+    await assertFails(push("bob", "alice"));
+    await assertSucceeds(push("alice", "bob"));
+  });
+  it("sin bloqueo entre ellos, todo sigue igual (un bloqueo ajeno no estorba)", async () => {
+    await dm(); await block("bob", "carol"); await block("eve", "alice");
+    await assertSucceeds(say("alice", "alice_bob"));
+    await assertSucceeds(say("bob", "alice_bob"));
+    await assertSucceeds(push("bob", "alice"));
+    await assertSucceeds(pending("carol", "alice"));
+    await assertSucceeds(invite("alice", "carol", "g1"));
+  });
+  it("desbloquear lo devuelve todo", async () => {
+    await dm(); await block("alice", "bob");
+    await assertFails(say("bob", "alice_bob"));
+    await assertSucceeds(deleteDoc(doc(as("alice"), "users", "alice", "blocked", "bob")));
+    await assertSucceeds(say("bob", "alice_bob"));
+    await assertSucceeds(push("bob", "alice"));
+  });
+  it("la amistad se mantiene: el bloqueado sigue siendo amigo (decisión: bloquear solo oculta)", async () => {
+    await block("alice", "bob");
+    await assertSucceeds(getDoc(doc(as("bob"), "users", "alice")));
+  });
+});

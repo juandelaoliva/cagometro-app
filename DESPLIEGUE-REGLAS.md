@@ -109,3 +109,9 @@ conexiones de tuberías en las que se participa (`audience` + `uid` y `audience`
   relación con nadie: 403 al leer perfil y cacas de otra persona, al listar usuarios, grupos y actividad, al crear una amistad aceptada y al crear un grupo
   con otra persona dentro; 200 al leer un perfil público y la configuración global.
 - Marcha atrás: republicar `~/firestore.rules.antiguas` (reglas de arranque anteriores; copia del 2026-11-02).
+
+
+## Actualización 2026-11-04 · reglas de denuncias y bloqueos DESPLEGADAS
+- Publicada antes la PWA (`20261104-124539`) y después las reglas (`firebase deploy --only firestore:rules`, 145 pruebas en verde con el mismo fichero). `firestore.rules` = `firestore.rules.draft`.
+- Añaden: `reports` (crear con validación de que el mensaje/grupo denunciado es real; leer y gestionar solo el admin), `users/{uid}/blocked`, bloqueo entre dos en DM/invitaciones/solicitudes/avisos y el tipo `report` de `pushQueue` hacia el admin.
+- Marcha atrás: las reglas anteriores están en `~/firestore.rules.antes-denuncias` (y en el historial de git: commit `9f4ce38`).

@@ -8,7 +8,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
-  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminWipeUser, getAppConfig, setMaintenance,
+  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminLoadDashboard, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, getUserLite, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
@@ -583,7 +583,24 @@ function _adminGroupCard(g){
     <div class="admin-chips">${members}</div>
   </div>`;
 }
-function openAdmin(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
+// Panel antiguo (hoja pequeña): se conserva como «panel anterior» dentro del nuevo mientras se prueba.
+function openAdminLegacy(){ if(uid!==ADMIN_UID) return; $("settingsSheet").hidden=true; $("adminSheet").hidden=false; $("maintToggle").checked=maintOn; renderAdminUsers(); }
+// Panel nuevo: pantalla completa, con estadísticas. Se carga bajo demanda (admin.js, admin-stats.js, admin.css): los demás usuarios no lo descargan.
+async function openAdmin(){
+  if(uid!==ADMIN_UID) return;
+  $("settingsSheet").hidden=true;
+  try{
+    const m = await import("./admin.js");
+    m.openAdminDashboard({
+      load: adminLoadDashboard,
+      actions: {
+        wipeUser: adminWipeUser, setReportStatus: adminSetReportStatus,
+        setMaintenance: async on => { applyMaintenance(on, t('maint.default')); await setMaintenance(on, t('maint.default')); },
+      },
+      myUid: uid, version: APP_VERSION, toast, legacy: openAdminLegacy,
+    });
+  }catch(err){ console.error("panel de administración:", err); toast("No se pudo abrir el panel"); openAdminLegacy(); }   // si algo falla, el panel de siempre
+}
 $("adminBtn").addEventListener("click", openAdmin);
 $("adminClose").addEventListener("click", ()=>$("adminSheet").hidden=true);
 

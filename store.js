@@ -497,6 +497,24 @@ export async function adminListReports(){
   const s = await getDocs(query(collection(db,"reports"), orderBy("ts","desc"), limit(200)));
   return s.docs.map(d => ({ id:d.id, ...d.data() }));
 }
+// Todo lo que lee el panel de administración de una vez: usuarios, grupos, amistades, denuncias, los últimos `days` días del feed y el documento privado de cada
+// usuario (de ahí salen sus dispositivos: tokens nativos y web). Las cacas NO se leen una a una (miles de lecturas): el panel usa los contadores de cada usuario.
+export async function adminLoadDashboard(days = 60){
+  const since = Date.now() - days * 86400000;
+  const [users, groups, friendships, reports, activity, config] = await Promise.all([
+    adminListUsers(), adminListGroups(), adminListFriendships(), adminListReports().catch(()=>null),
+    getDocs(query(collection(db,"activity"), where("ts",">=",since), orderBy("ts","desc"), limit(3000)))
+      .then(s => s.docs.map(d => ({ id:d.id, ...d.data() }))).catch(e => { console.warn("panel: feed", e); return []; }),
+    getAppConfig(),
+  ]);
+  const privateById = {};
+  for (let i = 0; i < users.length; i += 20) {                 // de 20 en 20: no abrir cientos de peticiones a la vez
+    await Promise.all(users.slice(i, i + 20).map(async u => {
+      try{ const s = await getDoc(doc(db,"users",u.id,"private","push")); if(s.exists()) privateById[u.id] = s.data(); }catch(e){ /* sin permiso o sin documento */ }
+    }));
+  }
+  return { users, groups, friendships, reports, activity, privateById, config: config || {}, loadedAt: Date.now() };
+}
 // status: 'open' | 'dismissed' | 'resolved'
 export const adminSetReportStatus = (id, status) => updateDoc(doc(db,"reports",id), { status });
 export async function adminListGroups(){

@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { describe, it, before, after, beforeEach } from "node:test";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import {
-  doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, limit, serverTimestamp,
+  doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, orderBy, limit, serverTimestamp,
 } from "firebase/firestore";
 
 const RULES_FILE = process.env.RULES_FILE || "../firestore.rules.draft";
@@ -610,5 +610,35 @@ describe("bloqueos: se cumplen en el servidor", () => {
   it("la amistad se mantiene: el bloqueado sigue siendo amigo (decisión: bloquear solo oculta)", async () => {
     await block("alice", "bob");
     await assertSucceeds(getDoc(doc(as("bob"), "users", "alice")));
+  });
+});
+
+describe("panel de administración: las lecturas de adminLoadDashboard", () => {
+  const seed = () => testEnv.withSecurityRulesDisabled(async c => {
+    const db = c.firestore();
+    await setDoc(doc(db, "users", "alice", "private", "push"), { tokens: ["t"], expoTokens: ["e"] });
+    await setDoc(doc(db, "reports", "r1"), { reporterUid: "bob", targetUid: "alice", kind: "user", refId: "alice", reason: "spam", status: "open", ts: 5 });
+    await setDoc(doc(db, "activity", "a2"), { uid: "alice", kind: "add", audience: ["alice"], ts: Date.now(), reactions: {} });
+  });
+  const since = Date.now() - 60 * 86400000;
+  const feed = db => getDocs(query(collection(db, "activity"), where("ts", ">=", since), orderBy("ts", "desc"), limit(3000)));
+  it("el admin lee usuarios, grupos, amistades, denuncias, el feed por fechas y los documentos privados", async () => {
+    await seed();
+    const db = as(ADMIN);
+    await assertSucceeds(getDocs(collection(db, "users")));
+    await assertSucceeds(getDocs(collection(db, "groups")));
+    await assertSucceeds(getDocs(collection(db, "friendships")));
+    await assertSucceeds(getDocs(query(collection(db, "reports"), orderBy("ts", "desc"), limit(200))));
+    await assertSucceeds(feed(db));
+    await assertSucceeds(getDoc(doc(db, "users", "alice", "private", "push")));
+    await assertSucceeds(updateDoc(doc(db, "reports", "r1"), { status: "resolved" }));
+  });
+  it("un usuario normal no puede leer nada de eso (denuncias, documentos privados ajenos, el feed de todos)", async () => {
+    await seed();
+    const db = as("bob");
+    await assertFails(getDocs(query(collection(db, "reports"), orderBy("ts", "desc"), limit(200))));
+    await assertFails(getDoc(doc(db, "users", "alice", "private", "push")));
+    await assertFails(feed(db));
+    await assertFails(updateDoc(doc(db, "reports", "r1"), { status: "resolved" }));
   });
 });

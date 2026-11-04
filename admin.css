@@ -167,3 +167,10 @@ body.ad-open{overflow:hidden}
   .ad-grid--kpi{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
 }
 @media (prefers-reduced-motion:reduce){.ad-drawer,.ad-loading span{animation:none}}
+
+.ad-tag{display:inline-block;vertical-align:middle;margin-left:6px;padding:2px 8px;border-radius:999px;font-family:var(--font-b);font-size:10px;font-weight:800;letter-spacing:.06em}
+.ad-tag--bad{background:var(--rose);color:#fff}
+.ad-card--warn{border-color:rgba(216,87,63,.45);background:#fff7f4}
+.ad-state{padding:2px 10px;border-radius:999px;font-size:12px}
+.ad-state.ok{background:var(--mint-soft);color:#14673f}.ad-state.late{background:var(--gold-soft);color:#7a4e18}.ad-state.down{background:var(--rose);color:#fff}.ad-state.unknown{background:var(--paper-2);color:var(--ink-soft)}
+.ad code{background:var(--paper-2);padding:1px 6px;border-radius:6px;font-size:12px}

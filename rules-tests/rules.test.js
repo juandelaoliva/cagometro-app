@@ -642,3 +642,56 @@ describe("panel de administración: las lecturas de adminLoadDashboard", () => {
     await assertFails(updateDoc(doc(db, "reports", "r1"), { status: "resolved" }));
   });
 });
+
+describe("cuentas suspendidas", () => {
+  const suspend = who => testEnv.withSecurityRulesDisabled(async c => { await updateDoc(doc(c.firestore(), "users", who), { suspended: true, suspendedAt: 1, suspendedReason: "acoso" }); });
+  beforeEach(async () => {
+    await testEnv.withSecurityRulesDisabled(async c => {
+      await setDoc(doc(c.firestore(), "chats", "alice_bob"), { type: "dm", members: ["alice", "bob"] });
+      await setDoc(doc(c.firestore(), "chats", "g1"), { type: "group", members: ["alice", "bob"] });
+    });
+  });
+  it("el admin suspende y reactiva; nadie más toca esos campos (ni el propio suspendido)", async () => {
+    await assertSucceeds(updateDoc(doc(as(ADMIN), "users", "bob"), { suspended: true, suspendedAt: 1, suspendedReason: "x" }));
+    await assertFails(updateDoc(doc(as("bob"), "users", "bob"), { suspended: false }));                  // no se levanta la suspensión
+    await assertFails(updateDoc(doc(as("carol"), "users", "carol"), { suspended: true }));             // ni se suspende a sí misma ni a otro
+    await assertFails(updateDoc(doc(as("carol"), "users", "bob"), { suspended: false }));
+    await assertSucceeds(updateDoc(doc(as(ADMIN), "users", "bob"), { suspended: false }));
+  });
+  it("sin suspender, lo normal sigue igual (cambiar su nombre, escribir un mensaje, crear actividad)", async () => {
+    await assertSucceeds(updateDoc(doc(as("bob"), "users", "bob"), { displayName: "Roberto" }));
+    await assertSucceeds(addDoc(collection(as("bob"), "chats", "alice_bob", "messages"), { senderUid: "bob", senderName: "bob", text: "hola" }));
+    await assertSucceeds(addDoc(collection(as("bob"), "activity"), { uid: "bob", kind: "add", audience: ["bob"] }));
+  });
+  it("suspendido: no escribe mensajes, actividad, avisos, amistades, invitaciones, chats ni grupos", async () => {
+    await suspend("bob");
+    const db = as("bob");
+    await assertFails(addDoc(collection(db, "chats", "alice_bob", "messages"), { senderUid: "bob", senderName: "bob", text: "hola" }));
+    await assertFails(addDoc(collection(db, "chats", "g1", "messages"), { senderUid: "bob", senderName: "bob", text: "hola" }));
+    await assertFails(addDoc(collection(db, "activity"), { uid: "bob", kind: "add", audience: ["bob"] }));
+    await assertFails(addDoc(collection(db, "pushQueue"), { fromUid: "bob", toUid: "bob", type: "reaction", title: "t", body: "b", sent: false, ts: serverTimestamp() }));
+    await assertFails(setDoc(doc(db, "friendships", "bob_carol"), { uids: ["bob", "carol"], status: "pending", requestedBy: "bob" }));
+    await assertFails(setDoc(doc(db, "groupInvites", "g1_carol"), { fromUid: "bob", toUid: "carol", gid: "g1", status: "pending" }));
+    await assertFails(setDoc(doc(db, "groups", "g9"), { name: "nuevo", createdBy: "bob", members: ["bob"], inviteCode: "ZZZ111" }));
+  });
+  it("suspendido: sigue leyendo lo suyo y puede borrar su cuenta; el resto sigue escribiendo con normalidad", async () => {
+    await suspend("bob");
+    await assertSucceeds(getDoc(doc(as("bob"), "users", "bob")));
+    await assertSucceeds(deleteDoc(doc(as("bob"), "users", "bob")));
+    await assertSucceeds(addDoc(collection(as("alice"), "chats", "alice_bob", "messages"), { senderUid: "alice", senderName: "alice", text: "hola" }));
+  });
+  it("los reportes los puede seguir enviando (denunciar a quien le suspende no es escribir hacia nadie)", async () => {
+    await suspend("bob");
+    await assertSucceeds(addDoc(collection(as("bob"), "reports"), { reporterUid: "bob", targetUid: "alice", kind: "user", refId: "alice", reason: "spam", ts: serverTimestamp(), status: "open" }));
+  });
+});
+
+describe("cola de avisos: salud para el panel", () => {
+  it("el admin lee pushQueue; nadie más, y nadie puede editarla ni borrarla desde un cliente", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "pushQueue", "p1"), { fromUid: "alice", toUid: "bob", type: "reaction", title: "t", body: "b", sent: false, ts: 1 }); });
+    await assertSucceeds(getDocs(query(collection(as(ADMIN), "pushQueue"), orderBy("ts", "desc"), limit(300))));
+    await assertFails(getDocs(query(collection(as("alice"), "pushQueue"), orderBy("ts", "desc"), limit(300))));
+    await assertFails(updateDoc(doc(as(ADMIN), "pushQueue", "p1"), { sent: true }));
+    await assertFails(deleteDoc(doc(as(ADMIN), "pushQueue", "p1")));
+  });
+});

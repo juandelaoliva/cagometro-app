@@ -70,6 +70,7 @@ export function userRows(data, now = Date.now()) {
       notifOn: !!u.notifications,                                  // igual que quiereAviso: sin el campo, apagado
       geo: !!u.locationMode && u.locationMode !== "never", shareMap: u.shareMap !== false, bristol: !!u.bristolMode,
       termsOk: (u.termsVersion || 0) > 0,
+      suspended: u.suspended === true, suspendedReason: u.suspendedReason || "", suspendedAt: tsMs(u.suspendedAt),
     };
   });
 }
@@ -81,6 +82,24 @@ function activityBuckets(rows, now) {
     today: within(1), d7: within(7), d30: within(30),
     dormant: rows.filter(r => r.last && r.last < dayBack(now, 13)).length,           // llevan 14 días o más sin sumar
     never: rows.filter(r => !r.total).length,                                         // sin ninguna caca
+  };
+}
+
+/** Salud de la cola de avisos (`pushQueue`): ¿el emisor (la Pi, o lo que venga después) los está entregando?
+    `sent:false` = esperando. Un aviso normal se entrega en segundos: si el más antiguo lleva > 10 min la cola va «atrasada» y, a partir de 1 hora, «parada».
+    `queue === null` = el panel no pudo leerla (sin permiso o sin red) → «sin datos». La hora de un aviso es la de su CREACIÓN: no sabemos cuándo se entregó. */
+export function queueHealth(queue, now = Date.now()) {
+  if (queue == null) return { status: "unknown", total: 0, pending: 0, sent: 0, oldestPending: 0, waitMin: 0, lastSentCreated: 0, sent24h: 0, byType: {} };
+  const pend = queue.filter(q => q.sent !== true), done = queue.filter(q => q.sent === true);
+  const oldest = pend.length ? Math.min(...pend.map(q => tsMs(q.ts)).filter(Boolean), Infinity) : 0;
+  const oldestPending = Number.isFinite(oldest) ? oldest : 0;
+  const waitMin = oldestPending ? Math.floor((now - oldestPending) / 60000) : 0;
+  const byType = {}; for (const q of pend) byType[q.type || "?"] = (byType[q.type || "?"] || 0) + 1;
+  return {
+    status: !pend.length ? "ok" : waitMin >= 60 ? "down" : waitMin >= 10 ? "late" : "ok",
+    total: queue.length, pending: pend.length, sent: done.length, oldestPending, waitMin, byType,
+    lastSentCreated: Math.max(0, ...done.map(q => tsMs(q.ts))),
+    sent24h: done.filter(q => tsMs(q.ts) >= now - DAY).length,
   };
 }
 
@@ -167,7 +186,7 @@ export function computeStats(data, now = Date.now()) {
   const open = reports.filter(r => r.status === "open");
   return {
     now, n, rows, groupRows,
-    users: { n, ...act, new7: rows.filter(r => r.created && r.created >= dayBack(now, 6)).length, new30: rows.filter(r => r.created && r.created >= dayBack(now, 29)).length,
+    users: { n, suspended: rows.filter(r => r.suspended).length, ...act, new7: rows.filter(r => r.created && r.created >= dayBack(now, 6)).length, new30: rows.filter(r => r.created && r.created >= dayBack(now, 29)).length,
       weekly: weeklySignups(rows, now), retention: { base: old.length, kept: retained, pct: pct(retained, old.length) } },
     cacas, daily,
     social: { friendships: accepted.length, pending: pending.length, avgFriends: n ? +(2 * accepted.length / n).toFixed(1) : 0,
@@ -180,6 +199,7 @@ export function computeStats(data, now = Date.now()) {
       best: [...rows].sort((a, b) => b.best - a.best).slice(0, 5).filter(r => r.best > 0),
       groups: [...groupRows].sort((a, b) => b.year - a.year).slice(0, 5).filter(g => g.year > 0),
     },
+    queue: queueHealth(data.queue, now),
     reports: { open: open.length, total: reports.length, dismissed: reports.filter(r => r.status === "dismissed").length, resolved: reports.filter(r => r.status === "resolved").length },
     year, pct,
   };
@@ -197,6 +217,7 @@ export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir
     native: r => r.device.native,
     web: r => r.device.web,
     nofriends: r => !r.friends.length,
+    suspended: r => r.suspended,
   }[filter] || (() => true);
   const val = {
     name: r => r.name.toLowerCase(), joined: r => r.created, recent: r => r.last, year: r => r.year, total: r => r.total,
@@ -211,8 +232,8 @@ export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir
 export function usersCsv(rows) {
   const esc = v => { const s = String(v ?? ""); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const d = ms => ms ? new Date(ms).toISOString().slice(0, 10) : "";
-  const head = ["id", "nombre", "email", "alta", "ultima_caca", "cacas_año", "cacas_total", "racha", "record", "amigos", "grupos", "dispositivo", "plataforma", "avisos", "ubicacion", "mapa_compartido", "bristol", "condiciones"];
+  const head = ["id", "nombre", "email", "alta", "ultima_caca", "cacas_año", "cacas_total", "racha", "record", "amigos", "grupos", "dispositivo", "plataforma", "avisos", "ubicacion", "mapa_compartido", "bristol", "condiciones", "suspendida"];
   const lines = rows.map(r => [r.id, r.name, r.email, d(r.created), d(r.last), r.year, r.total, r.streak, r.best, r.friends.length, r.groups.length,
-    r.device.kind, r.device.platform || "", r.notifOn ? 1 : 0, r.geo ? 1 : 0, r.shareMap ? 1 : 0, r.bristol ? 1 : 0, r.termsOk ? 1 : 0].map(esc).join(","));
+    r.device.kind, r.device.platform || "", r.notifOn ? 1 : 0, r.geo ? 1 : 0, r.shareMap ? 1 : 0, r.bristol ? 1 : 0, r.termsOk ? 1 : 0, r.suspended ? 1 : 0].map(esc).join(","));
   return [head.join(","), ...lines].join("\n");
 }

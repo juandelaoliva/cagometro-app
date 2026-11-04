@@ -2,7 +2,7 @@
 //   node --test admin-stats.test.js
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { computeStats, userRows, filterUsers, usersCsv, dailyEvents, lastMonths, monthKey, tsMs, deviceOf, DAY } from "../admin-stats.js";
+import { computeStats, userRows, filterUsers, usersCsv, dailyEvents, lastMonths, monthKey, tsMs, deviceOf, queueHealth, DAY } from "../admin-stats.js";
 
 const NOW = new Date(2026, 10, 4, 15, 0).getTime();            // miércoles 4 de noviembre de 2026
 const at = (daysAgo, h = 12) => { const d = new Date(NOW); d.setDate(d.getDate() - daysAgo); d.setHours(h, 0, 0, 0); return d.getTime(); };
@@ -130,6 +130,32 @@ describe("listado de usuarios", () => {
   it("con datos vacíos no revienta", () => {
     const E = computeStats({}, NOW);
     assert.equal(E.n, 0); assert.equal(E.users.retention.pct, 0); assert.equal(E.social.avgGroupSize, 0); assert.equal(E.cacas.hours.length, 24);
+  });
+});
+
+describe("cola de avisos", () => {
+  const min = n => ts(NOW - n * 60000);
+  it("sin pendientes: ok, con lo entregado de las últimas 24 h", () => {
+    const h = queueHealth([{ sent: true, ts: min(5) }, { sent: true, ts: min(60 * 30) }], NOW);
+    assert.equal(h.status, "ok"); assert.equal(h.pending, 0); assert.equal(h.sent24h, 1); assert.equal(h.lastSentCreated, NOW - 5 * 60000);
+  });
+  it("pendientes recientes: ok; > 10 min: atrasada; > 60 min: parada", () => {
+    assert.equal(queueHealth([{ sent: false, ts: min(2) }], NOW).status, "ok");
+    assert.equal(queueHealth([{ sent: false, ts: min(11) }, { sent: false, ts: min(1) }], NOW).status, "late");
+    const d = queueHealth([{ sent: false, ts: min(61), type: "reaction" }, { sent: false, ts: min(30), type: "sync" }, { sent: true, ts: min(500) }], NOW);
+    assert.equal(d.status, "down"); assert.equal(d.pending, 2); assert.equal(d.waitMin, 61); assert.deepEqual(d.byType, { reaction: 1, sync: 1 });
+  });
+  it("sin lectura (null) = sin datos, no «todo bien»", () => { assert.equal(queueHealth(null, NOW).status, "unknown"); assert.equal(queueHealth(undefined, NOW).status, "unknown"); });
+  it("entra en computeStats", () => { assert.equal(computeStats({ queue: [{ sent: false, ts: min(90) }] }, NOW).queue.status, "down"); });
+});
+
+describe("suspensiones", () => {
+  it("se leen del usuario, se cuentan y se filtran", () => {
+    const us = [...users, { id: "e", displayName: "Eli", email: "e@x.com", suspended: true, suspendedReason: "acoso", suspendedAt: ts(at(1)), lifetimeCount: 1 }, { id: "f", displayName: "Fer", suspended: false }];
+    const rows = userRows({ users: us, groups, friendships, privateById }, NOW);
+    assert.deepEqual(filterUsers(rows, { filter: "suspended" }, NOW).map(r => r.id), ["e"]);
+    assert.equal(rows.find(r => r.id === "e").suspendedReason, "acoso");
+    assert.equal(computeStats({ users: us }, NOW).users.suspended, 1);
   });
 });
 void DAY;

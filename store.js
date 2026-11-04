@@ -501,11 +501,11 @@ export async function adminListReports(){
 // usuario (de ahí salen sus dispositivos: tokens nativos y web). Las cacas NO se leen una a una (miles de lecturas): el panel usa los contadores de cada usuario.
 export async function adminLoadDashboard(days = 60){
   const since = Date.now() - days * 86400000;
-  const [users, groups, friendships, reports, activity, config] = await Promise.all([
+  const [users, groups, friendships, reports, activity, config, queue] = await Promise.all([
     adminListUsers(), adminListGroups(), adminListFriendships(), adminListReports().catch(()=>null),
     getDocs(query(collection(db,"activity"), where("ts",">=",since), orderBy("ts","desc"), limit(3000)))
       .then(s => s.docs.map(d => ({ id:d.id, ...d.data() }))).catch(e => { console.warn("panel: feed", e); return []; }),
-    getAppConfig(),
+    getAppConfig(), adminListPushQueue(),
   ]);
   const privateById = {};
   for (let i = 0; i < users.length; i += 20) {                 // de 20 en 20: no abrir cientos de peticiones a la vez
@@ -513,8 +513,15 @@ export async function adminLoadDashboard(days = 60){
       try{ const s = await getDoc(doc(db,"users",u.id,"private","push")); if(s.exists()) privateById[u.id] = s.data(); }catch(e){ /* sin permiso o sin documento */ }
     }));
   }
-  return { users, groups, friendships, reports, activity, privateById, config: config || {}, loadedAt: Date.now() };
+  return { users, groups, friendships, reports, activity, queue, privateById, config: config || {}, loadedAt: Date.now() };
 }
+// Suspender / reactivar una cuenta. Las reglas hacen cumplirlo (mensajes, actividad, avisos, amistades, invitaciones, chats y grupos) y solo el admin toca estos
+// campos. Al reactivar no se borran (`deleteField` no está en el bundle): se pone `suspended:false` y se vacía el motivo.
+export const adminSetSuspended = (targetUid, on, reason = "") => updateDoc(doc(db,"users",targetUid),
+  on ? { suspended:true, suspendedAt: serverTimestamp(), suspendedReason: String(reason||"").slice(0,200) } : { suspended:false, suspendedReason:"" });
+// La cola de avisos (los últimos 300): sirve para ver si el emisor (la Pi) está entregando. null = sin permiso o sin red.
+export const adminListPushQueue = () => getDocs(query(collection(db,"pushQueue"), orderBy("ts","desc"), limit(300)))
+  .then(s => s.docs.map(d => ({ id:d.id, ...d.data() }))).catch(() => null);
 // status: 'open' | 'dismissed' | 'resolved'
 export const adminSetReportStatus = (id, status) => updateDoc(doc(db,"reports",id), { status });
 export async function adminListGroups(){

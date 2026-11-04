@@ -8,7 +8,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
-  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminLoadDashboard, adminWipeUser, getAppConfig, setMaintenance,
+  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminSetSuspended, adminLoadDashboard, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, getUserLite, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
@@ -329,6 +329,20 @@ $("verifResend").addEventListener("click", async ()=>{
   catch(e){ toast(t('toast.verif.fail')); }
 });
 $("logoutBtn").addEventListener("click",()=>signOutUser());
+// Cuenta suspendida por el admin: pantalla que lo explica y deja cerrar sesión. Las reglas del servidor son las que lo hacen cumplir (no puede escribir hacia nadie);
+// esto solo evita que la persona se encuentre botones que fallan sin explicación.
+function applySuspension(m){
+  let el=$("suspendedGate");
+  if(m.suspended!==true){ if(el) el.hidden=true; return; }
+  if(!el){
+    el=document.createElement("div"); el.id="suspendedGate"; el.className="sheet"; el.style.zIndex="4000";
+    el.innerHTML='<div class="sheet__panel"><h3 class="sheet__title"></h3><p class="sheet__sub"></p><button class="btn-ghost"></button></div>';
+    el.querySelector("button").addEventListener("click",()=>signOutUser());
+    document.body.appendChild(el);
+  }
+  el.querySelector("h3").textContent=t('suspended.title'); el.querySelector("p").textContent=t('suspended.body'); el.querySelector("button").textContent=t('settings.logout.btn');
+  el.hidden=false;
+}
 
 /* ---------- session ---------- */
 let _authResolved=false;
@@ -372,7 +386,7 @@ function showApp(){
   $("verifBar").hidden = !needsVerif;
   if(unsub)unsub();
   unsub=watchMe(uid, m=>{
-    if(!m)return; me=m; const total=yearCountOf(m);
+    if(!m)return; me=m; applySuspension(m); const total=yearCountOf(m);
     _myDisplayName = m.displayName||"";
     $("meCount").textContent=total; $("meName").textContent=m.displayName||"";
     $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
@@ -594,7 +608,7 @@ async function openAdmin(){
     m.openAdminDashboard({
       load: adminLoadDashboard,
       actions: {
-        wipeUser: adminWipeUser, setReportStatus: adminSetReportStatus,
+        wipeUser: adminWipeUser, setReportStatus: adminSetReportStatus, setSuspended: adminSetSuspended,
         setMaintenance: async on => { applyMaintenance(on, t('maint.default')); await setMaintenance(on, t('maint.default')); },
       },
       myUid: uid, version: APP_VERSION, toast, legacy: openAdminLegacy,

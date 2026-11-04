@@ -132,6 +132,15 @@ service cloud.firestore {
       return m.toSet().difference(get(/databases/$(database)/documents/groups/$(gid)).data.members.toSet()).size() == 0;
     }
 
+    // Cuentas SUSPENDIDAS por el admin (`users/{uid}.suspended`). No pueden escribir hacia otras personas (mensajes, actividad, avisos, amistades,
+    // invitaciones, chats, grupos) pero siguen pudiendo leer lo suyo y borrar su cuenta. Sin documento de usuario (cuenta recién creada) = activa.
+    // Los campos de suspensión solo los toca el admin (ver `match /users/{uid}`): si no, quien está suspendido se levantaría la suspensión él mismo.
+    function suspKeys() { return ['suspended', 'suspendedAt', 'suspendedReason']; }
+    function active() {
+      return signedIn() && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          || !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('suspended', false));
+    }
+
     // Bloqueos: users/{dueño}/blocked/{otro}. Los get()/exists() de las reglas no pasan por las reglas, así que aquí
     // se puede mirar la lista de otro (desde el cliente nadie más que el dueño la lee).
     function blockedDoc(owner, other) { return /databases/$(database)/documents/users/$(owner)/blocked/$(other); }
@@ -183,7 +192,8 @@ service cloud.firestore {
     // --- users ---
     match /users/{uid} {
       allow read:   if isOwner(uid) || isAdmin() || areFriends(uid);
-      allow create, update: if isOwner(uid) || isAdmin();
+      allow create: if isAdmin() || (isOwner(uid) && !request.resource.data.keys().hasAny(suspKeys()));
+      allow update: if isAdmin() || (isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(suspKeys()));
       allow delete: if isOwner(uid) || isAdmin();     // borrado de cuenta desde la app
 
       match /cacas/{cacaId} {
@@ -261,7 +271,7 @@ service cloud.firestore {
     // con el destinatario, y que no te haya bloqueado. El texto va acotado y los tipos son una
     // lista cerrada. `report` (denuncia nueva) solo va al admin, sin amistad.
     match /pushQueue/{id} {
-      allow create: if signedIn()
+      allow create: if active()
                      && request.resource.data.fromUid == request.auth.uid
                      && request.resource.data.keys().hasOnly(['fromUid','toUid','type','title','body','sent','ts'])
                      && request.resource.data.type in ['reaction','friend_request','friend_accepted','milestone',
@@ -276,7 +286,8 @@ service cloud.firestore {
                                  || areFriends(request.resource.data.toUid)
                                  // con una solicitud aún PENDIENTE solo cabe el aviso de la propia solicitud
                                  || (request.resource.data.type == 'friend_request' && hasFriendship(request.resource.data.toUid)))));
-      allow read, update, delete: if false;
+      allow read: if isAdmin();                 // el panel enseña la salud de la cola (cuántos avisos esperan, desde cuándo)
+      allow update, delete: if false;
     }
 
     // --- feed de actividad ---
@@ -285,7 +296,7 @@ service cloud.firestore {
     match /activity/{id} {
       allow read:   if signedIn() && (resource == null || request.auth.uid in resource.data.audience
                                       || resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if active() && request.resource.data.uid == request.auth.uid;
       allow update: if (signedIn() && resource.data.uid == request.auth.uid)
                      // reaccionar: estar en la audiencia y tocar solo tu entrada
                      || (signedIn() && request.auth.uid in resource.data.audience && onlyMyReaction())
@@ -308,7 +319,7 @@ service cloud.firestore {
     // --- friendships: id = pairKey(uidA, uidB) ---
     match /friendships/{pair} {
       allow read:   if (signedIn() && request.auth.uid in resource.data.uids) || isAdmin();
-      allow create: if signedIn()
+      allow create: if active()
                      && request.resource.data.uids.size() == 2
                      && request.auth.uid in request.resource.data.uids
                      && pair == pairKey(request.resource.data.uids[0], request.resource.data.uids[1])
@@ -335,7 +346,7 @@ service cloud.firestore {
 
     match /groupInvites/{inviteId} {
       allow read:   if signedIn() && (resource == null || request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid);
-      allow create: if signedIn() && request.auth.uid == request.resource.data.fromUid
+      allow create: if active() && request.auth.uid == request.resource.data.fromUid
                      && isGroupMember(request.resource.data.gid)
                      && inviteId == request.resource.data.gid + '_' + request.resource.data.toUid
                      && !blockedBetween(request.resource.data.toUid);
@@ -350,7 +361,7 @@ service cloud.firestore {
     // el del grupo y solo lo crea un miembro. La lista `members` no se puede ampliar a gente de fuera.
     match /chats/{chatId} {
       allow read:   if signedIn() && (request.auth.uid in resource.data.members || isGroupMember(chatId));
-      allow create: if signedIn() && (
+      allow create: if active() && (
                          (request.resource.data.members.size() == 2
                           && request.auth.uid in request.resource.data.members
                           && chatId == pairKey(request.resource.data.members[0], request.resource.data.members[1])
@@ -367,7 +378,7 @@ service cloud.firestore {
         allow read:   if signedIn() && (request.auth.uid in
                          get(/databases/$(database)/documents/chats/$(chatId)).data.members
                          || isGroupMember(chatId));
-        allow create: if signedIn()
+        allow create: if active()
                          && request.auth.uid == request.resource.data.senderUid
                          && (request.auth.uid in
                             get(/databases/$(database)/documents/chats/$(chatId)).data.members
@@ -394,7 +405,7 @@ service cloud.firestore {
     match /groups/{gid} {
       allow read:   if signedIn() && (request.auth.uid in resource.data.members || isAdmin());
       // un grupo nace SOLO con su creador: a los demás se les mete por código o por invitación
-      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid
+      allow create: if active() && request.resource.data.createdBy == request.auth.uid
                      && request.resource.data.members == [request.auth.uid];
       allow update: if isAdmin()
                      // admin del grupo: renombrar y expulsar, NUNCA añadir gente (eso sería hacerse «amigo» de cualquiera)

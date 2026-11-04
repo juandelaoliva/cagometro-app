@@ -21,6 +21,7 @@ const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "
 const WEEKDAYS = ["L", "M", "X", "J", "V", "S", "D"];
 const CAT_NAME = { chats: "chat", sync: "tuberías", milestones: "hitos", reactions: "reacciones", overtake: "adelantamientos" };
 
+const QUEUE_LABEL = { ok: "OK", late: "Atrasada", down: "PARADA", unknown: "—" }, QUEUE_TONE = { ok: "good", late: "warn", down: "bad", unknown: "" };
 const NAV = [["overview", "📊", "Resumen"], ["users", "👤", "Usuarios"], ["groups", "🏆", "Grupos"], ["reports", "🚩", "Denuncias"], ["system", "⚙️", "Sistema"]];
 
 /* ---------- piezas de gráfico (HTML/SVG a mano, sin librerías) ---------- */
@@ -54,7 +55,7 @@ function donut(parts) {
 /** Porcentaje con barra (adopción de funciones). */
 const meter = (label, n, of) => { const p = of ? Math.round((100 * n) / of) : 0; return `<li><span>${esc(label)}</span><span class="ad-meter"><i style="width:${p}%"></i></span><b>${p}%</b><small>${num(n)}</small></li>`; };
 
-const flags = r => [[r.notifOn, "🔔", "Avisos activados"], [r.geo, "📍", "Ubicación activada"], [r.bristol, "🧻", "Escala de Bristol"], [!r.shareMap, "🔒", "Mapa privado"], [!r.termsOk, "📄", "Aún no ha aceptado las condiciones"]]
+const flags = r => [[r.notifOn, "🔔", "Avisos activados"], [r.geo, "📍", "Ubicación activada"], [r.bristol, "🧻", "Escala de Bristol"], [!r.shareMap, "🔒", "Mapa privado"], [!r.termsOk, "📄", "Aún no ha aceptado las condiciones"], [r.suspended, "🚫", "Cuenta suspendida"]]
   .filter(f => f[0]).map(f => `<span title="${f[2]}">${f[1]}</span>`).join("");
 const avatar = (name, color, size = "") => `<span class="ad-av ${size}" style="background:${esc(color || "var(--brand)")}">${esc(initial(name))}</span>`;
 const chip = (t, cls = "") => `<span class="ad-chip ${cls}">${esc(t)}</span>`;
@@ -104,6 +105,8 @@ export function openAdminDashboard(ctx) {
       ${kpi("Amistades", num(so.friendships), `${so.avgFriends} por persona · ${num(so.pending)} pendientes`)}
       ${kpi("Grupos", num(so.groups), `${so.avgGroupSize} miembros de media`)}
       ${kpi("Denuncias abiertas", num(S.reports.open), `${num(S.reports.total)} en total`, S.reports.open ? "bad" : "good")}
+      ${kpi("Cola de avisos", QUEUE_LABEL[S.queue.status], S.queue.status === "unknown" ? "no se pudo leer" : `${num(S.queue.pending)} en espera${S.queue.waitMin ? ` · ${S.queue.waitMin >= 120 ? Math.round(S.queue.waitMin / 60) + " h" : S.queue.waitMin + " min"} la más antigua` : ""}`, QUEUE_TONE[S.queue.status])}
+      ${S.users.suspended ? kpi("Suspendidas", num(S.users.suspended), "cuentas", "warn") : ""}
       ${kpi("Dormidos", num(u.dormant), "14+ días sin sumar", u.dormant ? "warn" : "")}
     </div>
     <div class="ad-grid ad-grid--cards">
@@ -124,7 +127,7 @@ export function openAdminDashboard(ctx) {
     </div>`;
   }
 
-  const FILTERS = [["all", "Todos"], ["active7", "Activos 7 d"], ["dormant", "Dormidos"], ["never", "Sin cacas"], ["notif", "Con avisos"], ["native", "App nativa"], ["web", "Web"], ["nofriends", "Sin amigos"]];
+  const FILTERS = [["all", "Todos"], ["active7", "Activos 7 d"], ["dormant", "Dormidos"], ["never", "Sin cacas"], ["notif", "Con avisos"], ["native", "App nativa"], ["web", "Web"], ["nofriends", "Sin amigos"], ["suspended", "Suspendidos"]];
   const COLS = [["name", "Usuario"], ["joined", "Alta"], ["recent", "Última caca"], ["year", "Año"], ["total", "Total"], ["streak", "Racha"], ["friends", "Amigos"], ["groups", "Grupos"]];
   function vUsers() {
     const list = filterUsers(S.rows, U);
@@ -195,11 +198,25 @@ export function openAdminDashboard(ctx) {
     ${list.length ? "" : '<p class="ad-empty">No hay denuncias en esta lista. 🎉</p>'}`;
   }
 
+  function queueCard() {
+    const q = S.queue;
+    if (q.status === "unknown") return '<p class="ad-note">No se pudo leer la cola (¿reglas sin actualizar o sin conexión?).</p>';
+    const hint = q.status === "down" ? "El emisor de avisos parece PARADO. Si es la Raspberry: ¿está encendida? En ella, <code>systemctl status cagometro-push</code>."
+      : q.status === "late" ? "Hay avisos esperando más de lo normal: el emisor va lento o se ha parado hace poco." : "Los avisos se están entregando.";
+    return `<div class="ad-kv"><span>Estado</span><b class="ad-state ${q.status}">${QUEUE_LABEL[q.status]}</b></div>
+      <div class="ad-kv"><span>En espera</span><b>${num(q.pending)}${q.waitMin ? ` <small>(el más antiguo, hace ${q.waitMin >= 120 ? Math.round(q.waitMin / 60) + " h" : q.waitMin + " min"})</small>` : ""}</b></div>
+      <div class="ad-kv"><span>Entregados (últimas 24 h)</span><b>${num(q.sent24h)}</b></div>
+      <div class="ad-kv"><span>Último entregado</span><b>${q.lastSentCreated ? fdt(q.lastSentCreated) : "—"} <small>(hora de creación)</small></b></div>
+      ${Object.keys(q.byType).length ? `<div class="ad-chips">${Object.entries(q.byType).map(([k, n]) => chip(`${k} · ${n}`)).join("")}</div>` : ""}
+      <p class="ad-note">${hint} Se leen los últimos 300 avisos.</p>`;
+  }
+
   function vSystem() {
     const cfg = data.config || {};
     return `<div class="ad-grid ad-grid--cards">
       ${card("Modo mantenimiento", `<label class="ad-switch"><input type="checkbox" id="adMaint" ${cfg.maintenance ? "checked" : ""}/><span></span>Muestra el aviso y desactiva el +1 para todos</label>
         <p class="ad-note">Mensaje: «${esc(cfg.message || "el predeterminado")}»</p>`)}
+      ${card("Cola de avisos (notificaciones)", queueCard())}
       ${card("Esta carga", `<div class="ad-kv"><span>Hora</span><b>${fdt(data.loadedAt)}</b></div>
         <div class="ad-kv"><span>Usuarios leídos</span><b>${num(data.users.length)}</b></div><div class="ad-kv"><span>Grupos</span><b>${num(data.groups.length)}</b></div>
         <div class="ad-kv"><span>Amistades</span><b>${num(data.friendships.length)}</b></div><div class="ad-kv"><span>Eventos del feed (60 d)</span><b>${num(data.activity.length)}</b></div>
@@ -226,7 +243,7 @@ export function openAdminDashboard(ctx) {
     const hours = Array.from({ length: 24 }, (_, h) => u.byHour?.[h] || 0), wd = Array.from({ length: 7 }, (_, d) => u.byWeekday?.[d] || 0);
     return `<aside class="ad-drawer" role="dialog" aria-label="Usuario ${esc(r.name)}">
       <header class="ad-drawer__head"><button class="ad-x" data-act="closeuser" aria-label="Cerrar">✕</button>
-        ${avatar(r.name, r.color, "xl")}<div><h2>${esc(r.name)}</h2><p>${esc(r.email || "sin email")}</p><code data-copy="${esc(r.id)}" title="Copiar">${esc(r.id)}</code></div></header>
+        ${avatar(r.name, r.color, "xl")}<div><h2>${esc(r.name)}${r.suspended ? ' <span class="ad-tag ad-tag--bad">SUSPENDIDA</span>' : ""}</h2><p>${esc(r.email || "sin email")}</p><code data-copy="${esc(r.id)}" title="Copiar">${esc(r.id)}</code></div></header>
       <div class="ad-drawer__body">
         <div class="ad-grid ad-grid--kpi ad-grid--tight">${kpi(`Cacas ${S.year}`, num(r.year))}${kpi("Total", num(r.total))}${kpi("Racha", `${r.streak} 🔥`, `récord ${r.best}`)}${kpi("Amigos / grupos", `${r.friends.length} / ${r.groups.length}`)}</div>
         ${card("Cuenta", kv("Alta", fdate(r.created)) + kv("Primera caca", fdate(r.first)) + kv("Última caca", `${fdt(r.last)} <small>(${ago(r.last)})</small>`) + kv("Zona horaria", esc(u.tz || "—")) +
@@ -240,7 +257,8 @@ export function openAdminDashboard(ctx) {
         ${card(`Amigos (${r.friends.length})`, `<div class="ad-chips">${names(r.friends)}</div>`)}
         ${card(`Grupos (${r.groups.length})`, `<div class="ad-chips">${r.groups.length ? r.groups.map(g => `<span class="ad-chip">${esc(S.groupRows.find(x => x.id === g)?.name || g)}</span>`).join("") : '<span class="ad-muted">—</span>'}</div>`)}
         ${card("Moderación", kv("Denuncias contra esta persona", `${about.length}${about.filter(x => x.status === "open").length ? ` <small>(${about.filter(x => x.status === "open").length} abiertas)</small>` : ""}`) + kv("Denuncias hechas por ella", String(by.length)))}
-        <div class="ad-actions ad-actions--end">${r.id === ctx.myUid ? '<span class="ad-muted">Eres tú</span>' : `<button class="ad-btn ad-btn--danger" data-wipe="${esc(r.id)}" data-name="${esc(r.name)}">Vaciar sus datos…</button>`}</div>
+        ${r.suspended ? card("Suspensión", kv("Desde", fdt(r.suspendedAt)) + kv("Motivo", esc(r.suspendedReason || "—")) + '<p class="ad-note">No puede escribir, reaccionar, invitar ni crear grupos. Sigue viendo lo suyo y puede borrar su cuenta.</p>', "ad-card--warn") : ""}
+        <div class="ad-actions ad-actions--end">${r.id === ctx.myUid ? "" : r.suspended ? `<button class="ad-btn" data-unsuspend="${esc(r.id)}">Reactivar cuenta</button>` : `<button class="ad-btn ad-btn--danger" data-suspend="${esc(r.id)}" data-name="${esc(r.name)}">Suspender cuenta…</button>`}${r.id === ctx.myUid ? '<span class="ad-muted">Eres tú</span>' : `<button class="ad-btn ad-btn--danger" data-wipe="${esc(r.id)}" data-name="${esc(r.name)}">Vaciar sus datos…</button>`}</div>
       </div></aside>`;
   }
 
@@ -264,6 +282,13 @@ export function openAdminDashboard(ctx) {
       <nav class="ad-tabbar">${NAV.map(([k, ic, l]) => `<button data-view="${k}" class="${view === k ? "on" : ""}"><span>${ic}${k === "reports" ? badge : ""}</span>${l}</button>`).join("")}</nav>
       ${sel && S ? `<div class="ad-scrim" data-act="closeuser"></div>${drawer(sel)}` : ""}`;
     const v = root.querySelector(".ad-view"); if (v) v.scrollTop = keepScroll;
+  }
+
+  // Refleja la suspensión en los datos que ya tenemos (sin volver a leerlo todo) y recalcula.
+  function markSuspended(id, on, reason) {
+    const u = data.users.find(x => x.id === id); if (!u) return;
+    u.suspended = on; u.suspendedReason = reason; u.suspendedAt = on ? Date.now() : 0;
+    S = computeStats(data, Date.now()); paint();
   }
 
   /* ---------- eventos (delegación) ---------- */
@@ -292,6 +317,23 @@ export function openAdminDashboard(ctx) {
       rs.disabled = true;
       try { await ctx.actions.setReportStatus(rid, rs.dataset.rstatus); const r = data.reports.find(x => x.id === rid); if (r) r.status = rs.dataset.rstatus; S = computeStats(data, Date.now()); paint(); }
       catch (err) { console.error(err); rs.disabled = false; ctx.toast?.("No se pudo guardar"); }
+      return;
+    }
+    const susp = t.closest("[data-suspend]");
+    if (susp) {
+      const id = susp.dataset.suspend, name = susp.dataset.name || "esta persona";
+      const reason = prompt(`Suspender la cuenta de ${name}.\n\nMotivo (solo lo ves tú):`, "");
+      if (reason === null) return;                                        // canceló
+      susp.disabled = true;
+      try { await ctx.actions.setSuspended(id, true, reason.trim()); markSuspended(id, true, reason.trim()); ctx.toast?.("Cuenta suspendida"); }
+      catch (err) { console.error(err); susp.disabled = false; ctx.toast?.("No se pudo suspender"); }
+      return;
+    }
+    const unsusp = t.closest("[data-unsuspend]");
+    if (unsusp) {
+      unsusp.disabled = true;
+      try { await ctx.actions.setSuspended(unsusp.dataset.unsuspend, false, ""); markSuspended(unsusp.dataset.unsuspend, false, ""); ctx.toast?.("Cuenta reactivada"); }
+      catch (err) { console.error(err); unsusp.disabled = false; ctx.toast?.("No se pudo reactivar"); }
       return;
     }
     const wipe = t.closest("[data-wipe]");

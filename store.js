@@ -492,6 +492,13 @@ export async function adminListUsers(){
 }
 // El admin puede leer TODOS los grupos y amistades de una vez (las reglas lo
 // permiten vía isAdmin), para cruzar en local sin leer por usuario.
+// Denuncias (solo el admin las lee; ver reglas). Ordenadas por fecha, las más nuevas primero; se filtran por estado en el cliente (así no hace falta otro índice).
+export async function adminListReports(){
+  const s = await getDocs(query(collection(db,"reports"), orderBy("ts","desc"), limit(200)));
+  return s.docs.map(d => ({ id:d.id, ...d.data() }));
+}
+// status: 'open' | 'dismissed' | 'resolved'
+export const adminSetReportStatus = (id, status) => updateDoc(doc(db,"reports",id), { status });
 export async function adminListGroups(){
   const s = await getDocs(collection(db,"groups"));
   return s.docs.map(d => ({ id:d.id, ...d.data() }));

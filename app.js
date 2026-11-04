@@ -8,7 +8,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
-  adminListUsers, adminListGroups, adminListFriendships, adminWipeUser, getAppConfig, setMaintenance,
+  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, getUserLite, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
@@ -483,7 +483,7 @@ async function renderAdminUsers(){
   $("adminGroups").innerHTML="";
   try{
     // Una lectura por colección; grupos y amistades se cruzan en local (sin leer por usuario).
-    const [users, groups, fships] = await Promise.all([ adminListUsers(), adminListGroups(), adminListFriendships() ]);
+    const [users, groups, fships, reports] = await Promise.all([ adminListUsers(), adminListGroups(), adminListFriendships(), adminListReports().catch(()=>null) ]);
     const usersById={}; users.forEach(u=>{ usersById[u.id]=u; });
     const friendsByUid={}, groupsByUid={};
     fships.filter(f=>f.status==="accepted").forEach(f=>{ const [a,b]=f.uids||[]; if(!a||!b) return;
@@ -491,7 +491,7 @@ async function renderAdminUsers(){
     groups.forEach(g=>(g.members||[]).forEach(m=>{ (groupsByUid[m]=groupsByUid[m]||[]).push(g); }));
     users.sort((a,b)=>yearCountOf(b)-yearCountOf(a));
     groups.sort((a,b)=>(b.members?.length||0)-(a.members?.length||0));
-    _adminData={ users, usersById, friendsByUid, groupsByUid, groups };
+    _adminData={ users, usersById, friendsByUid, groupsByUid, groups, reports };
     _renderAdminBody();
   }catch(err){ $("adminUsers").innerHTML=`<p class="notif-empty">${t('admin.users.loadfail')}</p>`; console.error(err); }
 }
@@ -499,9 +499,13 @@ function _renderAdminBody(){
   if(!_adminData) return;
   const q=_adminQuery.trim().toLowerCase();
   const isUsers=_adminTab==="users";
-  $("adminUsers").hidden=!isUsers; $("adminGroups").hidden=isUsers;
+  $("adminUsers").hidden=!isUsers; $("adminGroups").hidden=_adminTab!=="groups"; $("adminReports").hidden=_adminTab!=="reports";
   $("adminHint").hidden = !isUsers;
-  if(isUsers){
+  if(_adminTab==="reports"){
+    const open=(_adminData.reports||[]).filter(r=>r.status==="open");
+    $("adminReports").innerHTML = _adminData.reports===null ? `<p class="notif-empty">${t('admin.reports.loadfail')}</p>`
+      : open.map(_adminReportCard).join("") || `<p class="notif-empty">${t('admin.reports.empty')}</p>`;
+  } else if(isUsers){
     const list=_adminData.users.filter(u=>!q || (u.displayName||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q));
     $("adminUsers").innerHTML = list.map(_adminUserCard).join("") || `<p class="notif-empty">${t('admin.users.empty')}</p>`;
   } else {
@@ -540,6 +544,30 @@ function _adminUserCard(u){
     </div>
   </div>`;
 }
+// Una denuncia: quién, a quién, por qué y, si es de un mensaje, el texto copiado (el admin no puede leer los chats). TODO va escapado: lo escribe cualquiera.
+const _REPORT_KIND = { user:"👤 Usuario", message:"💬 Mensaje", group:"🏆 Grupo" };
+function _adminReportCard(r){
+  const when = r.ts?.toMillis ? _aDate(r.ts.toMillis()) : "—";
+  return `<div class="admin-group" data-rid="${_aesc(r.id)}">
+    <div class="adminrow__txt" style="margin-bottom:8px"><b>${_aesc(_REPORT_KIND[r.kind]||r.kind)} · ${_aesc(r.reason)}</b>
+      <small>${_aesc(when)} · de ${_aesc(_aName(r.reporterUid))} contra ${_aesc(_aName(r.targetUid))}</small></div>
+    ${r.text?`<div class="admin-muted" style="margin-bottom:6px">«${_aesc(r.text)}»</div>`:""}
+    ${r.note?`<div style="margin-bottom:8px">${_aesc(r.note)}</div>`:""}
+    <div class="admin-chips">
+      <button class="btn-ghost" data-rstatus="dismissed">${t('admin.reports.dismiss')}</button>
+      <button class="btn-solid" data-rstatus="resolved">${t('admin.reports.resolve')}</button>
+    </div>
+  </div>`;
+}
+$("adminReports").addEventListener("click", async e=>{
+  const b=e.target.closest("[data-rstatus]"); if(!b) return;
+  const card=b.closest("[data-rid]"); if(!card) return;
+  b.disabled=true;
+  try{ await adminSetReportStatus(card.dataset.rid, b.dataset.rstatus);
+    const r=(_adminData?.reports||[]).find(x=>x.id===card.dataset.rid); if(r) r.status=b.dataset.rstatus;
+    _renderAdminBody(); }
+  catch(err){ console.error(err); b.disabled=false; toast(t('admin.reports.loadfail')); }
+});
 function _adminGroupCard(g){
   const members=(g.members||[]).map(m=>`<span class="admin-chip">${_aesc(_aName(m))}</span>`).join("") || `<span class="admin-muted">—</span>`;
   return `<div class="admin-group">

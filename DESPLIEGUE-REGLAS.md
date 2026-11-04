@@ -115,3 +115,9 @@ conexiones de tuberías en las que se participa (`audience` + `uid` y `audience`
 - Publicada antes la PWA (`20261104-124539`) y después las reglas (`firebase deploy --only firestore:rules`, 145 pruebas en verde con el mismo fichero). `firestore.rules` = `firestore.rules.draft`.
 - Añaden: `reports` (crear con validación de que el mensaje/grupo denunciado es real; leer y gestionar solo el admin), `users/{uid}/blocked`, bloqueo entre dos en DM/invitaciones/solicitudes/avisos y el tipo `report` de `pushQueue` hacia el admin.
 - Marcha atrás: las reglas anteriores están en `~/firestore.rules.antes-denuncias` (y en el historial de git: commit `9f4ce38`).
+
+
+## Actualización 2026-11-04 (tarde) · suspensión de cuentas y lectura de la cola de avisos DESPLEGADAS
+- `users/{uid}.suspended|suspendedAt|suspendedReason`: SOLO los escribe el admin (el dueño no puede tocarlos ni al crear ni al actualizar). Una cuenta suspendida no puede crear mensajes, actividad, avisos (`pushQueue`), amistades, invitaciones, chats ni grupos (`active()`); sí leer lo suyo y borrar su cuenta.
+- `pushQueue`: el admin puede LEER (el panel enseña la salud de la cola); actualizar/borrar sigue prohibido a los clientes.
+- 173 pruebas de reglas en verde con el mismo fichero. Marcha atrás: `~/firestore.rules.antes-suspension`.

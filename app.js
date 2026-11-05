@@ -309,8 +309,9 @@ $("forgotBtn").addEventListener("click", async ()=>{
     el.style.color="var(--rose)"; el.textContent=msg; el.hidden=false;
   }
 });
-const ERR_CODES={"auth/email-already-in-use":"err.email_in_use","auth/invalid-credential":"err.invalid_credential","auth/invalid-email":"err.invalid_email","auth/weak-password":"err.weak_password","auth/popup-closed-by-user":"err.popup_closed"};
-const showErr=e=>{const el=$("formErr");el.textContent=ERR_CODES[e?.code]?t(ERR_CODES[e.code]):(e?.message||t('err.generic'));el.hidden=false;};
+const ERR_CODES={"auth/email-already-in-use":"err.email_in_use","auth/invalid-credential":"err.invalid_credential","auth/invalid-email":"err.invalid_email","auth/weak-password":"err.weak_password","auth/popup-closed-by-user":"err.popup_closed","auth/missing-password":"err.missing_password","auth/network-request-failed":"err.network","auth/too-many-requests":"err.too_many","auth/user-disabled":"err.user_disabled"};
+// Nunca el texto técnico de Firebase («Firebase: Error (auth/…)»): lo que no esté mapeado es el genérico.
+const showErr=e=>{const el=$("formErr");if(!ERR_CODES[e?.code])console.warn("auth",e);el.textContent=t(ERR_CODES[e?.code]||'err.generic');el.hidden=false;};
 const clearErr=()=>$("formErr").hidden=true;
 $("authForm").addEventListener("submit",async e=>{
   e.preventDefault();clearErr();

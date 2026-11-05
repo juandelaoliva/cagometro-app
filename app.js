@@ -29,7 +29,7 @@ import * as Recap from "./recap-player.js";
 const $ = id => document.getElementById(id);
 // La marca de versión la escribe deploy.sh en cada despliegue (la misma que el nombre de la caché del service worker). Se ve al pie de Ajustes: sirve para
 // comprobar en el móvil que se está ejecutando la versión que se acaba de publicar.
-const APP_VERSION = "20261105-204854";
+const APP_VERSION = "20261105-213731";
 window.__appBooted = true;   // el bundle (Firebase + app) cargó: desactiva el failsafe del index
 
 // ── Modo mantenimiento ─────────────────────────────────────────────────────

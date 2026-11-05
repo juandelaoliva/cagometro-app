@@ -479,7 +479,7 @@ const _es = {
   'grupos.stat.bestmonth': 'mejor mes',
   'grupos.stat.avg': 'media/persona',
   'grupos.stack.empty': 'Sin cacas este año.',
-  'grupos.rank.year': 'año',
+  'grupos.rank.year': 'este año',
 
   // ── Perfil ──
   'perfil.title': 'Perfil',
@@ -1248,6 +1248,11 @@ const _en = {
   'grupos.map.empty': '📍 No one in the group has saved locations.',
   'grupos.leave.fail': 'Could not leave',
   'grupos.invite.friend.btn': 'Invite friend',
+  'grupos.admin.title': 'Manage group',
+  'grupos.admin.name': 'Group name',
+  'grupos.admin.save': 'Save',
+  'grupos.admin.members': 'Members',
+  'grupos.admin.delete': 'Delete group',
   'grupos.admin.kick': 'Remove',
   'grupos.admin.role': 'Admin',
   'grupos.admin.renamed': 'Name updated',
@@ -1289,7 +1294,7 @@ const _en = {
   'grupos.stat.bestmonth': 'best month',
   'grupos.stat.avg': 'avg per person',
   'grupos.stack.empty': 'No poops this year.',
-  'grupos.rank.year': 'year',
+  'grupos.rank.year': 'this year',
 
   // ── Perfil ──
   'perfil.title': 'Profile',

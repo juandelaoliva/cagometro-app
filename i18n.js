@@ -380,7 +380,7 @@ const _es = {
   'err.forgot.fail': 'No se pudo enviar el email.',
 
   // ── Banner de verificación ──
-  'verif.bar': '📧 Verifica tu email para confirmar tu cuenta.',
+  'verif.bar': '📧 Verifica tu email para confirmar tu cuenta (si no ves el correo, mira en spam).',
   'verif.resend': 'Reenviar',
 
   // ── Mantenimiento ──
@@ -1165,7 +1165,7 @@ const _en = {
   'err.forgot.fail': 'Could not send the email.',
 
   // ── Banner de verificación ──
-  'verif.bar': '📧 Verify your email to confirm your account.',
+  'verif.bar': '📧 Verify your email to confirm your account (if you can\'t see the email, check spam).',
   'verif.resend': 'Resend',
 
   // ── Mantenimiento ──

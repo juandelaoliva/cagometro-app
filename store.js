@@ -671,7 +671,10 @@ export async function createGroup(uid, name){
 // reglas solo admiten CREAR esa amistad (con `gid`, y los dos dentro del grupo), no
 // reescribir una que ya existe: por eso solo se crean las que faltan.
 async function befriendGroupMates(uid, gid, members){
-  const others = members.filter(m => m !== uid);
+  // A quien he bloqueado NO se le hace amigo (ni se acepta su solicitud). Quien me haya bloqueado a mí no lo sé (su lista es privada): sus amistades las deniega el
+  // servidor y se ignoran una a una (abajo), sin estropear el resto.
+  const blocked = new Set((await getDocs(collection(db,"users",uid,"blocked")).catch(()=>({docs:[]}))).docs.map(d => d.id));
+  const others = members.filter(m => m !== uid && !blocked.has(m));
   if (!others.length) return;
   const existing = new Map((await myFriendships(uid)).map(f => [f.id, f]));
   const toCreate = [];
@@ -687,10 +690,15 @@ async function befriendGroupMates(uid, gid, members){
     }
   }
   if (!toCreate.length) return;
+  const mk = m => ({ uids:[uid,m].sort(), status:"accepted", source:"group", gid, createdAt:serverTimestamp() });
   const batch = writeBatch(db);
-  for (const m of toCreate)
-    batch.set(doc(db,"friendships",pairId(uid,m)), { uids:[uid,m].sort(), status:"accepted", source:"group", gid, createdAt:serverTimestamp() });
-  await batch.commit();
+  for (const m of toCreate) batch.set(doc(db,"friendships",pairId(uid,m)), mk(m));
+  try{ await batch.commit(); }
+  catch(e){
+    // el lote es atómico: si UNA amistad se deniega (esa persona me bloqueó), se intentan una a una y se ignoran las denegadas
+    if (e?.code !== "permission-denied") throw e;
+    for (const m of toCreate){ try{ await setDoc(doc(db,"friendships",pairId(uid,m)), mk(m)); }catch(err){ if (err?.code !== "permission-denied") throw err; } }
+  }
 }
 
 // Unirse a un grupo por su id. Con las reglas nuevas un no-miembro NO puede leer el grupo,
@@ -1062,6 +1070,9 @@ export async function reportTarget(uid, target){
 export async function blockUser(uid, otherUid, name){
   if (otherUid === uid) throw new Error("self");
   await setDoc(doc(db,"users",uid,"blocked",otherUid), { ts: serverTimestamp(), name: clip(name, 100) });
+  // Bloquear también ROMPE la amistad (y retira una solicitud pendiente): sin ella la persona seguiría viendo tus cacas con ubicación y tu mapa. Si falla, el bloqueo
+  // ya está puesto (corta el chat, las invitaciones y los avisos) y se puede repetir.
+  await deleteDoc(doc(db,"friendships",pairId(uid,otherUid))).catch(e => console.warn("bloquear: no se pudo quitar la amistad", e));
 }
 export const unblockUser = (uid, otherUid) => deleteDoc(doc(db,"users",uid,"blocked",otherUid));
 // [{ uid, name, ts }] de quienes he bloqueado, en vivo.

@@ -695,3 +695,28 @@ describe("cola de avisos: salud para el panel", () => {
     await assertFails(deleteDoc(doc(as(ADMIN), "pushQueue", "p1")));
   });
 });
+
+describe("bloquear quita la amistad y no se puede recrear por un grupo", () => {
+  const blockDoc = (owner, other) => setDoc(doc(as(owner), "users", owner, "blocked", other), { ts: serverTimestamp(), name: other });
+  it("antes de bloquear, un amigo lee las cacas con ubicación; tras bloquear y borrar la amistad, ya no", async () => {
+    await assertSucceeds(getDoc(doc(as("bob"), "users", "alice", "cacas", "c1")));
+    await assertSucceeds(blockDoc("alice", "bob"));
+    await assertSucceeds(deleteDoc(doc(as("alice"), "friendships", "alice_bob")));
+    await assertFails(getDoc(doc(as("bob"), "users", "alice", "cacas", "c1")));
+    await assertFails(getDoc(doc(as("bob"), "users", "alice")));
+  });
+  it("la amistad automática de grupo NO se recrea entre quien bloquea y el bloqueado (en ningún sentido)", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", "alice", "blocked", "bob"), { ts: 1, name: "bob" }); await deleteDoc(doc(c.firestore(), "friendships", "alice_bob")); });
+    const f = { uids: ["alice", "bob"], status: "accepted", source: "group", gid: "g1", createdAt: serverTimestamp() };
+    await assertFails(setDoc(doc(as("alice"), "friendships", "alice_bob"), f));      // la crea quien bloqueó
+    await assertFails(setDoc(doc(as("bob"), "friendships", "alice_bob"), f));        // la crea el bloqueado
+  });
+  it("sin bloqueo, la amistad automática de grupo sigue funcionando", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await deleteDoc(doc(c.firestore(), "friendships", "alice_bob")); });
+    await assertSucceeds(setDoc(doc(as("bob"), "friendships", "alice_bob"), { uids: ["alice", "bob"], status: "accepted", source: "group", gid: "g1", createdAt: serverTimestamp() }));
+  });
+  it("el bloqueo de otra pareja no estorba", async () => {
+    await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "users", "carol", "blocked", "dave"), { ts: 1, name: "dave" }); });
+    await assertSucceeds(setDoc(doc(as("eve"), "friendships", "alice_eve"), { uids: ["alice", "eve"], status: "accepted", source: "group", gid: "g2", createdAt: serverTimestamp() }));
+  });
+});

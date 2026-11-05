@@ -3761,5 +3761,20 @@ function startChatListener(myUid, myDisplayName){
     _lastChats = enriched;
     _renderChatList(enriched);
     _updateChatBadge(enriched);
+    openPendingChat();
   });
 }
+
+// ── abrir una conversación al tocar su notificación (?chat=… al arrancar, o aviso del service worker si ya estaba abierta) ──
+let _pendingChatOpen = new URLSearchParams(location.search).get("chat");
+function openPendingChat(){
+  if(!_pendingChatOpen || !uid) return;
+  const c = (_lastChats||[]).find(x => x.id === _pendingChatOpen);
+  if(!c) return;                                   // aún no ha llegado la lista de chats: se reintenta al llegar
+  const id = _pendingChatOpen; _pendingChatOpen = null;
+  if(new URLSearchParams(location.search).has("chat")) history.replaceState(null, "", location.pathname);
+  openChatView(); openConversation(id, c);
+}
+navigator.serviceWorker?.addEventListener("message", e => {
+  if(e.data?.type === "OPEN_CHAT" && typeof e.data.chatId === "string"){ _pendingChatOpen = e.data.chatId; openPendingChat(); }
+});

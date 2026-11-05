@@ -23,15 +23,19 @@ messaging.onBackgroundMessage(payload => {
     icon: "icon-192.png",   // logo a color (cuerpo de la notificación)
     badge: "badge.png",     // silueta monocroma (barra de estado Android)
     tag: d.tag || ("cagometro-" + Date.now()),
-    data: { url: "./" },
+    // si el aviso es de un chat (la Pi reenvía `chatId`), al tocarlo se abre esa conversación
+    data: { url: d.chatId ? "./?chat=" + encodeURIComponent(d.chatId) : "./", chatId: d.chatId || null },
   });
 });
 
-// Al tocar la notificación, abre/enfoca la app.
+// Al tocar la notificación, abre/enfoca la app (y, si es de un chat, esa conversación).
 self.addEventListener("notificationclick", e => {
   e.notification.close();
+  const { url = "./", chatId = null } = e.notification.data || {};
   e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const c of list) { if ("focus" in c) return c.focus(); }
-    if (clients.openWindow) return clients.openWindow("./");
+    for (const c of list) {
+      if ("focus" in c) { if (chatId) c.postMessage({ type: "OPEN_CHAT", chatId }); return c.focus(); }
+    }
+    if (clients.openWindow) return clients.openWindow(url);
   }));
 });

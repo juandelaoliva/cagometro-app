@@ -305,8 +305,9 @@ export const saveToken   = (uid, token) => setDoc(doc(db,"users",uid,"private","
 export const removeToken = (uid, token) => updateDoc(doc(db,"users",uid,"private","push"), { tokens: arrayRemove(token) });
 // Cola de envíos: el emisor (Raspberry, firebase-admin) la vigila y manda los push.
 // `type` permite a la Pi decidir qué agrupar (p.ej. coalescer reacciones).
-export const enqueuePush = (fromUid, toUid, type, title, body) =>
-  addDoc(collection(db,"pushQueue"), { fromUid, toUid, type, title, body, sent:false, ts: serverTimestamp() });
+// `extra.chatId` (solo en mensajes de chat): al tocar el aviso se abre esa conversación (app nativa y, si la Pi lo reenvía, la PWA).
+export const enqueuePush = (fromUid, toUid, type, title, body, extra = {}) =>
+  addDoc(collection(db,"pushQueue"), { fromUid, toUid, type, title, body, sent:false, ts: serverTimestamp(), ...(extra.chatId ? { chatId: extra.chatId } : {}) });
 
 /* ── Preferencias de notificación, por categoría ───────────────────────────
    El push lo encola el móvil de QUIEN PROVOCA el aviso, así que para respetar el
@@ -1035,7 +1036,7 @@ export async function notifyNewMessage(chatId, senderUid, senderName, text, memb
     // (Los textos de push de este fichero van en castellano a pelo, como los demás.)
     enqueuePush(senderUid, toUid, "chat_message",
       replyTo && replyTo.senderUid === toUid ? `${senderName} respondió a tu mensaje` : senderName,
-      body
+      body, { chatId }
     ).catch(()=>{})
   ));
 }

@@ -288,7 +288,11 @@ service cloud.firestore {
     match /pushQueue/{id} {
       allow create: if active()
                      && request.resource.data.fromUid == request.auth.uid
-                     && request.resource.data.keys().hasOnly(['fromUid','toUid','type','title','body','sent','ts'])
+                     && request.resource.data.keys().hasOnly(['fromUid','toUid','type','title','body','sent','ts','chatId'])
+                     // `chatId` (opcional, solo en mensajes de chat): al tocar el aviso, la app abre esa conversación
+                     && (!('chatId' in request.resource.data)
+                         || (request.resource.data.type == 'chat_message' && request.resource.data.chatId is string
+                             && request.resource.data.chatId.size() > 0 && request.resource.data.chatId.size() <= 128))
                      && request.resource.data.type in ['reaction','friend_request','friend_accepted','milestone',
                                                        'overtake','sync','chat_message','group_invite','report']
                      && request.resource.data.title.size() <= 120

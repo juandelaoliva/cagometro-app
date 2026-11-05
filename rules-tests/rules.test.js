@@ -161,6 +161,14 @@ describe("pushQueue", () => {
     await assertFails(addDoc(q("alice"), push({ title: "x".repeat(121) })));
   });
   it("campos que no son de la cola: NO", async () => { await assertFails(addDoc(q("alice"), push({ extra: 1 }))); });
+  it("chatId (para abrir la conversación al tocar el aviso): sí en mensajes de chat; en otros tipos, vacío o largo, NO", async () => {
+    await assertSucceeds(addDoc(q("alice"), push({ type: "chat_message", chatId: "alice_bob" })));
+    await assertSucceeds(addDoc(q("alice"), push({ type: "chat_message" })));                     // sin él, como siempre
+    await assertFails(addDoc(q("alice"), push({ type: "reaction", chatId: "alice_bob" })));
+    await assertFails(addDoc(q("alice"), push({ type: "chat_message", chatId: "" })));
+    await assertFails(addDoc(q("alice"), push({ type: "chat_message", chatId: "x".repeat(129) })));
+    await assertFails(addDoc(q("alice"), push({ type: "chat_message", chatId: 7 })));
+  });
   it("nadie la puede leer desde el cliente", async () => {
     await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "pushQueue", "p1"), push()); });
     await assertFails(getDoc(doc(as("alice"), "pushQueue", "p1")));

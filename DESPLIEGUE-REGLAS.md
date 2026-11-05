@@ -121,3 +121,8 @@ conexiones de tuberías en las que se participa (`audience` + `uid` y `audience`
 - `users/{uid}.suspended|suspendedAt|suspendedReason`: SOLO los escribe el admin (el dueño no puede tocarlos ni al crear ni al actualizar). Una cuenta suspendida no puede crear mensajes, actividad, avisos (`pushQueue`), amistades, invitaciones, chats ni grupos (`active()`); sí leer lo suyo y borrar su cuenta.
 - `pushQueue`: el admin puede LEER (el panel enseña la salud de la cola); actualizar/borrar sigue prohibido a los clientes.
 - 173 pruebas de reglas en verde con el mismo fichero. Marcha atrás: `~/firestore.rules.antes-suspension`.
+
+
+## Actualización 2026-11-05 · bloquear rompe la amistad
+- La amistad automática de grupo (`status: accepted`, `source: group`) se deniega si hay bloqueo entre los dos (en cualquier sentido). Los clientes (PWA `20261105-192909` y app nativa) borran la amistad al bloquear y no intentan recrearla.
+- 182 pruebas de reglas en verde. Marcha atrás: `~/firestore.rules.antes-bloqueo-amistad`.

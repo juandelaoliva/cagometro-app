@@ -328,11 +328,13 @@ service cloud.firestore {
                           (request.resource.data.status == 'pending'
                            && request.resource.data.requestedBy == request.auth.uid
                            && !blockedBetween(otherOf(request.resource.data.uids)))
-                          // amistad automática de grupo: ambos tienen que estar en ese grupo
+                          // amistad automática de grupo: ambos tienen que estar en ese grupo, y sin bloqueo entre ambos (si no, quien bloquea volvería a ser «amigo»
+                          // —y a ver sus cacas y su mapa— al unirse a otro grupo con esa persona)
                           || (request.resource.data.status == 'accepted'
                               && request.resource.data.source == 'group'
                               && inGroup(request.resource.data.gid, request.resource.data.uids[0])
-                              && inGroup(request.resource.data.gid, request.resource.data.uids[1]))
+                              && inGroup(request.resource.data.gid, request.resource.data.uids[1])
+                              && !blockedBetween(otherOf(request.resource.data.uids)))
                         );
       // aceptar: solo el que NO la pidió, y solo cambia `status` de pending a accepted
       allow update: if signedIn()

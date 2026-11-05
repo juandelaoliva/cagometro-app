@@ -127,7 +127,7 @@ export async function ensureProfile(user, displayName){
   const snap = await getDoc(ref);
   if (!snap.exists()){
     await setDoc(ref, {
-      displayName: displayName || user.displayName || (user.email || "anónimo").split("@")[0],
+      displayName: (displayName || user.displayName || (user.email || "anónimo").split("@")[0]).slice(0, 100),   // 100 = tope de las reglas en el feed
       email: (user.email || "").toLowerCase() || null,
       photoURL: user.photoURL || null,
       color: colorForUid(user.uid),
@@ -155,6 +155,10 @@ export async function ensureProfile(user, displayName){
   } else {
     const d = snap.data();
     if (d.tz !== tz()) updateDoc(ref, { tz: tz() }).catch(()=>{});   // mantener tz al día (viaje/nuevo dispositivo)
+    // Carrera del alta: el listener de sesión puede crear el perfil ANTES de que `signUp` ponga el nombre, y se queda con el
+    // principio del email. Si nos llega el nombre elegido y el guardado es ese automático, se corrige (también el perfil público).
+    const auto = (user.email || "").split("@")[0];
+    if (displayName && d.displayName !== displayName && (!d.displayName || d.displayName === auto)) updateMe(user.uid, { displayName }).catch(()=>{});
     // Los usuarios anteriores a las reglas nuevas se sincronizan solos en su próximo login.
     // `publicV` solo se marca si las escrituras se aceptaron: con las reglas viejas se
     // denegarían y se reintentaría en cada login.

@@ -1,6 +1,6 @@
 rules_version = '2';
 // ═══════════════════════════════════════════════════════════════════════════════
-// Cagómetro · Firestore rules — BORRADOR ENDURECIDO (NO es el fichero que se despliega)
+// Cagómetro · Firestore rules — LAS DESPLEGADAS (firebase.json despliega este fichero; .draft es el banco de pruebas y debe ser idéntico)
 //
 // ESTADO: pasa los 89 tests de rules-tests/ contra el emulador (`cd rules-tests && npm
 // test`; hace falta Node 18+ y Java): 55 de reglas, 25 del cliente real (store.js) y 9 del

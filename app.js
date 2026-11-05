@@ -309,7 +309,7 @@ $("forgotBtn").addEventListener("click", async ()=>{
     el.style.color="var(--rose)"; el.textContent=msg; el.hidden=false;
   }
 });
-const ERR_CODES={"auth/email-already-in-use":"err.email_in_use","auth/invalid-credential":"err.invalid_credential","auth/invalid-email":"err.invalid_email","auth/weak-password":"err.weak_password","auth/popup-closed-by-user":"err.popup_closed","auth/missing-password":"err.missing_password","auth/network-request-failed":"err.network","auth/too-many-requests":"err.too_many","auth/user-disabled":"err.user_disabled"};
+const ERR_CODES={"auth/email-already-in-use":"err.email_in_use","auth/invalid-credential":"err.invalid_credential","auth/wrong-password":"err.invalid_credential","auth/user-not-found":"err.invalid_credential","auth/invalid-email":"err.invalid_email","auth/weak-password":"err.weak_password","auth/popup-closed-by-user":"err.popup_closed","auth/missing-password":"err.missing_password","auth/network-request-failed":"err.network","auth/too-many-requests":"err.too_many","auth/user-disabled":"err.user_disabled"};
 // Nunca el texto técnico de Firebase («Firebase: Error (auth/…)»): lo que no esté mapeado es el genérico.
 const showErr=e=>{const el=$("formErr");if(!ERR_CODES[e?.code])console.warn("auth",e);el.textContent=t(ERR_CODES[e?.code]||'err.generic');el.hidden=false;};
 const clearErr=()=>$("formErr").hidden=true;
@@ -880,7 +880,7 @@ let _graph={ audience:[], groups:[] };   // grafo social cacheado para escribir 
 let _friendsDocs=[];                     // docs de tus amigos (los guarda el grafo; el recap saca de aquí el puesto)
 // metadatos para el evento de actividad (lo escribe el store de forma transaccional)
 const actMeta = () => ({
-  name: me?.displayName||"", color: me?.color||colorForUid(uid),
+  name: (me?.displayName||"").slice(0,100), color: me?.color||colorForUid(uid),
   audience: _graph.audience.length ? _graph.audience : [uid],
   groups: _graph.groups || [],
 });
@@ -2871,7 +2871,7 @@ function checkSyncPoop(loc){
   // es un campo permitido por las reglas (`participants`), así que no hace falta tocarlas.
   // Con esto el feed puede contar cómo fue creciendo el combo. Yo entro ahora (acabo de
   // cagar); los demás, en el momento de su caca.
-  const meP={ uid, name:me?.displayName||"", color:me?.color||colorForUid(uid), joinedTs: Date.now() };
+  const meP={ uid, name:(me?.displayName||"").slice(0,100), color:me?.color||colorForUid(uid), joinedTs: Date.now() };
   // `nearby` son CACAS, no personas: un mismo amigo puede tener varias en la ventana.
   // Nos quedamos con UNA entrada por persona (la más antigua) para no meterlo repetido
   // en participants/participantUids — si no, una conexión de 2 se guardaba con 5 uids y

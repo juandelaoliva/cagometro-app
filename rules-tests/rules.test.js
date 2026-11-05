@@ -196,6 +196,36 @@ describe("activity", () => {
     await assertSucceeds(getDoc(doc(as("bob"), "activity", "a1")));
     await assertFails(getDoc(doc(as("carol"), "activity", "a1")));
   });
+
+  // Lo que escriben de verdad las apps (addCacaAt, syncComboUpsert, undo/reset): tiene que seguir pasando.
+  const evento = (extra = {}) => ({ uid: "bob", kind: "add", name: "Bob de la Oliva Rodríguez", color: "#6E3F1C", ts: Date.now(), forTs: 1, year: 2026, n: 3,
+    late: true, offline: true, audience: ["bob", "alice"], groups: ["g1"], reactions: {}, createdAt: serverTimestamp(), lat: 40.4, lng: -3.7, ...extra });
+  it("tamaños: los eventos reales de las apps se crean", async () => {
+    await assertSucceeds(addDoc(collection(as("bob"), "activity"), evento()));
+    await assertSucceeds(addDoc(collection(as("bob"), "activity"), { uid: "bob", kind: "undo", name: "Bob", color: "#fff", ts: 1, year: 2026, audience: ["bob"], groups: [], reactions: {}, createdAt: serverTimestamp() }));
+    await assertSucceeds(setDoc(doc(as("bob"), "activity", "sesion1"), { kind: "sync", uid: "bob", name: "Bob", color: "#abc", ts: 1, startedTs: 1, lastTs: 2, year: 2026,
+      participants: [{ uid: "bob", name: "Bob", color: "#abc" }], participantUids: ["bob"], km: 1.2, audience: ["bob", "alice"], reactions: {}, createdAt: serverTimestamp() }));
+  });
+  it("tamaños: nombre, color, audiencia, grupos o campos desmesurados, no", async () => {
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ name: "x".repeat(101) })));
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ name: 42 })));
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ color: "#".repeat(41) })));
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ audience: Array.from({ length: 1001 }, (_, i) => "u" + i) })));
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ groups: Array.from({ length: 101 }, (_, i) => "g" + i) })));
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento(Object.fromEntries(Array.from({ length: 30 }, (_, i) => ["extra" + i, i])))));
+  });
+  it("tamaños: no se puede crear un evento con reacciones ya puestas (falsificar las de otros)", async () => {
+    await assertFails(addDoc(collection(as("bob"), "activity"), evento({ reactions: { alice: ["💩"] } })));
+  });
+  it("tamaños: el autor tampoco puede inflar su evento después", async () => {
+    await assertSucceeds(updateDoc(doc(as("alice"), "activity", "a1"), { name: "Alice" }));
+    await assertFails(updateDoc(doc(as("alice"), "activity", "a1"), { name: "x".repeat(101) }));
+  });
+  it("tamaños: hasta 20 emojis por persona en un evento", async () => {
+    const doce = ["💩", "🔥", "😂", "😱", "😭", "🌶️", "👏", "🤢", "💪", "👑", "❤️", "🚽"];
+    await assertSucceeds(updateDoc(doc(as("bob"), "activity", "a1"), { "reactions.bob": doce }));
+    await assertFails(updateDoc(doc(as("bob"), "activity", "a1"), { "reactions.bob": [...doce, ...doce] }));
+  });
 });
 
 describe("groups", () => {

@@ -110,10 +110,25 @@ service cloud.firestore {
           && get(friendshipDoc(other)).data.status == 'accepted';
     }
 
-    // Solo cambia el mapa `reactions`, y solo la entrada del que reacciona.
+    // Solo cambia el mapa `reactions`, y solo la entrada del que reacciona (como mucho 20 emojis: el selector tiene 12).
     function onlyMyReaction() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-          && request.resource.data.reactions.diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid]);
+          && request.resource.data.reactions.diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid])
+          && request.resource.data.reactions[request.auth.uid].size() <= 20;
+    }
+
+    // Tamaños de un evento del feed (se pinta en el feed de OTROS): límites generosos que nada legítimo roza, para que nadie
+    // meta textos o listas enormes. A propósito SIN lista cerrada de campos: una PWA vieja en caché que escribiera uno de
+    // más vería fallar la transacción entera de sumar caca.
+    function activitySizesOk(d) {
+      return d.keys().size() <= 40
+          && (!('name' in d) || (d.name is string && d.name.size() <= 100))
+          && (!('color' in d) || (d.color is string && d.color.size() <= 40))
+          && (!('kind' in d) || (d.kind is string && d.kind.size() <= 20))
+          && (!('audience' in d) || (d.audience is list && d.audience.size() <= 1000))
+          && (!('groups' in d) || (d.groups is list && d.groups.size() <= 100))
+          && (!('participants' in d) || (d.participants is list && d.participants.size() <= 100))
+          && (!('participantUids' in d) || (d.participantUids is list && d.participantUids.size() <= 100));
     }
 
     // Invitación a un grupo dirigida a mí (id = gid_uid, ver groupInviteId en store.js) y aún pendiente.
@@ -296,8 +311,11 @@ service cloud.firestore {
     match /activity/{id} {
       allow read:   if signedIn() && (resource == null || request.auth.uid in resource.data.audience
                                       || resource.data.uid == request.auth.uid || isAdmin());
-      allow create: if active() && request.resource.data.uid == request.auth.uid;
-      allow update: if (signedIn() && resource.data.uid == request.auth.uid)
+      // al crearlo, sin reacciones: nadie puede fabricar las de otros
+      allow create: if active() && request.resource.data.uid == request.auth.uid
+                     && activitySizesOk(request.resource.data)
+                     && request.resource.data.get('reactions', {}).size() == 0;
+      allow update: if (signedIn() && resource.data.uid == request.auth.uid && activitySizesOk(request.resource.data))
                      // reaccionar: estar en la audiencia y tocar solo tu entrada
                      || (signedIn() && request.auth.uid in resource.data.audience && onlyMyReaction())
                      // salir de una conexión de tuberías (borrado de cuenta): solo se quita a sí mismo
@@ -312,7 +330,8 @@ service cloud.firestore {
                          && request.resource.data.participantUids.hasAll(resource.data.participantUids)
                          && request.resource.data.audience.hasAll(resource.data.audience)
                          && request.resource.data.diff(resource.data).affectedKeys()
-                              .hasOnly(['participants','participantUids','lastTs','audience']));
+                              .hasOnly(['participants','participantUids','lastTs','audience'])
+                         && activitySizesOk(request.resource.data));
       allow delete: if (signedIn() && resource.data.uid == request.auth.uid) || isAdmin();
     }
 

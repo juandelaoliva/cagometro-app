@@ -161,6 +161,14 @@ describe("pushQueue", () => {
     await assertFails(addDoc(q("alice"), push({ title: "x".repeat(121) })));
   });
   it("campos que no son de la cola: NO", async () => { await assertFails(addDoc(q("alice"), push({ extra: 1 }))); });
+  it("activityId (para ir al registro): sí en reacciones y conexiones; en otros tipos, vacío o largo, NO", async () => {
+    await assertSucceeds(addDoc(q("alice"), push({ type: "reaction", activityId: "abc123" })));
+    await assertSucceeds(addDoc(q("alice"), push({ type: "sync", activityId: "sync_abc" })));
+    await assertFails(addDoc(q("alice"), push({ type: "chat_message", activityId: "abc123" })));
+    await assertFails(addDoc(q("alice"), push({ type: "reaction", activityId: "" })));
+    await assertFails(addDoc(q("alice"), push({ type: "reaction", activityId: "x".repeat(129) })));
+    await assertFails(addDoc(q("alice"), push({ type: "reaction", activityId: 5 })));
+  });
   it("chatId (para abrir la conversación al tocar el aviso): sí en mensajes de chat; en otros tipos, vacío o largo, NO", async () => {
     await assertSucceeds(addDoc(q("alice"), push({ type: "chat_message", chatId: "alice_bob" })));
     await assertSucceeds(addDoc(q("alice"), push({ type: "chat_message" })));                     // sin él, como siempre

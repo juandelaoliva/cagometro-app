@@ -1147,7 +1147,11 @@ function _feedItem(c,i){
     }
     syncHi=true;
   } else if(c.late){
-    head = mine ? t('feed.late.mine') : t('feed.late.other',{name:_n});
+    // Sumada SIN CONEXIÓN (la app la guardó y la envió al volver la red): no es una «olvidada», es una caca normal que llegó tarde.
+    // Por dentro sigue siendo `late` (así no funda conexiones de tuberías falsas); solo cambia cómo se cuenta.
+    const off = c.offline===true;
+    head = off ? (mine ? t('feed.offline.mine') : t('feed.offline.other',{name:_n}))
+               : (mine ? t('feed.late.mine') : t('feed.late.other',{name:_n}));
     nBadge = `<b class="feed__n">${c.n}</b>`;
   } else {
     const hito = isMilestone(c.n);
@@ -1162,8 +1166,7 @@ function _feedItem(c,i){
     <div class="feed__body">
       <div class="feed__line">${head} ${nBadge}</div>
       ${syncTrail?`<div class="feed__sub">${syncTrail}</div>`:""}
-      ${c.late?`<div class="feed__sub">📅 ${fmtFull(c.forTs ?? c.ts)}</div>`:""}
-      ${c.late&&c.offline===true?`<div class="feed__sub">${t('feed.late.offline')}</div>`:""}
+      ${c.late?`<div class="feed__sub">${c.offline===true?"📴":"📅"} ${fmtFull(c.forTs ?? c.ts)}</div>`:""}
       ${chips?`<div class="feed__ctx">${chips}</div>`:""}
       ${reactable?reactionsRow(c):""}
     </div>

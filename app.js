@@ -262,6 +262,17 @@ function parsePendingInvite(){
   if(friend) return { type:"friend", uid:friend };
   return null;
 }
+// Enlace de invitación abierto en el NAVEGADOR de un móvil (no en la PWA instalada): antes pasa por elcagometro.com/invitar, que abre la app nativa si está
+// instalada o lleva a la tienda, y ofrece «seguir en la web» (vuelve aquí con `web=1`). Quien ya usa la PWA instalada no pasa por ahí.
+(function(){
+  try{
+    const p=new URLSearchParams(location.search);
+    if(!(p.get("join")||p.get("friend")) || p.get("web")) return;
+    const standalone=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches) || navigator.standalone;
+    if(standalone || !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
+    location.replace("https://elcagometro.com/invitar"+location.search);
+  }catch(e){}
+})();
 let _pendingInvite = parsePendingInvite();
 const clearInviteUrl = () => history.replaceState(null, "", location.pathname);
 async function processInvite(){

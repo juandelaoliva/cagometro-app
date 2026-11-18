@@ -122,19 +122,9 @@ ol,ul{list-style:none}
 .nativeprompt__outage{font-size:13px;line-height:1.45;color:var(--ink-soft);margin:0 0 14px;padding-top:12px;border-top:1px solid var(--line)}
 .nativeprompt__badge{display:flex;justify-content:center;padding:4px 0 18px}
 .nativeprompt__badge img{display:block;height:56px;width:auto}
-/* esquina: anillo que se completa durante el bloqueo; después, la ✕ */
-.nativeprompt__x{overflow:visible}
-.nativeprompt__ring{position:absolute;inset:-3px;width:calc(100% + 6px);height:calc(100% + 6px);transform:rotate(-90deg);opacity:0;pointer-events:none}
-.nativeprompt__ring circle{fill:none;stroke-width:3}
-.nativeprompt__ring-bg{stroke:var(--line)}
-.nativeprompt__ring-fg{stroke:var(--brand,#6E3F1C);stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100}
-.nativeprompt__ring-fg.is-counting{animation:npRing var(--np-lock,5s) linear forwards}
-@keyframes npRing{to{stroke-dashoffset:0}}
-.sheet.is-locked .nativeprompt__ring{opacity:1}
-.sheet.is-locked .nativeprompt__xicon{opacity:.2}
-.sheet.is-locked .nativeprompt__x{cursor:default;box-shadow:none}
-.sheet.is-locked #nativePromptClose{visibility:hidden}
-#nativePromptClose{transition:opacity .3s}
+/* esquina: durante el bloqueo no se ve nada (ni cuenta atrás); después aparecen la ✕ y «Ahora no» */
+.nativeprompt__x,#nativePromptClose{transition:opacity .6s}
+.sheet.is-locked .nativeprompt__x,.sheet.is-locked #nativePromptClose{opacity:0;visibility:hidden}
 /* a pantalla completa (aviso de la app en iOS) */
 .sheet.nativeprompt--full{align-items:stretch;backdrop-filter:none}
 .sheet.nativeprompt--full .sheet__panel{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column;justify-content:center;
@@ -145,7 +135,10 @@ ol,ul{list-style:none}
 .sheet.nativeprompt--full .nativeprompt__logo{width:104px;height:104px;border-radius:26px;margin-bottom:18px}
 .sheet.nativeprompt--full .sheet__title{text-align:center;font-size:28px;line-height:1.15}
 .sheet.nativeprompt--full .sheet__sub{text-align:center;font-size:16px;line-height:1.5;margin:10px auto 22px}
-.sheet.nativeprompt--full .nativeprompt__badge img{height:64px}
+.nativeprompt__cta{display:block;width:100%;text-align:center;text-decoration:none;box-sizing:border-box;margin:0 0 16px}
+.sheet.nativeprompt--full .nativeprompt__cta{font-size:18px;padding:17px}
+/* «Ahora no», discreto: texto sin botón (el principal es «Descárgala ya») */
+.sheet.nativeprompt--full #nativePromptClose{border:0;background:none;box-shadow:none;color:var(--ink-soft);font-weight:600;font-size:15px;padding:12px}
 .sheet.nativeprompt--full .nativeprompt__outage{text-align:center}
 /* popup de instalar la PWA */
 .install-steps{margin:6px 0 16px;padding-left:22px;display:flex;flex-direction:column;gap:9px}

@@ -1420,7 +1420,7 @@ function maybeShowOnboardingPrompt(tries=0){
 // documento cuántas veces lo vio y cuándo tocó la insignia (panel de admin). Hasta OUTAGE_UNTIL lleva también la nota
 // de la caída del 17 de noviembre (la web dio 403 unas horas): que añadan lo que no pudieron con «Caca olvidada».
 const NATIVE_COOLDOWN=3*DAY;
-const OUTAGE_UNTIL=Date.parse("2026-11-24T00:00:00"), OUTAGE_KEY="cago_seen_outage_20261117";
+const OUTAGE_UNTIL=Date.parse("2026-11-24T00:00:00"), OUTAGE_KEY="cago_seen_outage_20261117_v2";   // v2: la primera marca se ponía al mostrarla, y a algunos se les quitó de la pantalla sin verla
 const _outageActive=()=>Date.now()<OUTAGE_UNTIL;
 function _fillNativeSheet({ native, outage }){
   $("nativePromptTitle").textContent = native ? t('nativeprompt.title') : t('outage.title');
@@ -1429,33 +1429,32 @@ function _fillNativeSheet({ native, outage }){
   $("nativePromptOutage").textContent = native && outage ? t('outage.short') : "";   // en el aviso de la app, la caída va en pequeño: lo principal es la app
   $("nativePromptOutage").hidden = !(native && outage);
   $("nativePromptStore").hidden = !native;
+  $("nativePromptStore").textContent = t('nativeprompt.cta');
+  $("nativePromptBadgeLink").hidden = !native;
   $("nativePromptBadge").src = getLang()==="en" ? "./assets/app-store-en.svg" : "./assets/app-store-es.svg";
   $("nativePromptBadge").alt = t('nativeprompt.badge.alt');
   $("nativePromptClose").textContent = native ? t('nativeprompt.later') : t('outage.ok');
-  // El aviso de la app va a PANTALLA COMPLETA y no se puede cerrar durante NATIVE_LOCK_MS: el anillo de la esquina se completa y
-  // entonces es la ✕ (y sale «Ahora no»). La insignia de la tienda se puede tocar desde el principio. La nota sola de la caída es un panel normal.
-  const sheet=$("nativePromptSheet"), x=$("nativePromptX"), ring=$("nativePromptRing");
+  // El aviso de la app va a PANTALLA COMPLETA y no se puede cerrar durante NATIVE_LOCK_MS. Sin cuenta atrás a la vista (si se viera
+  // terminar, la gente esperaría en vez de mirar): la ✕ y «Ahora no» aparecen después. La insignia se puede tocar desde el principio.
+  // La nota sola de la caída (Android y ordenador) es un panel normal.
+  const sheet=$("nativePromptSheet"), x=$("nativePromptX");
   clearTimeout(_nativeLockTimer);
   sheet.classList.toggle("nativeprompt--full", native);
   sheet.classList.toggle("is-locked", native);
   x.disabled = native;
-  ring.classList.remove("is-counting");
-  if(native){
-    sheet.style.setProperty("--np-lock", NATIVE_LOCK_MS+"ms");
-    void ring.getBoundingClientRect();              // reinicia la animación del anillo si el aviso se vuelve a abrir
-    ring.classList.add("is-counting");
-    _nativeLockTimer=setTimeout(()=>{ sheet.classList.remove("is-locked"); x.disabled=false; }, NATIVE_LOCK_MS);
-  }
+  if(native) _nativeLockTimer=setTimeout(()=>{ sheet.classList.remove("is-locked"); x.disabled=false; }, NATIVE_LOCK_MS);
   sheet.hidden=false;
 }
-const NATIVE_LOCK_MS=5000;
+const NATIVE_LOCK_MS=10000;
 let _nativeLockTimer=0;
 const _nativeLocked=()=>$("nativePromptSheet").classList.contains("is-locked");
 function maybeShowNativePrompt(){
   if(!uid || !me) return;
-  const outage=_outageActive() && !localStorage.getItem(OUTAGE_KEY);
-  // la nota de la caída no espera al plazo de 3 días: sale una vez aunque el aviso de la app se viera hace poco
-  if(!outage && me.nativePromptLastTs && Date.now()-me.nativePromptLastTs < NATIVE_COOLDOWN) return;
+  // Hasta OUTAGE_UNTIL, la nota de la caída va SIEMPRE dentro del aviso de la app (en pequeño). Si aún no la ha cerrado en este móvil,
+  // el aviso sale aunque no hayan pasado los 3 días.
+  const outage=_outageActive(), outageNew=outage && !localStorage.getItem(OUTAGE_KEY);
+  // `nativePromptForce` (lo pone el administrador en un perfil): sale siempre, para probarlo
+  if(!outageNew && !me.nativePromptForce && me.nativePromptLastTs && Date.now()-me.nativePromptLastTs < NATIVE_COOLDOWN) return;
   _npShown={ native:true, outage };
   _fillNativeSheet({ native:true, outage });
 }
@@ -1475,7 +1474,8 @@ new MutationObserver(()=>{
 }).observe($("nativePromptSheet"), { attributes:true, attributeFilter:["hidden"] });
 $("nativePromptClose").addEventListener("click", ()=>{ if(!_nativeLocked()) $("nativePromptSheet").hidden=true; });
 $("nativePromptSheet").addEventListener("click", e=>{ if(e.target===$("nativePromptSheet") && !_nativeLocked()) $("nativePromptSheet").hidden=true; });
-$("nativePromptStore").addEventListener("click", ()=>{ if(uid) logNativePromptTap(uid).catch(()=>{}); $("nativePromptSheet").hidden=true; });
+// la insignia y «Descárgala ya» llevan a la tienda: las dos cuentan como «tocó la tienda»
+for(const id of ["nativePromptStore","nativePromptBadgeLink"]) $(id).addEventListener("click", ()=>{ if(uid) logNativePromptTap(uid).catch(()=>{}); $("nativePromptSheet").hidden=true; });
 // ── Popup para instalar la PWA (iOS sin instalar) ───────────────────────────
 // En iOS solo se puede instalar desde Safari; Chrome/otros en iPhone no pueden,
 // así que a esos les decimos que abran en Safari. Mismos topes (3×, 7 días).

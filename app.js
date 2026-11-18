@@ -1403,10 +1403,12 @@ function maybeShowNotifPrompt(){
 // Coordinador de popups al abrir: salta la 1ª sesión y no pisa otra hoja. En iOS
 // sin instalar prioriza el popup de INSTALAR (requisito previo a las notis); si no,
 // el de notificaciones.
-function maybeShowOnboardingPrompt(){
-  if(!uid || !me) return;
+function maybeShowOnboardingPrompt(tries=0){
+  if(!uid) return;
+  // perfil aún sin cargar u otro panel abierto: se reintenta unas veces (antes se perdía el aviso de esa sesión)
+  const busy=!me || document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])");
+  if(busy){ if(tries<6) setTimeout(()=>maybeShowOnboardingPrompt(tries+1), 4000); return; }
   if(!localStorage.getItem("cago_seen_once")){ localStorage.setItem("cago_seen_once","1"); return; }
-  if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
   const d=_deviceInfo();
   // iPhone/iPad: ya no se invita a instalar la web, sino a la app nativa del App Store (con la nota de la caída si toca).
   if(d.platform==="iOS"){ maybeShowNativePrompt(); return; }
@@ -1454,14 +1456,23 @@ function maybeShowNativePrompt(){
   const outage=_outageActive() && !localStorage.getItem(OUTAGE_KEY);
   // la nota de la caída no espera al plazo de 3 días: sale una vez aunque el aviso de la app se viera hace poco
   if(!outage && me.nativePromptLastTs && Date.now()-me.nativePromptLastTs < NATIVE_COOLDOWN) return;
+  _npShown={ native:true, outage };
   _fillNativeSheet({ native:true, outage });
-  if(outage) localStorage.setItem(OUTAGE_KEY,"1");
-  logNativePromptShown(uid).catch(()=>{});
 }
 function showOutageNotice(){
-  localStorage.setItem(OUTAGE_KEY,"1");
+  _npShown={ native:false, outage:true };
   _fillNativeSheet({ native:false, outage:true });
 }
+// Se da por VISTO al cerrarlo (✕, «Ahora no», fuera, arrastrando o tocando la tienda), no al mostrarlo: la web se recarga sola al
+// actualizarse y, si eso pasa con el aviso delante, contarlo al mostrarlo gastaba los 3 días sin que nadie lo viera. Si la página se
+// recarga o se cierra con el aviso abierto, vuelve a salir la próxima vez.
+let _npShown=null;
+new MutationObserver(()=>{
+  if(!$("nativePromptSheet").hidden || !_npShown) return;
+  const s=_npShown; _npShown=null;
+  if(s.outage) localStorage.setItem(OUTAGE_KEY,"1");
+  if(s.native && uid) logNativePromptShown(uid).catch(()=>{});
+}).observe($("nativePromptSheet"), { attributes:true, attributeFilter:["hidden"] });
 $("nativePromptClose").addEventListener("click", ()=>{ if(!_nativeLocked()) $("nativePromptSheet").hidden=true; });
 $("nativePromptSheet").addEventListener("click", e=>{ if(e.target===$("nativePromptSheet") && !_nativeLocked()) $("nativePromptSheet").hidden=true; });
 $("nativePromptStore").addEventListener("click", ()=>{ if(uid) logNativePromptTap(uid).catch(()=>{}); $("nativePromptSheet").hidden=true; });

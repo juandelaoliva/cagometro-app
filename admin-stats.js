@@ -70,6 +70,7 @@ export function userRows(data, now = Date.now()) {
       friends: friends.get(u.id) || [], groups: inGroups.get(u.id) || [],
       device: dev,
       webCaca: tsMs(u.webCacaAt),                                  // última caca sumada DESDE LA WEB (la web lo apunta desde 2026-11-18)
+      webSeen: tsMs(u.webSeenAt),                                  // última vez que ENTRÓ en la web (desde 2026-11-18)
       notifOn: !!u.notifications,                                  // igual que quiereAviso: sin el campo, apagado
       geo: !!u.locationMode && u.locationMode !== "never", shareMap: u.shareMap !== false, bristol: !!u.bristolMode,
       termsOk: (u.termsVersion || 0) > 0,
@@ -208,7 +209,7 @@ export function computeStats(data, now = Date.now()) {
   };
 }
 
-/** El listado de usuarios, filtrado y ordenado. filters: all | active7 | dormant | never | notif | native | web | webcaca | nofriends | suspended. */
+/** El listado de usuarios, filtrado y ordenado. filters: all | active7 | dormant | never | notif | native | web | webcaca | webseen | iosnoapp | nofriends | suspended. */
 export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir = -1 } = {}, now = Date.now()) {
   const s = q.trim().toLowerCase();
   const keep = {
@@ -220,6 +221,8 @@ export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir
     native: r => r.device.native,
     web: r => r.device.web,
     webcaca: r => r.webCaca && r.webCaca >= dayBack(now, 29),     // ha sumado desde la web en los últimos 30 días
+    webseen: r => r.webSeen && r.webSeen >= dayBack(now, 29),     // ha entrado en la web en los últimos 30 días
+    iosnoapp: r => r.device.platform === "iOS" && !r.device.native, // usó la web en iPhone y no hay señal de la app nativa (avisos o versión)
     nofriends: r => !r.friends.length,
     suspended: r => r.suspended,
   }[filter] || (() => true);

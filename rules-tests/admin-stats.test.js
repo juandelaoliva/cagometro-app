@@ -132,6 +132,16 @@ describe("listado de usuarios", () => {
     assert.deepEqual(filterUsers(withWeb, { filter: "webcaca" }, NOW).map(r => r.id).sort(), ["a", "b"]);
     assert.equal(withWeb.find(r => r.id === "a").webCaca, at(2));
   });
+  it("«Entró web 30 d» y «iPhone sin app»", () => {
+    const r = userRows({ users: [
+      { ...users[0], webSeenAt: at(1) },                       // Ana: iOS, con app nativa (token de Expo) y entró ayer en la web
+      { ...users[1], platform: "iOS", webSeenAt: at(40) },     // Beto: iOS sin app, entró hace 40 días
+      { ...users[2], platform: "Android" },                    // Cris: Android
+      { ...users[3], platform: "iOS" },                        // Dani: iOS, nunca apuntó cuándo entró
+    ], groups, friendships, privateById }, NOW);
+    assert.deepEqual(filterUsers(r, { filter: "webseen" }, NOW).map(x => x.id), ["a"]);
+    assert.deepEqual(filterUsers(r, { filter: "iosnoapp" }, NOW).map(x => x.id).sort(), ["b", "d"]);
+  });
   it("ordena en los dos sentidos", () => {
     assert.deepEqual(filterUsers(rows, { sort: "total", dir: -1 }, NOW).map(r => r.id), ["a", "b", "c", "d"]);
     assert.deepEqual(filterUsers(rows, { sort: "name", dir: 1 }, NOW).map(r => r.id), ["a", "b", "c", "d"]);

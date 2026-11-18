@@ -59,7 +59,7 @@ const flags = r => [[r.notifOn, "🔔", "Avisos activados"], [r.geo, "📍", "Ub
   .filter(f => f[0]).map(f => `<span title="${f[2]}">${f[1]}</span>`).join("");
 const avatar = (name, color, size = "") => `<span class="ad-av ${size}" style="background:${esc(color || "var(--brand)")}">${esc(initial(name))}</span>`;
 const chip = (t, cls = "") => `<span class="ad-chip ${cls}">${esc(t)}</span>`;
-const deviceLabel = r => ({ both: "Nativa + web", native: "App nativa", web: "Web / PWA", none: "Sin avisos" }[r.device.kind]) + (r.device.app ? ` ${r.device.app.version} (${r.device.app.build}) · ${r.device.app.platform}` : r.device.platform ? ` · ${r.device.platform}` : "");
+const deviceLabel = r => ({ both: "Nativa + web", native: "App nativa", web: "Web / PWA", none: "Sin avisos" }[r.device.kind]) + (r.device.app ? ` ${r.device.app.version} (${r.device.app.build}) · ${r.device.app.platform}` : r.device.platform ? ` · ${r.device.platform}${r.u.browser ? ` · ${r.u.browser}${r.device.standalone ? " (instalada)" : ""}` : ""}` : "");
 
 /* ============================================================ */
 export function openAdminDashboard(ctx) {
@@ -127,7 +127,7 @@ export function openAdminDashboard(ctx) {
     </div>`;
   }
 
-  const FILTERS = [["all", "Todos"], ["active7", "Activos 7 d"], ["dormant", "Dormidos"], ["never", "Sin cacas"], ["notif", "Con avisos"], ["native", "App nativa"], ["web", "Web"], ["webcaca", "Caca web 30 d"], ["nofriends", "Sin amigos"], ["suspended", "Suspendidos"]];
+  const FILTERS = [["all", "Todos"], ["active7", "Activos 7 d"], ["dormant", "Dormidos"], ["never", "Sin cacas"], ["notif", "Con avisos"], ["native", "App nativa"], ["web", "Web"], ["webseen", "Entró web 30 d"], ["webcaca", "Caca web 30 d"], ["iosnoapp", "iPhone sin app"], ["nofriends", "Sin amigos"], ["suspended", "Suspendidos"]];
   const COLS = [["name", "Usuario"], ["joined", "Alta"], ["recent", "Última caca"], ["year", "Año"], ["total", "Total"], ["streak", "Racha"], ["friends", "Amigos"], ["groups", "Grupos"]];
   function vUsers() {
     const list = filterUsers(S.rows, U);
@@ -253,6 +253,7 @@ export function openAdminDashboard(ctx) {
         ${card("Dispositivo", kv("Tipo", esc(deviceLabel(r))) + kv("Navegador", esc(u.browser || "—")) + kv("PWA instalada", yes(u.standalone)) + kv("Permiso de avisos", esc(u.notifPerm || "—")) +
           kv("Aviso «no te pierdas nada»", u.notifPromptSeenCount ? `visto ${u.notifPromptSeenCount}× · ${esc(u.notifPromptAction || "sin acción")}` : "no visto") +
           kv("App nativa", r.device.app ? esc(`${r.device.app.version} (${r.device.app.build}) · ${r.device.app.platform} ${r.device.app.os}`) : "sin datos <small>(la apunta desde la 1.0.2)</small>") +
+          kv("Última vez en la web", r.webSeen ? `${fdt(r.webSeen)} <small>(${ago(r.webSeen)})</small>${u.browser ? ` · ${esc(u.browser)}${u.standalone ? " (instalada)" : ""}` : ""}` : "— <small>(se apunta desde el 18-nov)</small>") +
           kv("Última caca desde la web", r.webCaca ? `${fdt(r.webCaca)} <small>(${ago(r.webCaca)})</small>` : "— <small>(se apunta desde el 18-nov)</small>") +
           kv("Aviso «app de iPhone»", u.nativePromptSeenCount ? `visto ${u.nativePromptSeenCount}×${u.nativePromptTapTs ? ` · tocó la tienda ${fdate(u.nativePromptTapTs)}` : " · no tocó la tienda"}` : "no visto"))}
         ${card("Cacas por mes", byMonth.length ? bars(byMonth.slice(-12).map(([, n]) => n), byMonth.slice(-12).map(([k]) => MONTHS[+k.split("_")[1]]), { h: 100 }) : '<p class="ad-empty">Sin datos</p>')}

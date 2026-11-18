@@ -1374,8 +1374,11 @@ function syncDeviceInfo(){
   if(!uid || !me || _deviceSynced) return;
   _deviceSynced=true;
   const d=_deviceInfo();
-  if(me.platform!==d.platform || me.browser!==d.browser || me.standalone!==d.standalone || me.notifPerm!==d.notifPerm)
-    updateMe(uid, d).catch(()=>{});
+  // `webSeenAt`: cuándo entró por última vez en la WEB (panel de admin: quién sigue usándola y con qué navegador). Como mucho una
+  // escritura cada 6 h por persona; los datos del dispositivo, solo si cambian.
+  const seenStale = !me.webSeenAt || Date.now()-me.webSeenAt > 6*3600000;
+  if(seenStale || me.platform!==d.platform || me.browser!==d.browser || me.standalone!==d.standalone || me.notifPerm!==d.notifPerm)
+    updateMe(uid, { ...d, ...(seenStale ? { webSeenAt: Date.now() } : {}) }).catch(()=>{});
 }
 
 // ── Popup para animar a activar notificaciones ──────────────────────────────

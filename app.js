@@ -4,7 +4,7 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity, setCacaLocations,
-  logNotifPromptShown, setNotifPromptAction, logInstallPromptShown,
+  logNotifPromptShown, setNotifPromptAction, logInstallPromptShown, logNativePromptShown, logNativePromptTap,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
@@ -1408,9 +1408,46 @@ function maybeShowOnboardingPrompt(){
   if(!localStorage.getItem("cago_seen_once")){ localStorage.setItem("cago_seen_once","1"); return; }
   if(document.querySelector(".sheet:not([hidden]), .mapsheet:not([hidden]), .chat-view:not([hidden])")) return;
   const d=_deviceInfo();
-  if(d.platform==="iOS" && !d.standalone) maybeShowInstallPrompt(d);
-  else maybeShowNotifPrompt();
+  // iPhone/iPad: ya no se invita a instalar la web, sino a la app nativa del App Store (con la nota de la caída si toca).
+  if(d.platform==="iOS"){ maybeShowNativePrompt(); return; }
+  if(_outageActive() && !localStorage.getItem(OUTAGE_KEY)){ showOutageNotice(); return; }
+  maybeShowNotifPrompt();
 }
+// ── Aviso: la app de iPhone ya está en el App Store ─────────────────────────
+// A quien usa la web en iOS (en Safari o instalada). Sin tope de veces, pero como mucho una cada 3 días. Queda en su
+// documento cuántas veces lo vio y cuándo tocó la insignia (panel de admin). Hasta OUTAGE_UNTIL lleva también la nota
+// de la caída del 17 de noviembre (la web dio 403 unas horas): que añadan lo que no pudieron con «Caca olvidada».
+const NATIVE_COOLDOWN=3*DAY;
+const OUTAGE_UNTIL=Date.parse("2026-11-24T00:00:00"), OUTAGE_KEY="cago_seen_outage_20261117";
+const _outageActive=()=>Date.now()<OUTAGE_UNTIL;
+function _fillNativeSheet({ native, outage }){
+  $("nativePromptTitle").textContent = native ? t('nativeprompt.title') : t('outage.title');
+  $("nativePromptBody").textContent = native ? t('nativeprompt.body') : t('outage.body');
+  $("nativePromptBody").hidden = false;
+  $("nativePromptOutage").textContent = native && outage ? "⚠️ "+t('outage.title')+" "+t('outage.body') : "";
+  $("nativePromptOutage").hidden = !(native && outage);
+  $("nativePromptStore").hidden = !native;
+  $("nativePromptBadge").src = getLang()==="en" ? "./assets/app-store-en.svg" : "./assets/app-store-es.svg";
+  $("nativePromptBadge").alt = t('nativeprompt.badge.alt');
+  $("nativePromptClose").textContent = native ? t('nativeprompt.later') : t('outage.ok');
+  $("nativePromptSheet").hidden=false;
+}
+function maybeShowNativePrompt(){
+  if(!uid || !me) return;
+  const outage=_outageActive() && !localStorage.getItem(OUTAGE_KEY);
+  // la nota de la caída no espera al plazo de 3 días: sale una vez aunque el aviso de la app se viera hace poco
+  if(!outage && me.nativePromptLastTs && Date.now()-me.nativePromptLastTs < NATIVE_COOLDOWN) return;
+  _fillNativeSheet({ native:true, outage });
+  if(outage) localStorage.setItem(OUTAGE_KEY,"1");
+  logNativePromptShown(uid).catch(()=>{});
+}
+function showOutageNotice(){
+  localStorage.setItem(OUTAGE_KEY,"1");
+  _fillNativeSheet({ native:false, outage:true });
+}
+$("nativePromptClose").addEventListener("click", ()=>$("nativePromptSheet").hidden=true);
+$("nativePromptSheet").addEventListener("click", e=>{ if(e.target===$("nativePromptSheet")) $("nativePromptSheet").hidden=true; });
+$("nativePromptStore").addEventListener("click", ()=>{ if(uid) logNativePromptTap(uid).catch(()=>{}); $("nativePromptSheet").hidden=true; });
 // ── Popup para instalar la PWA (iOS sin instalar) ───────────────────────────
 // En iOS solo se puede instalar desde Safari; Chrome/otros en iPhone no pueden,
 // así que a esos les decimos que abran en Safari. Mismos topes (3×, 7 días).

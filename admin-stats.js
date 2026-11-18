@@ -37,10 +37,12 @@ export function lastMonths(now, n = 12) {
 
 /** Qué se sabe del dispositivo de cada persona: tokens de la app nativa (Expo) y de la web (FCM) + lo que anota la PWA de su navegador. */
 export function deviceOf(u, priv) {
-  const native = (priv?.expoTokens || []).length > 0;
+  // app nativa: tiene token de avisos de Expo, o la app apuntó su versión en `private/app` (desde la 1.0.2, con o sin avisos)
+  const native = (priv?.expoTokens || []).length > 0 || !!priv?.app;
   const web = (priv?.tokens || []).length > 0;
   const kind = native && web ? "both" : native ? "native" : web ? "web" : "none";
-  return { native, web, kind, platform: u.platform || null, standalone: !!u.standalone };
+  const app = priv?.app ? { version: priv.app.version || "?", build: priv.app.build || "?", platform: priv.app.platform || "?", os: priv.app.os || "" } : null;
+  return { native, web, kind, app, platform: u.platform || null, standalone: !!u.standalone };
 }
 
 /** Las filas del listado de usuarios, con lo derivado (amigos, grupos, días sin actividad…). */
@@ -67,6 +69,7 @@ export function userRows(data, now = Date.now()) {
       streak: u.currentStreak || 0, best: u.longestStreak || 0,
       friends: friends.get(u.id) || [], groups: inGroups.get(u.id) || [],
       device: dev,
+      webCaca: tsMs(u.webCacaAt),                                  // última caca sumada DESDE LA WEB (la web lo apunta desde 2026-11-18)
       notifOn: !!u.notifications,                                  // igual que quiereAviso: sin el campo, apagado
       geo: !!u.locationMode && u.locationMode !== "never", shareMap: u.shareMap !== false, bristol: !!u.bristolMode,
       termsOk: (u.termsVersion || 0) > 0,
@@ -205,7 +208,7 @@ export function computeStats(data, now = Date.now()) {
   };
 }
 
-/** El listado de usuarios, filtrado y ordenado. filters: all | active7 | dormant | never | notif | native | web | nofriends. */
+/** El listado de usuarios, filtrado y ordenado. filters: all | active7 | dormant | never | notif | native | web | webcaca | nofriends | suspended. */
 export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir = -1 } = {}, now = Date.now()) {
   const s = q.trim().toLowerCase();
   const keep = {
@@ -216,6 +219,7 @@ export function filterUsers(rows, { q = "", filter = "all", sort = "recent", dir
     notif: r => r.notifOn,
     native: r => r.device.native,
     web: r => r.device.web,
+    webcaca: r => r.webCaca && r.webCaca >= dayBack(now, 29),     // ha sumado desde la web en los últimos 30 días
     nofriends: r => !r.friends.length,
     suspended: r => r.suspended,
   }[filter] || (() => true);

@@ -93,7 +93,12 @@ describe("social, dispositivos y adopción", () => {
   });
   it("dispositivos: nativa, web, ambos y ninguno", () => {
     assert.deepEqual(S.devices, { native: 0, web: 1, both: 1, none: 2 });
-    assert.deepEqual(deviceOf({ platform: "iOS" }, { expoTokens: ["x"] }), { native: true, web: false, kind: "native", platform: "iOS", standalone: false });
+    assert.deepEqual(deviceOf({ platform: "iOS" }, { expoTokens: ["x"] }), { native: true, web: false, kind: "native", app: null, platform: "iOS", standalone: false });
+  });
+  it("la app nativa cuenta aunque no tenga avisos, si apuntó su versión (private/app)", () => {
+    const d = deviceOf({}, { app: { version: "1.0.2", build: "4", platform: "android", os: "34" } });
+    assert.equal(d.native, true); assert.equal(d.kind, "native");
+    assert.deepEqual(d.app, { version: "1.0.2", build: "4", platform: "android", os: "34" });
   });
   it("adopción de funciones", () => {
     assert.deepEqual([S.adoption.notif, S.adoption.geo, S.adoption.shareMap, S.adoption.bristol, S.adoption.installed, S.adoption.terms], [1, 1, 3, 1, 1, 1]);
@@ -116,6 +121,16 @@ describe("listado de usuarios", () => {
     assert.deepEqual(filterUsers(rows, { filter: "never" }, NOW).map(r => r.id), ["d"]);
     assert.deepEqual(filterUsers(rows, { filter: "native" }, NOW).map(r => r.id), ["a"]);
     assert.deepEqual(filterUsers(rows, { filter: "nofriends" }, NOW).map(r => r.id), ["d"]);
+  });
+  it("«Caca web 30 d»: quien ha sumado desde la web en los últimos 30 días", () => {
+    const withWeb = userRows({ users: [
+      { ...users[0], webCacaAt: at(2) },          // hace 2 días: entra
+      { ...users[1], webCacaAt: at(29) },         // justo dentro del tramo
+      { ...users[2], webCacaAt: at(31) },         // fuera
+      users[3],                                   // nunca desde la web
+    ], groups, friendships, privateById }, NOW);
+    assert.deepEqual(filterUsers(withWeb, { filter: "webcaca" }, NOW).map(r => r.id).sort(), ["a", "b"]);
+    assert.equal(withWeb.find(r => r.id === "a").webCaca, at(2));
   });
   it("ordena en los dos sentidos", () => {
     assert.deepEqual(filterUsers(rows, { sort: "total", dir: -1 }, NOW).map(r => r.id), ["a", "b", "c", "d"]);

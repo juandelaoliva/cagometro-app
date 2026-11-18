@@ -117,6 +117,11 @@ ol,ul{list-style:none}
 .admin-group{background:var(--card);border:1px solid var(--line-2);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);margin-bottom:8px}
 /* popup de activar notificaciones */
 .notifprompt__icon{font-size:44px;text-align:center;margin-bottom:6px}
+/* aviso «la app de iPhone ya está en el App Store»: la insignia es la OFICIAL de Apple, sin tocar (alto ≥ 40 px y margen libre alrededor) */
+.nativeprompt__logo{display:block;width:72px;height:72px;margin:0 auto 10px;border-radius:18px}
+.nativeprompt__outage{font-size:14px;line-height:1.45;color:var(--ink);background:#FFF4DE;border:1px solid #F2D9A8;border-radius:12px;padding:10px 12px;margin:0 0 16px}
+.nativeprompt__badge{display:flex;justify-content:center;padding:14px 0 18px}
+.nativeprompt__badge img{display:block;height:56px;width:auto}
 /* popup de instalar la PWA */
 .install-steps{margin:6px 0 16px;padding-left:22px;display:flex;flex-direction:column;gap:9px}
 .install-steps li{font-size:14px;line-height:1.45;color:var(--ink)}

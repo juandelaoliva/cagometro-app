@@ -182,7 +182,8 @@ export async function addCaca(uid, loc, act){
     const us = await tx.get(uref);
     const data = us.data() || {};
     const n = yearCountOf(data) + 1;
-    const cdata = { uid, ts, tz:tz(), source:"app", year:y, createdAt:serverTimestamp() };
+    // `source:"web"`: sumada desde esta web (la app nativa escribe "app"). Hasta 2026-11-18 la web también escribía "app".
+    const cdata = { uid, ts, tz:tz(), source:"web", year:y, createdAt:serverTimestamp() };
     if (loc && isFinite(loc.lat) && isFinite(loc.lng)) { cdata.lat = loc.lat; cdata.lng = loc.lng; }
     tx.set(cacaRef, cdata);
     // streak: consecutive-day logic
@@ -197,7 +198,7 @@ export async function addCaca(uid, loc, act){
       totalCount: increment(1), lifetimeCount: increment(1),
       [`countsByYear.${y}`]: increment(1), [`countsByMonth.${monthKey(ts)}`]: increment(1),
       [`byHour.${hourOf(ts)}`]: increment(1), [`byWeekday.${weekdayOf(ts)}`]: increment(1),
-      lastCacaTs: ts, tz: tz(),
+      lastCacaTs: ts, tz: tz(), webCacaAt: ts,      // webCacaAt: última vez que sumó DESDE LA WEB (panel de admin: quién no ha pasado a la app)
       currentStreak: newStreak,
       longestStreak: Math.max(data.longestStreak || 0, newStreak),
       ...(data.firstCacaTs ? {} : { firstCacaTs: ts }),
@@ -292,6 +293,9 @@ export const logNotifPromptShown = (uid) => updateDoc(doc(db,"users",uid), { not
 export const setNotifPromptAction = (uid, action) => updateDoc(doc(db,"users",uid), { notifPromptAction: action, notifPromptActionTs: Date.now() });
 // Popup de instalación (iOS): cuántas veces se mostró (si instalan → standalone en device info).
 export const logInstallPromptShown = (uid) => updateDoc(doc(db,"users",uid), { installPromptSeenCount: increment(1), installPromptLastTs: Date.now() });
+// Aviso «descarga la app de iPhone» (a quien usa la web en iOS): cuántas veces se vio y cuándo tocó el botón de la tienda.
+export const logNativePromptShown = (uid) => updateDoc(doc(db,"users",uid), { nativePromptSeenCount: increment(1), nativePromptLastTs: Date.now() });
+export const logNativePromptTap = (uid) => updateDoc(doc(db,"users",uid), { nativePromptTapTs: Date.now() });
 
 // ── Config global de la app (banner de mantenimiento) ─────────────────────
 // Doc único `config/app`. Lo lee cualquiera autenticado; solo el admin lo escribe.
@@ -368,9 +372,9 @@ export async function addCacaAt(uid, ts, act){
     const data = us.data() || {};
     const cur = data.countsByYear?.[y] || 0;
     const n = cur + 1;
-    tx.set(cacaRef, { uid, ts, tz:tz(), source:"app", year:y, late:true, createdAt:serverTimestamp() });
+    tx.set(cacaRef, { uid, ts, tz:tz(), source:"web", year:y, late:true, createdAt:serverTimestamp() });
     const upd = { lifetimeCount:increment(1), [`countsByYear.${y}`]:increment(1), [`countsByMonth.${monthKey(ts)}`]:increment(1),
-      [`byHour.${hourOf(ts)}`]:increment(1), [`byWeekday.${weekdayOf(ts)}`]:increment(1), tz:tz() };
+      [`byHour.${hourOf(ts)}`]:increment(1), [`byWeekday.${weekdayOf(ts)}`]:increment(1), tz:tz(), webCacaAt: Date.now() };
     if (y === yearNow()) upd.totalCount = increment(1);
     upd.lastCacaTs = Math.max(data.lastCacaTs||0, ts);   // la más reciente (una olvidada pasada no la pisa)
     // racha recalculada desde los días reales: registrar el día que te faltaba ahora SÍ
@@ -516,6 +520,8 @@ export async function adminLoadDashboard(days = 60){
   for (let i = 0; i < users.length; i += 20) {                 // de 20 en 20: no abrir cientos de peticiones a la vez
     await Promise.all(users.slice(i, i + 20).map(async u => {
       try{ const s = await getDoc(doc(db,"users",u.id,"private","push")); if(s.exists()) privateById[u.id] = s.data(); }catch(e){ /* sin permiso o sin documento */ }
+      // `private/app`: versión, build y sistema de la APP NATIVA (la escribe desde la 1.0.2). Es la mejor señal de que ya usa la app.
+      try{ const s = await getDoc(doc(db,"users",u.id,"private","app")); if(s.exists()) (privateById[u.id] ??= {}).app = s.data(); }catch(e){}
     }));
   }
   return { users, groups, friendships, reports, activity, queue, privateById, config: config || {}, loadedAt: Date.now() };

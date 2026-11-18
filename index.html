@@ -546,6 +546,20 @@
     </div>
   </div>
 
+  <!-- ───────── Popup: la app de iPhone ya está en el App Store (a quien usa la web en iOS) y/o aviso de la caída del 17-nov ───────── -->
+  <div class="sheet" id="nativePromptSheet" hidden>
+    <div class="sheet__panel">
+      <img class="nativeprompt__logo" src="./logo-c.png" alt="" width="72" height="72" />
+      <h3 class="sheet__title" id="nativePromptTitle"></h3>
+      <p class="sheet__sub" id="nativePromptBody"></p>
+      <p class="nativeprompt__outage" id="nativePromptOutage" hidden></p>
+      <a class="nativeprompt__badge" id="nativePromptStore" href="https://apps.apple.com/app/id6831284984" target="_blank" rel="noopener" hidden>
+        <img id="nativePromptBadge" src="./assets/app-store-es.svg" alt="" height="56" />
+      </a>
+      <button class="btn-ghost" id="nativePromptClose"></button>
+    </div>
+  </div>
+
   <!-- ───────── Popup: novedad Mapa de calor ───────── -->
   <div class="sheet" id="heatAnncSheet" hidden>
     <div class="sheet__panel heatannc__panel">

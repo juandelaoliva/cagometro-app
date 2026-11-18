@@ -1424,7 +1424,7 @@ function _fillNativeSheet({ native, outage }){
   $("nativePromptTitle").textContent = native ? t('nativeprompt.title') : t('outage.title');
   $("nativePromptBody").textContent = native ? t('nativeprompt.body') : t('outage.body');
   $("nativePromptBody").hidden = false;
-  $("nativePromptOutage").textContent = native && outage ? "⚠️ "+t('outage.title')+" "+t('outage.body') : "";
+  $("nativePromptOutage").textContent = native && outage ? t('outage.short') : "";   // en el aviso de la app, la caída va en pequeño: lo principal es la app
   $("nativePromptOutage").hidden = !(native && outage);
   $("nativePromptStore").hidden = !native;
   $("nativePromptBadge").src = getLang()==="en" ? "./assets/app-store-en.svg" : "./assets/app-store-es.svg";

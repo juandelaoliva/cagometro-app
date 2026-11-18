@@ -1430,8 +1430,25 @@ function _fillNativeSheet({ native, outage }){
   $("nativePromptBadge").src = getLang()==="en" ? "./assets/app-store-en.svg" : "./assets/app-store-es.svg";
   $("nativePromptBadge").alt = t('nativeprompt.badge.alt');
   $("nativePromptClose").textContent = native ? t('nativeprompt.later') : t('outage.ok');
-  $("nativePromptSheet").hidden=false;
+  // El aviso de la app va a PANTALLA COMPLETA y no se puede cerrar durante NATIVE_LOCK_MS: el anillo de la esquina se completa y
+  // entonces es la ✕ (y sale «Ahora no»). La insignia de la tienda se puede tocar desde el principio. La nota sola de la caída es un panel normal.
+  const sheet=$("nativePromptSheet"), x=$("nativePromptX"), ring=$("nativePromptRing");
+  clearTimeout(_nativeLockTimer);
+  sheet.classList.toggle("nativeprompt--full", native);
+  sheet.classList.toggle("is-locked", native);
+  x.disabled = native;
+  ring.classList.remove("is-counting");
+  if(native){
+    sheet.style.setProperty("--np-lock", NATIVE_LOCK_MS+"ms");
+    void ring.getBoundingClientRect();              // reinicia la animación del anillo si el aviso se vuelve a abrir
+    ring.classList.add("is-counting");
+    _nativeLockTimer=setTimeout(()=>{ sheet.classList.remove("is-locked"); x.disabled=false; }, NATIVE_LOCK_MS);
+  }
+  sheet.hidden=false;
 }
+const NATIVE_LOCK_MS=5000;
+let _nativeLockTimer=0;
+const _nativeLocked=()=>$("nativePromptSheet").classList.contains("is-locked");
 function maybeShowNativePrompt(){
   if(!uid || !me) return;
   const outage=_outageActive() && !localStorage.getItem(OUTAGE_KEY);
@@ -1445,8 +1462,8 @@ function showOutageNotice(){
   localStorage.setItem(OUTAGE_KEY,"1");
   _fillNativeSheet({ native:false, outage:true });
 }
-$("nativePromptClose").addEventListener("click", ()=>$("nativePromptSheet").hidden=true);
-$("nativePromptSheet").addEventListener("click", e=>{ if(e.target===$("nativePromptSheet")) $("nativePromptSheet").hidden=true; });
+$("nativePromptClose").addEventListener("click", ()=>{ if(!_nativeLocked()) $("nativePromptSheet").hidden=true; });
+$("nativePromptSheet").addEventListener("click", e=>{ if(e.target===$("nativePromptSheet") && !_nativeLocked()) $("nativePromptSheet").hidden=true; });
 $("nativePromptStore").addEventListener("click", ()=>{ if(uid) logNativePromptTap(uid).catch(()=>{}); $("nativePromptSheet").hidden=true; });
 // ── Popup para instalar la PWA (iOS sin instalar) ───────────────────────────
 // En iOS solo se puede instalar desde Safari; Chrome/otros en iPhone no pueden,
@@ -2476,6 +2493,7 @@ document.addEventListener("click", e=>{
     let startY=0, prevY=0, prevT=0, dy=0, vy=0, dragging=false, canDrag=false;
     panel.addEventListener("touchstart", e=>{
       if(e.touches.length!==1 || e.target.closest("input,textarea,select,.leaflet-container")){ canDrag=false; return; }
+      if(sheet.classList.contains("nativeprompt--full")){ canDrag=false; return; }   // el aviso a pantalla completa no se cierra arrastrando
       startY=prevY=e.touches[0].clientY; prevT=Date.now(); dy=0; vy=0; dragging=false;
       canDrag = panel.scrollTop<=0;   // solo si el contenido ya está arriba del todo
     }, {passive:true});

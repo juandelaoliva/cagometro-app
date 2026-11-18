@@ -122,6 +122,31 @@ ol,ul{list-style:none}
 .nativeprompt__outage{font-size:13px;line-height:1.45;color:var(--ink-soft);margin:0 0 14px;padding-top:12px;border-top:1px solid var(--line)}
 .nativeprompt__badge{display:flex;justify-content:center;padding:4px 0 18px}
 .nativeprompt__badge img{display:block;height:56px;width:auto}
+/* esquina: anillo que se completa durante el bloqueo; después, la ✕ */
+.nativeprompt__x{overflow:visible}
+.nativeprompt__ring{position:absolute;inset:-3px;width:calc(100% + 6px);height:calc(100% + 6px);transform:rotate(-90deg);opacity:0;pointer-events:none}
+.nativeprompt__ring circle{fill:none;stroke-width:3}
+.nativeprompt__ring-bg{stroke:var(--line)}
+.nativeprompt__ring-fg{stroke:var(--brand,#6E3F1C);stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100}
+.nativeprompt__ring-fg.is-counting{animation:npRing var(--np-lock,5s) linear forwards}
+@keyframes npRing{to{stroke-dashoffset:0}}
+.sheet.is-locked .nativeprompt__ring{opacity:1}
+.sheet.is-locked .nativeprompt__xicon{opacity:.2}
+.sheet.is-locked .nativeprompt__x{cursor:default;box-shadow:none}
+.sheet.is-locked #nativePromptClose{visibility:hidden}
+#nativePromptClose{transition:opacity .3s}
+/* a pantalla completa (aviso de la app en iOS) */
+.sheet.nativeprompt--full{align-items:stretch;backdrop-filter:none}
+.sheet.nativeprompt--full .sheet__panel{width:100%;max-width:none;height:100dvh;max-height:none;border-radius:0;display:flex;flex-direction:column;justify-content:center;
+  padding:calc(64px + env(safe-area-inset-top)) 24px calc(28px + env(safe-area-inset-bottom));animation:fadeIn .25s both}
+.sheet.nativeprompt--full .sheet__panel::before{display:none}
+.sheet.nativeprompt--full .sheet__panel > :not(.nativeprompt__x):not(.nativeprompt__logo){width:100%;max-width:440px;margin-left:auto;margin-right:auto}
+.sheet.nativeprompt--full .nativeprompt__x{top:calc(14px + env(safe-area-inset-top));right:16px}
+.sheet.nativeprompt--full .nativeprompt__logo{width:104px;height:104px;border-radius:26px;margin-bottom:18px}
+.sheet.nativeprompt--full .sheet__title{text-align:center;font-size:28px;line-height:1.15}
+.sheet.nativeprompt--full .sheet__sub{text-align:center;font-size:16px;line-height:1.5;margin:10px auto 22px}
+.sheet.nativeprompt--full .nativeprompt__badge img{height:64px}
+.sheet.nativeprompt--full .nativeprompt__outage{text-align:center}
 /* popup de instalar la PWA */
 .install-steps{margin:6px 0 16px;padding-left:22px;display:flex;flex-direction:column;gap:9px}
 .install-steps li{font-size:14px;line-height:1.45;color:var(--ink)}

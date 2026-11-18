@@ -549,6 +549,12 @@
   <!-- ───────── Popup: la app de iPhone ya está en el App Store (a quien usa la web en iOS) y/o aviso de la caída del 17-nov ───────── -->
   <div class="sheet" id="nativePromptSheet" hidden>
     <div class="sheet__panel">
+      <!-- En pantalla completa (iOS): un círculo se completa en unos segundos y entonces es la ✕ de cerrar. Lleva la clase sheet__x para
+           que no se añada la ✕ genérica; mientras está `disabled`, su clic no cierra nada. -->
+      <button type="button" class="sheet__x nativeprompt__x" id="nativePromptX" aria-label="Cerrar">
+        <svg class="nativeprompt__ring" viewBox="0 0 36 36" aria-hidden="true"><circle class="nativeprompt__ring-bg" cx="18" cy="18" r="15" pathLength="100" /><circle class="nativeprompt__ring-fg" id="nativePromptRing" cx="18" cy="18" r="15" pathLength="100" /></svg>
+        <span class="nativeprompt__xicon" aria-hidden="true">✕</span>
+      </button>
       <img class="nativeprompt__logo" src="./logo-c.png" alt="" width="72" height="72" />
       <h3 class="sheet__title" id="nativePromptTitle"></h3>
       <p class="sheet__sub" id="nativePromptBody"></p>

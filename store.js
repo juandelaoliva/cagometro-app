@@ -296,6 +296,10 @@ export const logInstallPromptShown = (uid) => updateDoc(doc(db,"users",uid), { i
 // Aviso «descarga la app de iPhone» (a quien usa la web en iOS): cuántas veces se vio y cuándo tocó el botón de la tienda.
 export const logNativePromptShown = (uid) => updateDoc(doc(db,"users",uid), { nativePromptSeenCount: increment(1), nativePromptLastTs: Date.now() });
 export const logNativePromptTap = (uid) => updateDoc(doc(db,"users",uid), { nativePromptTapTs: Date.now() });
+// Modo grabación (solo administrador): los alias de personas y grupos, en su documento privado (ver rec.js). Se guarda ENTERO
+// (sin fusionar) para que «regenerar» borre los anteriores.
+export const getRecAliases = async (uid) => { try{ const s = await getDoc(doc(db,"users",uid,"private","rec")); return s.exists() ? s.data() : null; }catch(e){ return null; } };
+export const saveRecAliases = (uid, data) => setDoc(doc(db,"users",uid,"private","rec"), { people: data.people || {}, groups: data.groups || {}, updatedAt: serverTimestamp() });
 
 // ── Config global de la app (banner de mantenimiento) ─────────────────────
 // Doc único `config/app`. Lo lee cualquiera autenticado; solo el admin lo escribe.

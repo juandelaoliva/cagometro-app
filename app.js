@@ -4,7 +4,7 @@
 import {
   onUser, signOutUser, signUp, signIn, googleSignIn, ensureProfile, sendVerifEmail, resetPassword,
   watchMe, addCaca, addCacaAt, removeCaca, resetCacas, setLocationMode, updateMe, myActivity, setCacaLocations,
-  logNotifPromptShown, setNotifPromptAction, logInstallPromptShown, logNativePromptShown, logNativePromptTap,
+  logNotifPromptShown, setNotifPromptAction, logInstallPromptShown, logNativePromptShown, logNativePromptTap, getRecAliases, saveRecAliases,
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
@@ -22,6 +22,7 @@ import {
 } from "./store.js";
 import { IS_LOCAL, VAPID_KEY, auth, getMessagingIfSupported, getToken, onMessage } from "./firebase.js";
 import { t, getLang, setLang, mapLoadingPhrase } from "./i18n.js";
+import { initRec, recOn, recEnabled, setRecOn, onRecChange, N, G, C, E, aliasOf, setAlias, regenerateAliases } from "./rec.js";
 import { FUN_FACTS } from "./funfacts.js";
 import { RECAP_V, mesDelRecap, mesAnterior, recapPersonal, recapGrupo } from "./recap.js";
 import * as Recap from "./recap-player.js";
@@ -390,6 +391,14 @@ async function _flushOutbox(){
   } catch(e){ console.warn("flush outbox:", e); }
 }
 
+// Mi nombre en la cabecera y el perfil (con alias en modo grabación; ver rec.js).
+function paintMeNames(m=me){
+  if(!m) return; const nm=N(uid, m.displayName||"");
+  $("meName").textContent=nm;
+  $("hdrAvatar").textContent=initial(nm); $("hdrAvatar").style.background=m.color||colorForUid(uid);
+  $("pName").textContent=nm; $("pEmail").textContent=E(m.email||"—");
+  $("pAvatar").textContent=initial(nm); $("pAvatar").style.background=m.color||colorForUid(uid);
+}
 function showApp(){
   $("gate").hidden=true; $("app").hidden=false;
   // banner de verificación: solo usuarios email/pass con email sin verificar
@@ -400,10 +409,7 @@ function showApp(){
   unsub=watchMe(uid, m=>{
     if(!m)return; me=m; applySuspension(m); const total=yearCountOf(m);
     _myDisplayName = m.displayName||"";
-    $("meCount").textContent=total; $("meName").textContent=m.displayName||"";
-    $("hdrAvatar").textContent=initial(m.displayName); $("hdrAvatar").style.background=m.color||colorForUid(uid);
-    $("pName").textContent=m.displayName||""; $("pEmail").textContent=m.email||"—";
-    $("pAvatar").textContent=initial(m.displayName); $("pAvatar").style.background=m.color||colorForUid(uid);
+    $("meCount").textContent=total; paintMeNames(m);
     $("pTotal").textContent=total; $("pLifetime").textContent=t('perfil.lifetime',{n:m.lifetimeCount||total});
     paintProgress(total); renderLocSel(m.locationMode);
     if(lastTotal!==null && total>lastTotal){ if(isMilestone(total)){ celebrate(total); notifyFriendsMilestone(total); } checkGroupOvertakes(lastTotal); }
@@ -412,6 +418,7 @@ function showApp(){
     maybeShowYearRecap();
     renderRecapEntry(); renderNotifBadge();
   });
+  if(uid===ADMIN_UID) getRecAliases(uid).then(a=>initRec({ admin:true, aliases:a, save:d=>saveRecAliases(uid,d) })); else initRec({ admin:false });
   $("pMode").textContent=[IS_LOCAL?"modo local (emulador) · datos de prueba":"", APP_VERSION!=="dev"?"versión "+APP_VERSION:""].filter(Boolean).join(" · ");
   loadActivity();
   processInvite();
@@ -432,8 +439,8 @@ async function openFriendInvite(otherUid){
   _fiUid=otherUid;
   const u=await getUserLite(otherUid);
   if(!u){ toast(t('toast.notfound')); return; }
-  $("fiAvatar").textContent=initial(u.displayName); $("fiAvatar").style.background=u.color||colorForUid(otherUid);
-  $("fiName").textContent=u.displayName||t('fallback.someone');
+  $("fiAvatar").textContent=initial(N(otherUid,u.displayName)); $("fiAvatar").style.background=u.color||colorForUid(otherUid);
+  $("fiName").textContent=N(otherUid,u.displayName)||t('fallback.someone');
   $("friendInviteSheet").hidden=false;
 }
 $("fiCancel").addEventListener("click",()=>$("friendInviteSheet").hidden=true);
@@ -455,14 +462,15 @@ function renderSetColors(cur){
 function openSettings(){
   if(!me)return;
   const col=me.color||colorForUid(uid);
-  $("setName").value=me.displayName||"";
-  $("setNamePreview").textContent=me.displayName||"—";
-  $("setEmail").textContent=me.email||"—";
-  $("setAvatar").textContent=initial(me.displayName); $("setAvatar").style.background=col;
+  $("setName").value=N(uid, me.displayName||"");
+  $("setNamePreview").textContent=N(uid, me.displayName)||"—";
+  $("setEmail").textContent=E(me.email||"—");
+  $("setAvatar").textContent=initial(N(uid, me.displayName)); $("setAvatar").style.background=col;
   renderSetColors(col); renderLocSel(me.locationMode); $("setNotif").checked=!!me.notifications; _pintaCatsNotif();
   $("setHaptics").checked = hapticsOn;
   $("setShareMap").checked = me.shareMap !== false;
   $("adminBtn").hidden = uid!==ADMIN_UID;
+  $("recRow").hidden = !recEnabled(); $("recToggle").checked = recOn();
   const hasBristol = _bristolAccess();
   $("bristolSettingRow").hidden = !hasBristol;
   if(hasBristol) $("setBristol").checked = !!me.bristolMode;
@@ -472,6 +480,35 @@ function openSettings(){
 $("settingsBtn").addEventListener("click", openSettings);
 $("pcardSettingsBtn").addEventListener("click", openSettings);
 $("setClose").addEventListener("click", ()=>$("settingsSheet").hidden=true);
+
+// ── Modo grabación (solo administrador; ver rec.js) ──
+$("recToggle").addEventListener("change", e=>{
+  setRecOn(e.target.checked);
+  toast(e.target.checked ? "🎬 Modo grabación activado: nombres inventados" : "Modo grabación desactivado");
+});
+// al activarlo, desactivarlo o cambiar un nombre: repintar todo lo que enseña nombres
+onRecChange(()=>{
+  if(!uid || !me) return;
+  paintMeNames();
+  if(!$("settingsSheet").hidden){ $("setNamePreview").textContent=N(uid, me.displayName)||"—"; $("setName").value=N(uid, me.displayName||""); $("setEmail").textContent=E(me.email||"—"); $("setAvatar").textContent=initial(N(uid, me.displayName)); }
+  renderFeedChips(); renderFeed(); refreshActiveView(true);
+});
+function openRecSheet(){
+  const ppl=[{ id:uid, real:me?.displayName||"Yo" }, ...(_friendsDocs||[]).map(f=>({ id:f.id, real:f.displayName||"?" }))];
+  const grs=(myGroupsCache||[]).map(g=>({ id:g.id, real:g.name||"?" }));
+  const row=(kind,x)=>`<label class="rec-row"><span class="rec-real">${_aesc(x.real)}</span><input class="field rec-input" data-rec-kind="${kind}" data-rec-id="${_aesc(x.id)}" value="${_aesc(aliasOf(kind, x.id))}" maxlength="40" /></label>`;
+  $("recList").innerHTML=`<h4 class="rec-h">Personas</h4>${ppl.map(x=>row("person",x)).join("")}`+
+    (grs.length ? `<h4 class="rec-h">Grupos</h4>${grs.map(x=>row("group",x)).join("")}` : "");
+  $("settingsSheet").hidden=true; $("recSheet").hidden=false;
+}
+$("recEditBtn").addEventListener("click", openRecSheet);
+$("recList").addEventListener("change", e=>{
+  const i=e.target.closest(".rec-input"); if(!i) return;
+  setAlias(i.dataset.recKind, i.dataset.recId, i.value);
+  if(!i.value.trim()) i.value=aliasOf(i.dataset.recKind, i.dataset.recId);   // vacío → vuelve a uno automático
+});
+$("recRegen").addEventListener("click", ()=>{ if(!confirm("¿Inventar nombres nuevos para todos?")) return; regenerateAliases(); openRecSheet(); });
+$("recClose").addEventListener("click", ()=>$("recSheet").hidden=true);
 function _syncLangBtns(lang){
   $("langSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
   $("gateLangSel").querySelectorAll("button").forEach(x=>x.classList.toggle("on",x.dataset.lang===lang));
@@ -655,6 +692,7 @@ $("adminTabs").addEventListener("click", e=>{ const b=e.target.closest("[data-at
 $("adminSearch").addEventListener("input", e=>{ _adminQuery=e.target.value; _renderAdminBody(); });
 $("settingsSheet").addEventListener("click", e=>{ if(e.target===$("settingsSheet")) $("settingsSheet").hidden=true; });
 $("setNameSave").addEventListener("click", async ()=>{
+  if(recOn()) return toast("🎬 Desactiva el modo grabación para cambiar tu nombre");
   const n=$("setName").value.trim(); if(!n) return toast(t('toast.name.empty'));
   if(n===me?.displayName) return toast(t('toast.name.unchanged'));
   try{ await updateMe(uid,{displayName:n}); $("setNamePreview").textContent=n; $("setAvatar").textContent=initial(n); toast(t('toast.name.ok')); refreshActiveView(); }
@@ -806,7 +844,16 @@ $("recapHomeDismiss").addEventListener("click", ()=>{
 
 // Caché en el móvil. Lleva el contador del mes con el que se calculó: si después entra
 // una caca olvidada o se deshace una, el contador cambia y se recalcula solo.
-const _recapKey = k => `cago_recap_${RECAP_V}_${k}`;
+const _recapKey = k => `cago_recap_${RECAP_V}_${recOn()?"rec_":""}${k}`;   // en modo grabación, caché aparte (lleva alias)
+// Copias con alias para lo que solo se PINTA (recap, feed): los originales, que pueden acabar guardándose, no se tocan.
+const _recUser = u => (u && recOn()) ? { ...u, displayName: N(u.id, u.displayName) } : u;
+const _recUsers = a => recOn() ? (a||[]).map(_recUser) : a;
+const _recGroups = a => recOn() ? (a||[]).map(g=>({ ...g, name: G(g.id, g.name) })) : a;
+const _recAct = x => (!x || !recOn()) ? x : { ...x, name: N(x.uid, x.name),
+  withName: x.withUid ? N(x.withUid, x.withName) : x.withName,
+  participants: Array.isArray(x.participants) ? x.participants.map(q=>({ ...q, name: N(q.uid, q.name) })) : x.participants,
+  groups: Array.isArray(x.groups) ? x.groups.map(g=>({ ...g, name: G(g.gid, g.name) })) : x.groups };
+const _recActs = a => recOn() ? (a||[]).map(_recAct) : a;
 function _recapLee(k, cnt){ try{ const v=JSON.parse(localStorage.getItem(_recapKey(k))||"null"); return v && v._cnt===cnt ? v : null; }catch{ return null; } }
 function _recapGuarda(k, v){ try{ localStorage.setItem(_recapKey(k), JSON.stringify(v)); }catch{} }
 // el feed del mes (~600 lecturas) se comparte entre tu recap y los de tus grupos
@@ -840,8 +887,8 @@ async function openMyRecap(){
     const usuarios = new Map(amigos.map(a=>[a.id,a]));
     const faltan=[...new Set(grupos.flatMap(g=>g.members||[]))].filter(m=>m!==uid && !usuarios.has(m));
     (await Promise.all(faltan.map(m=>getUser(m).catch(()=>null)))).forEach(u=>{ if(u) usuarios.set(u.id,u); });
-    const data = recapPersonal({ uid, nombre: me.displayName||"", mes, cacas, activity, amigos, grupos,
-      usuarios: Object.fromEntries(usuarios), anterior: me.countsByMonth?.[mesAnterior(mes).key]||0 });
+    const data = recapPersonal({ uid, nombre: N(uid, me.displayName||""), mes, cacas, activity: _recActs(activity), amigos: _recUsers(amigos), grupos: _recGroups(grupos),
+      usuarios: Object.fromEntries([...usuarios].map(([k,u])=>[k,_recUser(u)])), anterior: me.countsByMonth?.[mesAnterior(mes).key]||0 });
     data._cnt=cnt; _recapGuarda(k, data);
     if(Recap.estaAbierto()) Recap.abrir(data, opts);   // si lo cerró mientras cargaba, no se reabre
   }catch(e){
@@ -858,7 +905,7 @@ function _pintaRecapGrupo(group, board){
   const cnt=board.reduce((s,u)=>s+(u.countsByMonth?.[mes.key]||0), 0);
   card.hidden = !cnt;
   if(!cnt) return;
-  $("groupRecapTitle").textContent=t('recap.group.card', { month:_nombreMes(mes), group:group.name });
+  $("groupRecapTitle").textContent=t('recap.group.card', { month:_nombreMes(mes), group:G(group.id, group.name) });
   $("groupRecapSub").textContent=t('recap.group.sub');
   card.onclick=()=>openGroupRecap(group, board, cnt);
 }
@@ -866,14 +913,14 @@ async function openGroupRecap(group, board, cnt){
   const mes=_mesRecap(), k=`g_${group.id}_${mes.key}`;
   const cache=_recapLee(k, cnt);
   if(cache){ Recap.abrir(cache); return; }
-  Recap.abrirCargando(t('recap.loading.group', { month:_nombreMes(mes), group:group.name }));
+  Recap.abrirCargando(t('recap.loading.group', { month:_nombreMes(mes), group:G(group.id, group.name) }));
   try{
     const [porMiembro, activity] = await Promise.all([
       Promise.all((group.members||[]).map(m=>cacasEntre(m, mes.from, mes.to).catch(()=>[]))),
       _actividadDelMes(mes),
     ]);
-    const data = recapGrupo({ grupo:group, mes, cacas:porMiembro.flat(),
-      usuarios:Object.fromEntries(board.map(u=>[u.id,u])), activity });
+    const data = recapGrupo({ grupo:{ ...group, name:G(group.id, group.name) }, mes, cacas:porMiembro.flat(),
+      usuarios:Object.fromEntries(board.map(u=>[u.id,_recUser(u)])), activity:_recActs(activity) });
     data._cnt=cnt; _recapGuarda(k, data);
     if(Recap.estaAbierto()) Recap.abrir(data);
   }catch(e){
@@ -1026,7 +1073,7 @@ function detectSyncNotifs(acts){
     for(const p of (a.participants||[])) if(!byU.has(p.uid)) byU.set(p.uid, p);
     cur.set(a.id, {
       id: a.id, ts: a.lastTs || a.ts, n: new Set(uids).size,
-      names: [...byU.values()].map(p => friendNames[p.uid] || p.name || t('fallback.someone')),
+      names: [...byU.values()].map(p => N(p.uid, friendNames[p.uid] || p.name || t('fallback.someone'))),
     });
   }
   // Misma mecánica que las reacciones: la primera pasada solo fija la base, para no
@@ -1045,16 +1092,16 @@ function detectSyncNotifs(acts){
 // ── filtros del feed (chips + búsqueda) ──
 let feedScope="all", feedQ="";
 // chips de grupo visibles para MÍ = grupos del autor ∩ mis grupos
-const entryContexts = c => (c.groups||[]).filter(g=>_myGroupIds.has(g.gid)).map(g=>({type:"group", gid:g.gid, name:g.name}));
+const entryContexts = c => (c.groups||[]).filter(g=>_myGroupIds.has(g.gid)).map(g=>({type:"group", gid:g.gid, name:G(g.gid, g.name)}));
 function feedGroups(){
   const m=new Map();
-  for(const c of homeFeedData) for(const g of (c.groups||[])) if(_myGroupIds.has(g.gid)) m.set(g.gid, g.name);
+  for(const c of homeFeedData) for(const g of (c.groups||[])) if(_myGroupIds.has(g.gid)) m.set(g.gid, G(g.gid, g.name));
   return [...m].map(([gid,name])=>({gid,name}));
 }
 function renderFeedChips(){
   const base=[["all",t('feedchip.all')],["me",t('feedchip.me')],["friends",t('feedchip.friends')]];
   const chips=base.map(([k,l])=>`<button class="ychip ${feedScope===k?'on':''}" data-fscope="${k}">${l}</button>`)
-    .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${_aesc(g.gid)}">🏆 ${_aesc(g.name)}</button>`));
+    .concat(feedGroups().map(g=>`<button class="ychip ${feedScope===g.gid?'on':''}" data-fscope="${_aesc(g.gid)}">🏆 ${_aesc(G(g.id, g.name))}</button>`));
   $("feedChips").innerHTML=chips.join("");
 }
 // una conexión/combo solo la ves si eres participante o amigo de TODOS los participantes
@@ -1077,7 +1124,7 @@ function filteredFeed(){
   if(feedScope==="me") arr=arr.filter(c=>c.uid===uid);
   else if(feedScope==="friends") arr=arr.filter(c=>c.uid!==uid);
   else if(feedScope!=="all") arr=arr.filter(c=>(c.groups||[]).some(g=>g.gid===feedScope));
-  if(feedQ){ const q=feedQ.toLowerCase(); arr=arr.filter(c=>(c.name||"").toLowerCase().includes(q)); }
+  if(feedQ){ const q=feedQ.toLowerCase(); arr=arr.filter(c=>(N(c.uid, c.name)||"").toLowerCase().includes(q)); }
   // el listener ya viene ordenado por `ts`; reordenamos para que los combos que crecen suban
   return arr.sort((a,b)=>feedSortTs(b)-feedSortTs(a));
 }
@@ -1112,6 +1159,7 @@ function _joinNames(names){
   return b.slice(0,-1).join(", ")+" "+t('and')+" "+b[b.length-1];
 }
 function _feedItem(c,i){
+  c=_recAct(c);                       // modo grabación: alias en una COPIA de la entrada (solo para pintar)
   const chips=entryContexts(c).map(_ctxChip).join("");
   const mine=c.uid===uid;
   let head, nBadge="", sys=false, reactable=true, syncHi=false, syncTrail="";
@@ -1133,7 +1181,7 @@ function _feedItem(c,i){
         if(!prev || (p.joinedTs||0) < (prev.joinedTs||0)) byU.set(p.uid, p);
       }
       const ordered=[...byU.values()].sort((a,b)=>(a.joinedTs||0)-(b.joinedTs||0));
-      const pName=p=> p.uid===uid ? t('rx.me') : _aesc(friendNames[p.uid]||p.name||t('fallback.someone'));
+      const pName=p=> p.uid===uid ? t('rx.me') : _aesc(N(p.uid, friendNames[p.uid]||p.name||t('fallback.someone')));
       const others=ordered.filter(p=>p.uid!==uid).map(pName);
       const iAmIn=c.participantUids.includes(uid);
       if(n>=3){
@@ -1564,8 +1612,8 @@ function startNotifications(){
     _graphAt=0;   // cambió la red de amistades → refresca la audiencia en la próxima carga
     const pend=fships.filter(f=>f.status==="pending" && f.requestedBy!==uid);
     const enriched=await Promise.all(pend.map(async f=>{
-      const o=await getUserLite(f.uids.find(u=>u!==uid));
-      return { id:f.id, name:o?.displayName||t('fallback.someone'), color:o?.color };
+      const ou=f.uids.find(u=>u!==uid), o=await getUserLite(ou);
+      return { id:f.id, name:N(ou, o?.displayName||t('fallback.someone')), color:o?.color };
     }));
     if(reqBaseline===null){ reqBaseline=new Set(enriched.map(r=>r.id)); }   // base: no notifica las ya existentes
     else {
@@ -1584,17 +1632,17 @@ function startNotifications(){
 function stopNotifications(){ notifUnsub.forEach(u=>{try{u()}catch(e){}}); notifUnsub=[]; rxBaseline=null; reqBaseline=null; notifReqs=[]; notifRx=[]; notifGroupInvites=[]; unseenRx=0; notifSync=[]; syncBaseline=null; unseenSync=0; _feedLoadedAt=0; renderNotifBadge(); }
 function refreshNotif(){ renderNotifBadge(); if(!$("notifSheet").hidden) renderNotifSheet(); }
 function renderNotifBadge(){ const annc=(_heatAnncActive() && !localStorage.getItem("cago_heatannc_notifseen"))?1:0; const n=notifReqs.length+notifGroupInvites.length+unseenRx+unseenSync+annc+(_recapPendiente()?1:0); const b=$("notifBadge"); if(n>0){ b.textContent=n>9?"9+":String(n); b.hidden=false; } else b.hidden=true; }
-const _notifName=ru=> ru===uid?t('rx.me'):(notifFriends[ru]||t('fallback.someone'));
+const _notifName=ru=> ru===uid?t('rx.me'):N(ru, notifFriends[ru]||t('fallback.someone'));
 // Resuelve el nombre de quien reacciona (es TU caca → puedes ver quién). Cachea en notifFriends.
 async function resolveName(ru){
   if(ru===uid) return "Tú";
-  if(notifFriends[ru]) return notifFriends[ru];
-  try{ const u=await getUserLite(ru); const n=u?.displayName||t('fallback.someone'); notifFriends[ru]=n; return n; }
+  if(notifFriends[ru]) return N(ru, notifFriends[ru]);
+  try{ const u=await getUserLite(ru); const n=u?.displayName||t('fallback.someone'); notifFriends[ru]=n; return N(ru, n); }
   catch{ return t('fallback.someone'); }
 }
 function renderNotifSheet(){
   const reqs=notifReqs.map(r=>`<li>${av(r.name,r.color)}<span class="nm">${_aesc(r.name)}<small>${t('notif.req.wantsyou')}</small></span><button class="btn-accept" data-accept="${_aesc(r.id)}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${r.id}">✕</button></li>`).join("");
-  const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${_aesc(inv.groupName)}</b><small>${t('notif.groupinvite.from',{name:_aesc(inv.fromName)})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
+  const ginvites=notifGroupInvites.map(inv=>`<li><span style="font-size:1.4rem;flex:none">💬</span><span class="nm"><b>${_aesc(G(inv.gid, inv.groupName))}</b><small>${t('notif.groupinvite.from',{name:_aesc(N(inv.fromUid, inv.fromName))})}</small></span><button class="btn-accept" data-ginvite="${inv.id}">${t('notif.groupinvite.accept')}</button><button class="btn-decline" data-gdecline="${inv.id}">✕</button></li>`).join("");
   const rx=notifRx.slice(0,30).map(v=>`<li class="notif-rx"><span class="notif-rx__e">${v.emoji}</span><span class="feed__txt"><b>${_aesc(_notifName(v.reactorUid))}</b> ${t('notif.rx.reacted',{name:''}).trim()}</span><span class="feed__time">${fmtWhen(v.ts)}</span></li>`).join("");
   const sy=notifSync.slice(0,20).map(v=>{
     const txt = v.n>=3 ? t('notif.sync.many',{n:v.n, names:v.names.slice(0,3).join(", ")})
@@ -1631,8 +1679,8 @@ function personStats(cacas){
 async function openPersonSheet(entry, opts={}){
   if(entry.uid===uid){ setView("perfil"); return; }    // tú → tu perfil
   _psCurrentEntry = entry;
-  $("psAvatar").textContent=initial(entry.name); $("psAvatar").style.background=entry.color;
-  $("psName").textContent=entry.name; $("psTotal").textContent="…";
+  $("psAvatar").textContent=initial(N(entry.uid, entry.name)); $("psAvatar").style.background=entry.color;
+  $("psName").textContent=N(entry.uid, entry.name); $("psTotal").textContent="…";
   $("psStats").innerHTML=""; $("psRecords").hidden=true; $("psChart").innerHTML=""; $("psGroups").innerHTML=""; $("psActions").innerHTML="";
   $("psSheet").hidden=false;
   // solo el doc del usuario (1 lectura). Stats desde contadores denormalizados, sin leer sus cacas.
@@ -1663,7 +1711,7 @@ async function openPersonSheet(entry, opts={}){
     };
     const myAvg = ((me.lifetimeCount||myYear) / _sinceFirst(me.firstCacaTs||0)).toFixed(1);
     const theirAvg = ((u?.lifetimeCount||year) / _sinceFirst(u?.firstCacaTs||0)).toFixed(1);
-    const myName = (me.displayName||"Tú").split(" ")[0], theirName = (entry.name||"?").split(" ")[0];
+    const myName = (N(uid, me.displayName)||"Tú").split(" ")[0], theirName = (N(entry.uid, entry.name)||"?").split(" ")[0];
     const w=(a,b)=>a>b?"cmp-win":"", wt=(a,b)=>a>b?"cmp-win":"";
     cmpEl.hidden=false;
     cmpEl.innerHTML=`
@@ -1692,11 +1740,11 @@ async function openPersonSheet(entry, opts={}){
   const groups = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
   const shared = groups.filter(g=>(g.members||[]).includes(entry.uid));
   $("psGroupsWrap").hidden = !shared.length;
-  $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${_aesc(g.id)}">🏆 ${_aesc(g.name)}</button>`).join("");
+  $("psGroups").innerHTML=shared.map(g=>`<button class="btn-solid psg" data-gid="${_aesc(g.id)}">🏆 ${_aesc(G(g.id, g.name))}</button>`).join("");
   // Mapa + Chat: dos tarjetas lado a lado (como en grupos). El mapa se atenúa si el
   // amigo no comparte su mapa (shareMap off).
   const mapCard = u?.shareMap !== false
-    ? `<button class="gact" id="psFriendMap" data-uid="${_aesc(entry.uid)}" data-name="${_aesc(entry.name||"")}" data-color="${_aesc(entry.color||u?.color||"")}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
+    ? `<button class="gact" id="psFriendMap" data-uid="${_aesc(entry.uid)}" data-name="${_aesc(N(entry.uid, entry.name)||"")}" data-color="${_aesc(entry.color||u?.color||"")}"><span class="gact__ico">🗺️</span><span>${t('grupos.map.short')}</span></button>`
     : `<button class="gact gact--off" disabled><span class="gact__ico">🔒</span><span>${t('person.map.privshort')}</span></button>`;
   const chatCard = `<button class="gact" data-pschat="1"><span class="gact__ico">💬</span><span>${t('chat.open.short')}</span></button>`;
   $("psActions").innerHTML = mapCard + chatCard;
@@ -2029,7 +2077,7 @@ $("addFriendBtn").addEventListener("click",async()=>{
   const email=$("friendEmail").value.trim(); const msg=$("friendMsg");
   if(!email)return; msg.hidden=true;
   try{ const o=await sendFriendRequest(uid,email); $("friendEmail").value="";
-    msg.textContent=t('amigos.req.sent',{name:o.displayName}); msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
+    msg.textContent=t('amigos.req.sent',{name:N(o.id, o.displayName)}); msg.style.color="var(--mint)"; msg.hidden=false; renderAmigos(); }
   catch(err){ msg.style.color="var(--rose)";
     msg.textContent=err.message==="no-user"?t('amigos.req.nouser'):err.message==="self"?t('amigos.req.self'):err.message==="exists"?t('amigos.req.exists'):t('amigos.req.fail'); msg.hidden=false; }
 });
@@ -2044,7 +2092,7 @@ function renderFriendsList(){
   const board=[{id:uid,displayName:me?.displayName,color:me?.color,countsByYear:me?.countsByYear}, ..._friends];
   if(friendSort==="alpha") board.sort((a,b)=>(a.displayName||"").localeCompare(b.displayName||"","es",{sensitivity:"base"}));
   else board.sort((a,b)=>yearCountOf(b)-yearCountOf(a));
-  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(r.displayName,r.color)}<span class="nm">${_aesc(r.displayName||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${yearCountOf(r)}</span></li>`).join("")
+  $("friendsRank").innerHTML = board.length>1 ? board.map((r,i)=>`<li class="${r.id===uid?'me':''}" ${r.id!==uid?`data-uid="${r.id}"`:""}><span class="pos">${friendSort==="rank"?i+1:"·"}</span>${av(N(r.id,r.displayName),r.color)}<span class="nm">${_aesc(N(r.id,r.displayName)||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${yearCountOf(r)}</span></li>`).join("")
     : `<li class="gempty">${t('amigos.empty')}</li>`;
 }
 async function renderAmigos(){
@@ -2057,12 +2105,12 @@ async function renderAmigos(){
   $("reqBlock").hidden = !pending.length;
   const incHtml=await Promise.all(incoming.map(async f=>{
     const other=await getUserLite(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${_aesc(other?.displayName||"?")}<small>${t('amigos.req.wantsyou')}</small></span>
+    return `<li>${av(N(other?.id,other?.displayName),other?.color)}<span class="nm">${_aesc(N(other?.id,other?.displayName)||"?")}<small>${t('amigos.req.wantsyou')}</small></span>
       <button class="btn-accept" data-accept="${f.id}">${t('amigos.req.accept')}</button><button class="btn-decline" data-decline="${f.id}">✕</button></li>`;
   }));
   const outHtml=await Promise.all(outgoing.map(async f=>{
     const other=await getUserLite(f.uids.find(u=>u!==uid));
-    return `<li>${av(other?.displayName,other?.color)}<span class="nm">${_aesc(other?.displayName||"?")}<small>${t('amigos.req.pending')}</small></span>
+    return `<li>${av(N(other?.id,other?.displayName),other?.color)}<span class="nm">${_aesc(N(other?.id,other?.displayName)||"?")}<small>${t('amigos.req.pending')}</small></span>
       <button class="btn-decline" data-cancel="${f.id}" aria-label="${t('amigos.req.cancel')}" title="${t('amigos.req.cancel')}">✕</button></li>`;
   }));
   $("reqList").innerHTML=[...incHtml,...outHtml].join("");
@@ -2142,7 +2190,7 @@ async function renderGrupos(){
     $("groupList").innerHTML = n ? groups.map(g=>`
       <li data-gid="${g.id}">
         <div class="ghead" data-gtoggle="${g.id}">
-          <span class="gname">${_aesc(g.name)}</span>
+          <span class="gname">${_aesc(G(g.id, g.name))}</span>
           <span class="gmeta">${(g.members||[]).length} 👤</span>
           <span class="gchev" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
@@ -2164,8 +2212,8 @@ async function openGroup(group){
   if(li) li.appendChild(det);                   // mete el detalle bajo la cabecera (acordeón)
   det.hidden=false;
   document.querySelectorAll("#groupList li[data-gid]").forEach(x=>x.classList.toggle("is-open", x.dataset.gid===group.id));
-  $("shareCode").textContent=`🔗 Invitar · ${group.inviteCode}`;
-  $("groupDetailName").textContent=group.name;
+  $("shareCode").textContent=`🔗 Invitar · ${C(group.id, group.inviteCode)}`;
+  $("groupDetailName").textContent=G(group.id, group.name);
   $("groupAdminBtn").hidden = (group.createdBy !== uid);
   $("groupRecapCard").hidden = true;            // que no se vea la del grupo anterior mientras carga
   const board=await groupLeaderboard(group);
@@ -2175,7 +2223,7 @@ async function openGroup(group){
 
   // meses por miembro: desde el contador denormalizado `countsByMonth` (sin leer cacas).
   // Fallback: si algún miembro todavía no está backfilleado, leemos las cacas del año una vez.
-  const perU={}; board.forEach(r=>perU[r.id]={ name:r.displayName||"?", months:new Array(12).fill(0), total:0 });
+  const perU={}; board.forEach(r=>perU[r.id]={ name:N(r.id, r.displayName)||"?", months:new Array(12).fill(0), total:0 });
   const allBackfilled=board.every(r=>r.countsByMonth);
   if(allBackfilled){
     board.forEach(r=>{ for(let i=0;i<12;i++){ const v=r.countsByMonth?.[`${year}_${i}`]||0; perU[r.id].months[i]=v; perU[r.id].total+=v; } });
@@ -2191,7 +2239,7 @@ async function openGroup(group){
     const m=metricOf(period);
     const ranked=[...board].sort((a,b)=>m(b)-m(a));
     const yr=period!=='year';
-    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(r.displayName,r.color)}<span class="nm">${_aesc(r.displayName||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${yearCountOf(r)} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
+    $("groupRank").innerHTML=ranked.map((r,i)=>`<li class="${r.id===uid?'me':''}"><span class="pos">${i+1}</span>${av(N(r.id,r.displayName),r.color)}<span class="nm">${_aesc(N(r.id,r.displayName)||"?")}${r.id===uid?` <small>${t('label.you')}</small>`:''}</span><span class="ct">${m(r)}${yr?`<small class="rank__yr">${yearCountOf(r)} ${t('grupos.rank.year')}</small>`:""}</span></li>`).join("")
       || `<p class="notif-empty">${t('grupos.rank.empty')}</p>`;
   }
   const seg=$("rankPeriod");
@@ -2256,7 +2304,7 @@ function tzParts(ts,tz){ const p=tzFmt(tz).formatToParts(new Date(ts)); const g=
 
 async function renderProfileGroups(){
   const gs = myGroupsCache.length ? myGroupsCache : (myGroupsCache = await myGroups(uid));
-  $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${_aesc(g.id)}">🏆 ${_aesc(g.name)}</button>`).join("");
+  $("pGroups").innerHTML=gs.map(g=>`<button class="btn-solid psg psg--chip" data-pgid="${_aesc(g.id)}">🏆 ${_aesc(G(g.id, g.name))}</button>`).join("");
 }
 $("pGroups").addEventListener("click", e=>{
   const b=e.target.closest("[data-pgid]"); if(!b)return;
@@ -2696,7 +2744,7 @@ async function openMap(friend){
   $("mapEmpty").textContent=t('map.empty');
   const titleEl=$("mapTitle");
   titleEl.classList.remove("map-title--top");
-  if(friend){ titleEl.textContent=`🗺️ ${friend.name}`; titleEl.hidden=false; }
+  if(friend){ titleEl.textContent=`🗺️ ${N(friend.uid, friend.name)}`; titleEl.hidden=false; }
   else { titleEl.hidden=true; }
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
@@ -2710,7 +2758,7 @@ async function openMap(friend){
   if(seq !== _mapOpenSeq) return;      // mientras cargaba se abrió otro mapa
   const pts=cacas.filter(c=>isFinite(c.lat)&&isFinite(c.lng));
   // pin del color de la persona (el suyo real) + globo con nombre y fecha al tocarlo, como en el mapa de grupo
-  const pName = friend ? friend.name : (me?.displayName||"");
+  const pName = friend ? N(friend.uid, friend.name) : N(uid, me?.displayName||"");
   const pColor = friend ? (friend.color||colorForUid(friend.uid)) : (me?.color||colorForUid(uid));
   const icon=pinIcon(pColor);
   _markers=pts.map(c=>{
@@ -2745,7 +2793,7 @@ function pinIcon(color){
 }
 async function openGroupMap(group){
   $("mapSheet").hidden=false; $("mapEmpty").hidden=true;
-  $("mapTitle").textContent=`🗺️ ${group.name}`; $("mapTitle").hidden=false; $("mapTitle").classList.add("map-title--top");
+  $("mapTitle").textContent=`🗺️ ${G(group.id, group.name)}`; $("mapTitle").hidden=false; $("mapTitle").classList.add("map-title--top");
   if(typeof L==="undefined"){ toast(t('toast.map.fail')); return; }
   _ensureMap();
   const seq = ++_mapOpenSeq;
@@ -2760,7 +2808,7 @@ async function openGroupMap(group){
   _isGroupMap=true; _resetHeat(); _setMapData(pts); $("mapHeatBtn").hidden=false;
   // agrupar por persona
   const byUid={};
-  for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:p.name,pts:[]}).pts.push(p); }
+  for(const p of pts){ (byUid[p.uid]=byUid[p.uid]||{name:N(p.uid, p.name),pts:[]}).pts.push(p); }
   // color distinto por miembro desde la paleta (por orden de uid → estable y sin choques)
   Object.keys(byUid).sort().forEach((u2,i)=>{ byUid[u2].color = GROUP_PALETTE[i % GROUP_PALETTE.length]; });
   for(const [u2,info] of Object.entries(byUid)){
@@ -2987,7 +3035,7 @@ function checkSyncPoop(loc){
   // celebración local del fundador (overlay efímero) — inmediata para no meter latencia
   const count=new Set([uid, ...prevUids]).size;
   if(count>=3) comboCelebrate(count);
-  else syncCelebrate(prevParts[0]?.name || t('fallback.someone'), km);
+  else syncCelebrate(N(prevParts[0]?.uid, prevParts[0]?.name) || t('fallback.someone'), km);
   // Doc compartido y aviso a los demás ACOPLADOS y CONSISTENTES: el push solo sale si
   // el doc se guarda de verdad (con reintentos ante cortes de red tras cagar). Así nunca
   // hay "notificación fantasma" sin entrada en el feed. Si tras los reintentos falla del
@@ -3107,7 +3155,7 @@ function _renderPickerList(filter=""){
     list.innerHTML=`<li class="notif-empty" style="padding:16px">${q ? "Sin resultados" : t('grupos.invite.friend.empty')}</li>`;
     return;
   }
-  list.innerHTML=shown.map(f=>`<li>${av(f.displayName,f.color)}<span class="nm">${_aesc(f.displayName)}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${_aesc(f.displayName||"")}">${"Invitar"}</button></li>`).join("");
+  list.innerHTML=shown.map(f=>`<li>${av(N(f.id,f.displayName),f.color)}<span class="nm">${_aesc(N(f.id,f.displayName))}</span><button class="btn-solid" style="font-size:13px;padding:6px 14px" data-invite-friend="${f.id}" data-invite-name="${_aesc(f.displayName||"")}">${"Invitar"}</button></li>`).join("");
 }
 async function openGroupInvitePicker(group){
   const sheet=$("groupInvitePickerSheet");
@@ -3145,7 +3193,7 @@ $("groupAdminSheet").addEventListener("click", e=>{ if(e.target===$("groupAdminS
 
 async function openGroupAdminSheet(){
   if(!activeGroup) return;
-  $("groupAdminNameInput").value = activeGroup.name;
+  $("groupAdminNameInput").value = G(activeGroup.id, activeGroup.name);
   const memberList = $("groupAdminMemberList");
   memberList.innerHTML = `<li class="notif-empty" style="padding:12px">Cargando…</li>`;
   $("groupAdminSheet").hidden = false;
@@ -3153,8 +3201,8 @@ async function openGroupAdminSheet(){
     const members = await Promise.all((activeGroup.members||[]).map(getUser));
     memberList.innerHTML = members.filter(Boolean).map(m => `
       <li style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)">
-        ${av(m.displayName, m.color)}
-        <span class="nm" style="flex:1">${_aesc(m.displayName||"—")}</span>
+        ${av(N(m.id, m.displayName), m.color)}
+        <span class="nm" style="flex:1">${_aesc(N(m.id, m.displayName)||"—")}</span>
         ${m.id === uid ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Tú${m.id===activeGroup.createdBy?" · Admin":""}</span>`
           : m.id === activeGroup.createdBy ? `<span style="font-size:12px;color:var(--ink-soft);font-weight:600">Admin</span>`
           : `<button class="btn-ghost btn-ghost--danger" style="font-size:13px;padding:5px 12px" data-kick="${m.id}" data-kick-name="${_aesc(m.displayName||"")}">Expulsar</button>`}
@@ -3163,6 +3211,7 @@ async function openGroupAdminSheet(){
 }
 
 $("groupAdminSaveName").addEventListener("click", async ()=>{
+  if(recOn()) return toast("🎬 Desactiva el modo grabación para cambiar el nombre del grupo");
   const name = $("groupAdminNameInput").value.trim();
   if(!name || !activeGroup) return;
   $("groupAdminSaveName").disabled=true;
@@ -3209,9 +3258,9 @@ let _activeGroupInvite=null;
 function openGroupInviteSheet(invite){
   if(!invite)return;
   _activeGroupInvite=invite;
-  $("giGroupName").textContent=invite.groupName;
-  $("giFromName").textContent=t('notif.groupinvite.from',{name:invite.fromName});
-  const names=(invite.memberNames||[]).join(", ")||"—";
+  $("giGroupName").textContent=G(invite.gid, invite.groupName);
+  $("giFromName").textContent=t('notif.groupinvite.from',{name:N(invite.fromUid, invite.fromName)});
+  const names=recOn() ? `${(invite.memberNames||[]).length} personas` : (invite.memberNames||[]).join(", ")||"—";
   $("giMembers").textContent=t('notif.groupinvite.members',{names});
   $("groupInviteSheet").hidden=false;
 }
@@ -3293,7 +3342,7 @@ function _renderChatList(chats){
     const myLastRead = c.lastReadTs?.[uid]?.toMillis?.() ?? 0;
     const lastTs = c.lastTs?.toMillis?.() ?? (c.lastTs || 0);
     const hasUnread = lastTs > myLastRead && c.lastMessage?.senderUid !== uid;
-    const name = _aesc(c.type === "group" ? (c.name || "Grupo") : (c.otherName || "Chat"));
+    const name = _aesc(c.type === "group" ? G(c.gid||c.id, c.name || "Grupo") : N((c.members||[]).find(m=>m!==uid), c.otherName || "Chat"));
     const preview = c.lastMessage ? `${c.lastMessage.senderUid===uid?"Tú: ":""}${_aesc(c.lastMessage.text)}` : t('chat.nomessages');
     const muted = (c.mutedBy||[]).includes(uid);
     return `<li class="chat-item" data-chat="${c.id}">
@@ -3360,7 +3409,7 @@ function _msgHtml(m, myUid, prev, next){
   if(isGroup){   // el "+" a la DERECHA del bocadillo
     const mem = _chatMembers[m.senderUid];
     const col = mem?.color || colorForUid(m.senderUid);
-    const nm  = mem?.name || m.senderName || "";
+    const nm  = N(m.senderUid, mem?.name || m.senderName || "");
     const name = firstOfBlock ? `<div class="msg__name" style="color:${_aesc(col)}">${_aesc(nm)}</div>` : "";
     const av   = lastOfBlock ? `<span class="msg__av" style="background:${_aesc(col)}">${_aesc(initial(nm))}</span>` : "";
     return `<li class="msg msg--them msg--group${cont}${tail}" data-msg-id="${m.id}">
@@ -3378,7 +3427,7 @@ function _msgHtml(m, myUid, prev, next){
 // está más al día que la copia guardada en el mensaje.
 function _replyName(r, myUid){
   if(r.senderUid === myUid) return t('chat.reply.you');
-  return _chatMembers[r.senderUid]?.name || r.senderName || t('fallback.someone');
+  return N(r.senderUid, _chatMembers[r.senderUid]?.name || r.senderName || t('fallback.someone'));
 }
 // La cita va DENTRO del bocadillo, encima del texto. Usa _aesc (escapa < > & ") porque el
 // id viaja en un atributo; el escapado del resto del chat solo cubre "<".
@@ -3469,7 +3518,7 @@ async function openConversation(chatId, chatData){
   _hideReactionPicker();
   _activeChatId = chatId;
   _activeChatData = chatData;
-  $("convName").textContent = chatData.type==="group" ? (chatData.name||"Grupo") : (chatData.otherName||"Chat");
+  $("convName").textContent = chatData.type==="group" ? G(chatData.gid||chatData.id, chatData.name||"Grupo") : N((chatData.members||[]).find(m=>m!==uid), chatData.otherName||"Chat");
   $("msgList").innerHTML = `<li class="chat-empty" style="margin:auto">${t('chat.loading')}</li>`;
   $("chatLayer2").hidden = false;
   requestAnimationFrame(()=>$("chatLayer2").classList.add("is-open"));
@@ -3517,8 +3566,8 @@ function _renderNewList(filter=""){
       lastType=x.type;
     }
     html+=`<li class="chat-item" data-new-chat-uid="${_aesc(x.uid||"")}" data-new-chat-gid="${_aesc(x.gid||"")}" data-new-chat-name="${_aesc(x.name)}">
-      ${av(x.name,x.color||"#888")}
-      <div class="chat-item__body"><div class="chat-item__name">${_aesc(x.name)}</div></div>
+      ${av(x.gid ? G(x.gid, x.name) : N(x.uid, x.name),x.color||"#888")}
+      <div class="chat-item__body"><div class="chat-item__name">${_aesc(x.gid ? G(x.gid, x.name) : N(x.uid, x.name))}</div></div>
     </li>`;
   }
   list.innerHTML=html;
@@ -3776,8 +3825,8 @@ $("msgList").addEventListener("touchcancel", _swEnd, {passive:true});
 // nombre de quien reacciona en el chat (grupo: miembro; DM: el otro; yo: "Tú")
 function _chatReactorName(u){
   if(u===uid) return t('rx.me');
-  if(_activeChatData?.type==="group") return _chatMembers[u]?.name || t('fallback.someone');
-  return _activeChatData?.otherName || t('fallback.someone');
+  if(_activeChatData?.type==="group") return N(u, _chatMembers[u]?.name || t('fallback.someone'));
+  return N(u, _activeChatData?.otherName || t('fallback.someone'));
 }
 // tap en una reacción del chat → tooltip con quién ha reaccionado (reusa el del feed)
 function showChatReactors(chip){
@@ -3819,7 +3868,7 @@ async function openDMChat(friendUid, friendName){
 async function openGroupChat(group){
   openChatView();
   const chatId = await ensureGroupChat(group.id, group.members);
-  const chatData = { id:chatId, type:"group", name:group.name, members:group.members, color:group.color };
+  const chatData = { id:chatId, gid:group.id, type:"group", name:group.name, members:group.members, color:group.color };
   openConversation(chatId, chatData);
 }
 

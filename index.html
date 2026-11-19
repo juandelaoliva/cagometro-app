@@ -546,6 +546,17 @@
     </div>
   </div>
 
+  <!-- ───────── Modo grabación: editar los nombres inventados (solo administrador) ───────── -->
+  <div class="sheet" id="recSheet" hidden>
+    <div class="sheet__panel">
+      <h3 class="sheet__title">✏️ Nombres inventados</h3>
+      <p class="sheet__sub">A la izquierda, el nombre real (solo lo ves aquí). Cambia el inventado si quieres; vacío = uno automático.</p>
+      <div id="recList" class="rec-list"></div>
+      <button class="btn-ghost" id="recRegen">🔄 Inventar todos de nuevo</button>
+      <button class="btn-ghost" id="recClose">Listo</button>
+    </div>
+  </div>
+
   <!-- ───────── Popup: la app de iPhone ya está en el App Store (a quien usa la web en iOS) y/o aviso de la caída del 17-nov ───────── -->
   <div class="sheet" id="nativePromptSheet" hidden>
     <div class="sheet__panel">
@@ -688,6 +699,18 @@
         <span class="toggle__txt" data-i18n="settings.haptics.toggle">Respuesta háptica al pulsar botones</span>
       </label>
       <p class="set-hint" data-i18n="settings.haptics.note">ℹ️ En algunos iPhone recientes (iOS 26.5+) Apple ha desactivado esta vibración y puede no funcionar.</p>
+
+      <!-- Modo grabación: solo el administrador (ver rec.js). Sin traducir: solo lo ve él. -->
+      <div id="recRow" hidden>
+        <label class="set-label">🎬 Modo grabación <small>(solo tú)</small></label>
+        <label class="toggle">
+          <input type="checkbox" id="recToggle" />
+          <span class="toggle__track"><span class="toggle__thumb"></span></span>
+          <span class="toggle__txt">Nombres inventados para grabar vídeos</span>
+        </label>
+        <p class="set-hint">Solo cambia lo que ves en este dispositivo: nadie más lo nota y no se guarda en los datos de nadie. Mientras está activo no se puede cambiar tu nombre ni el de un grupo.</p>
+        <button class="btn-ghost" id="recEditBtn">✏️ Editar nombres inventados</button>
+      </div>
 
       <div class="set-actions">
         <button class="btn-ghost" id="adminBtn" hidden data-i18n="settings.admin.btn">🛠️ Administración</button>

@@ -1227,3 +1227,9 @@ body.chat-mode .tabbar{display:none}
   .rc-kicker.rc-a{opacity:.75}
   .rc-rain,.rc-splash{display:none}
 }
+/* modo grabación: editor de nombres inventados (solo administrador) */
+.rec-list{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+.rec-h{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:10px 0 2px}
+.rec-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:center}
+.rec-real{font-size:14px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rec-input{margin:0}

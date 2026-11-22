@@ -8,7 +8,7 @@ import {
   sendFriendRequest, myFriendships, acceptFriend, removeFriend, addFriendDirect, getFriends,
   setReaction, watchFriendships, watchActivity, getActivity, saveToken, removeToken, enqueuePush, writeActivity, syncComboUpsert,
   quiereAviso, filtraPorPrefs, clearPrefsCache, NOTIF_CATS,
-  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminSetSuspended, adminLoadDashboard, adminWipeUser, getAppConfig, setMaintenance,
+  adminListUsers, adminListGroups, adminListFriendships, adminListReports, adminSetReportStatus, adminSetSuspended, adminLoadDashboard, adminLoadStats, adminWipeUser, getAppConfig, setMaintenance,
   createGroup, joinGroup, leaveGroup, myGroups, groupLeaderboard, groupYearCacas, groupCacasSince, groupLocatedCacas,
   getUser, getUserLite, colorForUid, outboxAdd, outboxGet, outboxFlush, yearCountOf,
   sendGroupInvite, watchGroupInvites, acceptGroupInvite, declineGroupInvite,
@@ -655,7 +655,7 @@ async function openAdmin(){
   try{
     const m = await import("./admin.js");
     m.openAdminDashboard({
-      load: adminLoadDashboard,
+      load: adminLoadDashboard, loadStats: adminLoadStats,
       actions: {
         wipeUser: adminWipeUser, setReportStatus: adminSetReportStatus, setSuspended: adminSetSuspended,
         setMaintenance: async on => { applyMaintenance(on, t('maint.default')); await setMaintenance(on, t('maint.default')); },
@@ -1501,6 +1501,7 @@ let _nativeLockTimer=0;
 const _nativeLocked=()=>$("nativePromptSheet").classList.contains("is-locked");
 function maybeShowNativePrompt(){
   if(!uid || !me) return;
+  if(uid===ADMIN_UID) return;          // el administrador ya tiene la app: usa la web para el panel y para grabar
   // Hasta OUTAGE_UNTIL, la nota de la caída va SIEMPRE dentro del aviso de la app (en pequeño). Si aún no la ha cerrado en este móvil,
   // el aviso sale aunque no hayan pasado los 3 días.
   const outage=_outageActive(), outageNew=outage && !localStorage.getItem(OUTAGE_KEY);

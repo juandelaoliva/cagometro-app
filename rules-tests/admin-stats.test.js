@@ -184,3 +184,38 @@ describe("suspensiones", () => {
   });
 });
 void DAY;
+
+// ─── crecimiento (foto diaria statsDaily) ───
+import { growth, weekdayOfKey } from "../admin-stats.js";
+const mkDay = (day, o = {}) => ({ day, usuarios: { total: 100, nuevos: 2, bajas: 0, sinCacas: 10 }, activos: { dia: 40, semana: 70, mes: 90 },
+  cacas: { total: 60, olvidadas: 3, conUbicacion: 30, web: 10, app: 50, porHora: Array.from({ length: 24 }, (_, h) => (h === 8 ? 10 : 2)), porActivo: 1.5 },
+  social: { amistades: 400, grupos: 50, mensajes: 5 }, avisos: { reaction: 4, sync: 2 }, recordatorios: { reminder: { enviados: 4, apuntaronDespues: 1 } }, ...o });
+const seq = (n, f) => Array.from({ length: n }, (_, i) => { const d = new Date(Date.UTC(2026, 10, 22 - (n - 1 - i))); return mkDay(d.toISOString().slice(0, 10), f?.(i)); });
+
+describe("crecimiento", () => {
+  it("día de la semana desde la fecha (lunes = 0)", () => {
+    assert.equal(weekdayOfKey("2026-11-23"), 0); assert.equal(weekdayOfKey("2026-11-22"), 6); assert.equal(weekdayOfKey("2026-11-21"), 5);
+  });
+  it("30 días: por día, con comparación con los 30 anteriores", () => {
+    const g = growth(seq(60, i => ({ cacas: { ...mkDay("x").cacas, total: i < 30 ? 50 : 60 } })), { range: 30 });
+    assert.equal(g.by, "day"); assert.equal(g.x.length, 30);
+    assert.equal(g.tiles.cacas, 1800); assert.equal(g.tiles.cacasCambio, 20);
+    assert.equal(g.tiles.nuevos, 60); assert.equal(g.tiles.nuevosCambio, 0);
+    assert.equal(g.ma[5], null); assert.equal(g.ma[6], 60);
+    assert.equal(g.fidelidad[0], 44.4);
+    assert.equal(g.heat[6][8], 10 * 5, "5 domingos en 30 días hasta un domingo");
+    assert.deepEqual(g.recordatorios.reminder, { enviados: 120, apuntaronDespues: 30 });
+  });
+  it("rangos largos: por semanas (sumas para flujos, último valor para existencias)", () => {
+    const g = growth(seq(200, i => ({ usuarios: { total: 100 + i, nuevos: 1, bajas: null, sinCacas: 5 } })), { range: 0 });
+    assert.equal(g.by, "week"); assert.ok(g.x.length >= 28 && g.x.length <= 30);
+    assert.equal(g.usuarios.at(-1), 299); assert.equal(g.nuevosSerie.at(-1), 7, "la última semana, lunes a domingo");
+    assert.equal(g.tiles.hayBajas, false);
+  });
+  it("avisos: los 6 tipos con más envíos y el resto en «otros»", () => {
+    const g = growth(seq(10, () => ({ avisos: { a: 9, b: 8, c: 7, d: 6, e: 5, f: 4, g: 3, h: 2 } })), { range: 30 });
+    assert.deepEqual(g.avisos.map(s => s.name), ["a", "b", "c", "d", "e", "f", "otros"]);
+    assert.equal(g.avisos.at(-1).values[0], 5);
+  });
+  it("sin días: null", () => { assert.equal(growth([], {}), null); });
+});

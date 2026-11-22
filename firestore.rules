@@ -281,6 +281,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- foto diaria para el panel de administración (solo cifras): la escribe el servidor cada noche y cada hora ---
+    match /statsDaily/{day} {
+      allow read:  if isAdmin();
+      allow write: if false;
+    }
+
     // --- cola de push: la crean los clientes; solo el emisor (Admin SDK) la lee/borra ---
     // Hay que tener ya una amistad (aunque sea pendiente: así llega el aviso de solicitud)
     // con el destinatario, y que no te haya bloqueado. El texto va acotado y los tipos son una

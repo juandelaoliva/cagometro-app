@@ -766,3 +766,18 @@ describe("bloquear quita la amistad y no se puede recrear por un grupo", () => {
     await assertSucceeds(setDoc(doc(as("eve"), "friendships", "alice_eve"), { uids: ["alice", "eve"], status: "accepted", source: "group", gid: "g2", createdAt: serverTimestamp() }));
   });
 });
+
+// ─── PANEL: foto diaria (statsDaily). Solo cifras; la lee el admin y no la escribe nadie desde la app ───
+describe("statsDaily", () => {
+  before(async () => { await testEnv.withSecurityRulesDisabled(async c => { await setDoc(doc(c.firestore(), "statsDaily", "2026-11-21"), { usuarios: { total: 3 } }); }); });
+  it("el admin la lee; nadie más", async () => {
+    await assertSucceeds(getDoc(doc(as(ADMIN), "statsDaily", "2026-11-21")));
+    await assertFails(getDoc(doc(as("alice"), "statsDaily", "2026-11-21")));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), "statsDaily", "2026-11-21")));
+  });
+  it("nadie la escribe desde la app, ni el admin", async () => {
+    await assertFails(setDoc(doc(as(ADMIN), "statsDaily", "2026-11-22"), { usuarios: { total: 1 } }));
+    await assertFails(setDoc(doc(as("alice"), "statsDaily", "2026-11-22"), { usuarios: { total: 1 } }));
+  });
+});
+

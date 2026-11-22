@@ -5,7 +5,8 @@
    Las cuentas salen de admin-stats.js (puro y probado); aquí solo se pinta y se reacciona a los toques.
    TODO lo que viene de la base de datos se escapa con `esc`: lo escribe cualquiera (nombres, notas de denuncia…).
    ============================================================ */
-import { computeStats, filterUsers, usersCsv, tsMs, DAY } from "./admin-stats.js";
+import { computeStats, filterUsers, usersCsv, tsMs, DAY, growth, statsCsv } from "./admin-stats.js";
+import { chart, hydrate, bindTooltips, SERIES, SINGLE } from "./admin-charts.js";
 
 const esc = s => String(s ?? "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = n => (n ?? 0).toLocaleString("es-ES");
@@ -73,6 +74,10 @@ export function openAdminDashboard(ctx) {
   document.body.appendChild(root); document.body.classList.add("ad-open");
 
   let data = null, S = null, view = "overview", sel = null, rfilter = "open", loading = true, failed = null;
+  // Resumen: SOLO la foto diaria (statsDaily, cifras sin nombres; los días ya vistos vienen del navegador). Usuarios, grupos,
+  // denuncias y sistema necesitan los datos completos: se leen solo al entrar en esas pestañas (y una vez por apertura).
+  let stats = null, statsLoading = true, statsFailed = null, range = 30;
+  const needsFull = () => view !== "overview";
   const U = { q: "", filter: "all", sort: "recent", dir: -1 };
   const G = { q: "", sort: "year", dir: -1 };
 
@@ -87,44 +92,73 @@ export function openAdminDashboard(ctx) {
     catch (e) { console.error("admin:", e); failed = e; }
     loading = false; paint();
   }
+  async function loadStats(fresh = false) {
+    statsLoading = true; statsFailed = null; paint();
+    try { stats = await ctx.loadStats({ fresh }); }
+    catch (e) { console.error("admin · foto diaria:", e); statsFailed = e; }
+    statsLoading = false; paint();
+  }
+  const ensureFull = () => { if (!data && !failed && needsFull()) load(); };
 
   /* ---------- vistas ---------- */
+  const RANGES = [[30, "30 días"], [90, "90 días"], [365, "1 año"], [0, "Todo"]];
+  const AVISO = { reaction: "reacciones", sync: "tuberías", chat_message: "chat", milestone: "hitos", overtake: "adelantamientos", friend_request: "solicitudes",
+    friend_accepted: "amistad aceptada", group_invite: "invitación a grupo", reminder: "«¿Hoy nada?»", nudge: "ocasionales", welcome: "bienvenida",
+    streak_risk: "racha en peligro", report: "denuncias", admin: "admin", otros: "otros" };
+  const PLAT = { iphone: "App iPhone", android: "App Android", nativaSinVersion: "App (sin versión)", webConAvisos: "Web con avisos", webAbierta30d: "Web abierta 30 d" };
+  const delta = v => v == null ? "" : `<b class="ad-delta ${v > 0 ? "up" : v < 0 ? "down" : ""}">${v > 0 ? "▲" : v < 0 ? "▼" : "="} ${Math.abs(v)}%</b> vs periodo anterior`;
+  const fdayKey = k => { if (!k) return "—"; const [y, m, d] = k.split("-").map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
+
   function vOverview() {
-    const u = S.users, c = S.cacas, so = S.social, a = S.adoption;
-    const retention = u.retention.base ? `${u.retention.pct}%` : "—";
+    if (statsLoading && !stats) return '<div class="ad-loading"><span>💩</span><p>Cargando la foto diaria…</p></div>';
+    if (statsFailed && !stats) return `<div class="ad-loading"><p>No se pudo leer la foto diaria.</p><small>${esc(statsFailed.code || statsFailed.message || statsFailed)}</small><button class="ad-btn" data-act="refresh">Reintentar</button></div>`;
+    const g = growth(stats?.days, { range });
+    if (!g) return '<p class="ad-empty">Todavía no hay foto diaria. Se calcula cada noche a las 00:10 y la de hoy cada hora.</p>';
+    const T = g.tiles, per = range ? `en ${range === 365 ? "1 año" : `${range} días`}` : "desde el principio";
+    const ch = (id, spec, h) => chart(id, { x: g.x, xFull: g.xFull, ...spec }, h);
+    const weekNote = g.by === "week" ? " · por semanas" : "";
+    const real = d => g.datosReales && d < g.datosReales;
+    const plat = g.plataformas.map((p, i) => ({ name: PLAT[p.key], values: p.values, color: SERIES[i] })).filter(p => p.values.some(v => v != null));
+    const recRows = Object.entries(g.recordatorios).map(([t, r]) => ({ label: AVISO[t] || t, value: r.enviados ? Math.round((100 * r.apuntaronDespues) / r.enviados) : 0, sub: `${num(r.apuntaronDespues)} de ${num(r.enviados)} apuntaron después ese día` }));
     return `
+    <div class="ad-toolbar ad-toolbar--stats">
+      <div class="ad-pills ad-pills--solo">${RANGES.map(([k, l]) => `<button data-range="${k}" class="${range === k ? "on" : ""}">${l}</button>`).join("")}</div>
+      <button class="ad-btn" data-act="statscsv">⬇ CSV</button>
+    </div>
+    <p class="ad-count">Del ${fdayKey(g.desde)} al ${fdayKey(g.hasta)}${g.parcialHoy ? " (hoy, en curso: se actualiza cada hora)" : ""}${weekNote}.
+      ${real(g.desde) ? ` Antes del ${fdayKey(g.datosReales)} los días están reconstruidos: sin plataformas, avisos ni bajas.` : ""}</p>
     <div class="ad-grid ad-grid--kpi">
-      ${kpi("Usuarios", num(u.n), `${num(u.new7)} nuevos esta semana`)}
-      ${kpi("Activos hoy", num(u.today), `${S.pct(u.today, u.n)}% de la base`)}
-      ${kpi("Activos 7 días", num(u.d7), `${S.pct(u.d7, u.n)}% de la base`)}
-      ${kpi("Activos 30 días", num(u.d30), `${S.pct(u.d30, u.n)}% de la base`)}
-      ${kpi("Retención 7 d", retention, `${num(u.retention.kept)} de ${num(u.retention.base)} con ≥ 7 días`, u.retention.pct >= 50 ? "good" : "")}
-      ${kpi("Cacas hoy", num(c.today), "según el feed")}
-      ${kpi("Cacas este mes", num(c.month))}
-      ${kpi(`Cacas ${S.year}`, num(c.year), `${num(c.total)} en total`)}
-      ${kpi("Amistades", num(so.friendships), `${so.avgFriends} por persona · ${num(so.pending)} pendientes`)}
-      ${kpi("Grupos", num(so.groups), `${so.avgGroupSize} miembros de media`)}
-      ${kpi("Denuncias abiertas", num(S.reports.open), `${num(S.reports.total)} en total`, S.reports.open ? "bad" : "good")}
-      ${kpi("Cola de avisos", QUEUE_LABEL[S.queue.status], S.queue.status === "unknown" ? "no se pudo leer" : `${num(S.queue.pending)} en espera${S.queue.waitMin ? ` · ${S.queue.waitMin >= 120 ? Math.round(S.queue.waitMin / 60) + " h" : S.queue.waitMin + " min"} la más antigua` : ""}`, QUEUE_TONE[S.queue.status])}
-      ${S.users.suspended ? kpi("Suspendidas", num(S.users.suspended), "cuentas", "warn") : ""}
-      ${kpi("Dormidos", num(u.dormant), "14+ días sin sumar", u.dormant ? "warn" : "")}
+      ${kpi("Usuarios", num(T.usuarios), T.sinCacas != null ? `${num(T.sinCacas)} sin ninguna caca` : "")}
+      ${kpi("Altas", num(T.nuevos), `${per}${T.nuevosCambio != null ? `<br>${delta(T.nuevosCambio)}` : ""}`)}
+      ${T.hayBajas ? kpi("Bajas", num(T.bajas), `cuentas eliminadas ${per}`, T.bajas ? "warn" : "") : ""}
+      ${kpi("Activos hoy", num(T.activosHoy), "con alguna caca")}
+      ${kpi("Activos 7 días", num(T.activosSemana))}
+      ${kpi("Activos 30 días", num(T.activosMes))}
+      ${kpi("Media de activos", num(T.dauMedia), `al día ${per}${T.dauCambio != null ? `<br>${delta(T.dauCambio)}` : ""}`)}
+      ${kpi("Cacas", num(T.cacas), `${per}${T.cacasCambio != null ? `<br>${delta(T.cacasCambio)}` : ""}`)}
+      ${kpi("Cacas hoy", num(T.cacasHoy), T.porActivo != null ? `${num(T.porActivo)} por persona activa` : "")}
     </div>
     <div class="ad-grid ad-grid--cards">
-      ${card("Actividad diaria · 30 días", bars(S.daily.map(d => d.adds), S.daily.map(d => new Date(d.start).getDate()), { every: 3, hl: S.daily.length - 1 }), "ad-span2",
-        `${num(S.daily.reduce((x, d) => x + d.adds, 0))} cacas · ${num(S.daily.reduce((x, d) => x + d.reactions, 0))} reacciones · ${num(S.daily.reduce((x, d) => x + d.syncs, 0))} conexiones`)}
-      ${card("Cacas por mes", bars(c.months.map(m => m.n), c.months.map(m => MONTHS[m.m]), { hl: c.months.length - 1 }), "", "últimos 12 meses")}
-      ${card("Altas por semana", bars(u.weekly.map(w => w.n), u.weekly.map(w => { const d = new Date(w.start); return `${d.getDate()}/${d.getMonth() + 1}`; }), { every: 2, hl: u.weekly.length - 1 }), "", "últimas 12 semanas")}
-      ${card("¿A qué hora?", bars(c.hours, c.hours.map((_, h) => h), { every: 3 }), "", "todas las cacas, por hora")}
-      ${card("¿Qué día?", bars(c.weekdays, WEEKDAYS), "")}
-      ${card("Dispositivos", donut([
-        { label: "App nativa", value: S.devices.native, color: "var(--brand)" }, { label: "Web / PWA", value: S.devices.web, color: "var(--gold)" },
-        { label: "Nativa + web", value: S.devices.both, color: "var(--mint)" }, { label: "Sin avisos", value: S.devices.none, color: "var(--ink-faint)" }]), "", "por token de notificaciones")}
-      ${card("Adopción de funciones", `<ul class="ad-meters">${meter("Avisos activados", a.notif, u.n)}${meter("Ubicación (pregunta o siempre)", a.geo, u.n)}${meter("Mapa compartido", a.shareMap, u.n)}${meter("Escala de Bristol", a.bristol, u.n)}${meter("PWA instalada", a.installed, u.n)}${meter("Condiciones aceptadas", a.terms, u.n)}${meter("Con amigos", u.n - so.noFriends, u.n)}${meter("En algún grupo", u.n - so.noGroup, u.n)}</ul>`, "")}
-      ${card("Top del año", hbars(S.tops.year.map(r => ({ label: r.name, value: r.year, user: r.id }))), "")}
-      ${card("Rachas actuales", hbars(S.tops.streak.map(r => ({ label: r.name, value: r.streak, sub: `récord ${r.best}`, user: r.id })), { unit: " d" }), "")}
-      ${card("Grupos más activos", hbars(S.tops.groups.map(g => ({ label: g.name, value: g.year, sub: `${g.size} miembros` }))), "")}
-      ${card("Tamaño de los grupos", bars(so.sizes.map(s => s.n), so.sizes.map(s => s.label)), "", `${num(so.groups)} grupos`)}
-    </div>`;
+      ${card("Usuarios", ch("users", { type: "line", label: "Usuarios totales", area: true, series: [{ name: "Usuarios", values: g.usuarios, color: SINGLE }] }), "")}
+      ${card("Altas", ch("altas", { type: "bars", label: "Altas", name: "Altas", values: g.nuevosSerie }), "", `${num(T.nuevos)} ${per}`)}
+      ${T.bajas > 0 ? card("Bajas (cuentas eliminadas)", ch("bajas", { type: "bars", label: "Bajas", name: "Bajas", values: g.bajasSerie, color: SERIES[7] }), "", "desde que hay foto diaria") : ""}
+      ${card("Personas activas", ch("activos", { type: "line", label: "Personas activas", series: [{ name: "Ese día", values: g.activos.dia }, { name: "En 7 días", values: g.activos.semana }, { name: "En 30 días", values: g.activos.mes }] }, 200), "ad-span2", "con al menos una caca")}
+      ${card("Fidelidad", ch("fid", { type: "line", label: "Activos del día entre activos del mes", unit: "%", series: [{ name: "Fidelidad", values: g.fidelidad, color: SINGLE }] }), "", "activos del día ÷ activos del mes")}
+      ${card("Cacas", ch("cacas", { type: "bars", label: "Cacas", name: "Cacas", values: g.cacas, ...(g.by === "day" ? { line: { name: "Media de 7 días", values: g.ma, color: SERIES[1] } } : {}) }, 200), "ad-span2", g.by === "day" ? "barras: cada día · línea: media de 7 días" : "por semanas")}
+      ${card("Cacas por persona activa", ch("porActivo", { type: "line", label: "Cacas por persona activa", decimal: true, series: [{ name: "Por persona activa", values: g.porActivo, color: SINGLE }] }), "")}
+      ${card("¿Cuándo se caga?", ch("heat", { type: "heat", label: "Cacas por día de la semana y hora", name: "Cacas", rows: WEEKDAYS, rowsFull: ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"], cols: Array.from({ length: 24 }, (_, h) => String(h)), values: g.heat }, 200), "ad-span2", `día de la semana × hora · ${per}`)}
+      ${card("Por hora", chart("horas", { type: "bars", label: "Cacas por hora", name: "Cacas", x: g.hours.map((_, h) => `${h}h`), xFull: g.hours.map((_, h) => `de ${h}:00 a ${h}:59`), values: g.hours }), "", per)}
+      ${card("Por día de la semana", chart("wd", { type: "bars", label: "Media de cacas por día de la semana", name: "Media al día", x: WEEKDAYS, xFull: ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"], values: g.weekdays }), "", "media de cacas ese día")}
+      ${card("¿Desde dónde se suman?", ch("origen", { type: "stack", label: "Cacas desde la app o la web", series: [{ name: "App", values: g.origen.app }, { name: "Web", values: g.origen.web }] }), "", "la web lo marca desde el 18 de noviembre")}
+      ${card("Olvidadas y con ubicación", ch("pcts", { type: "line", label: "Porcentaje de cacas olvidadas y con ubicación", unit: "%", series: [{ name: "Olvidadas", values: g.olvidadas }, { name: "Con ubicación", values: g.ubicacion }] }), "", "% de las cacas")}
+      ${plat.length ? card("Plataformas", ch("plat", { type: "line", label: "Usuarios por plataforma", series: plat }), "ad-span2", "app nativa por versión apuntada · web por avisos y uso") : ""}
+      ${card("Amistades", ch("amis", { type: "line", label: "Amistades aceptadas", series: [{ name: "Amistades", values: g.amistades, color: SINGLE }] }), "", "aceptadas")}
+      ${card("Grupos", ch("grupos", { type: "line", label: "Grupos", series: [{ name: "Grupos", values: g.grupos, color: SINGLE }] }), "")}
+      ${card("Mensajes de chat", ch("msgs", { type: "bars", label: "Mensajes de chat", name: "Mensajes", values: g.mensajes }), "", "se cuentan, no se leen")}
+      ${g.avisos.length ? card("Avisos enviados", ch("avisos", { type: "stack", label: "Avisos enviados por tipo", series: g.avisos.map((a, i) => ({ name: AVISO[a.name] || a.name, values: a.values, color: SERIES[i] })) }, 200), "ad-span2", "notificaciones por tipo") : ""}
+      ${recRows.length ? card("¿Funcionan los recordatorios?", hbars(recRows, { unit: "%" }), "", "de los avisados, cuántos apuntaron después ese día") : ""}
+    </div>
+    <p class="ad-note">Todo sale de la foto diaria: solo cifras, sin nombres. Esta apertura ha leído ${num(stats.leidos)} días (el resto, ${num(stats.guardados)}, ya estaban en este navegador).</p>`;
   }
 
   const FILTERS = [["all", "Todos"], ["active7", "Activos 7 d"], ["dormant", "Dormidos"], ["never", "Sin cacas"], ["notif", "Con avisos"], ["native", "App nativa"], ["web", "Web"], ["webseen", "Entró web 30 d"], ["webcaca", "Caca web 30 d"], ["iosnoapp", "iPhone sin app"], ["nofriends", "Sin amigos"], ["suspended", "Suspendidos"]];
@@ -221,7 +255,11 @@ export function openAdminDashboard(ctx) {
         <div class="ad-kv"><span>Usuarios leídos</span><b>${num(data.users.length)}</b></div><div class="ad-kv"><span>Grupos</span><b>${num(data.groups.length)}</b></div>
         <div class="ad-kv"><span>Amistades</span><b>${num(data.friendships.length)}</b></div><div class="ad-kv"><span>Eventos del feed (60 d)</span><b>${num(data.activity.length)}</b></div>
         <div class="ad-kv"><span>Documentos privados (dispositivos)</span><b>${num(Object.keys(data.privateById).length)}</b></div>
-        <p class="ad-note">Cada vez que abres o actualizas el panel se leen todos estos documentos. Con muchos usuarios habrá que agregarlos en el servidor.</p>`)}
+        <p class="ad-note">Estos documentos se leen solo al entrar en Usuarios, Grupos, Denuncias o Sistema (una vez por apertura). El resumen usa la foto diaria.</p>`)}
+      ${card("Foto diaria", `<div class="ad-kv"><span>Días guardados</span><b>${num(stats?.days?.length || 0)}</b></div>
+        <div class="ad-kv"><span>Leídos en esta apertura</span><b>${num(stats?.leidos || 0)}</b></div>
+        <p class="ad-note">La calcula el servidor cada noche a las 00:10 (la de hoy, cada hora). Los días pasados se guardan en este navegador.</p>
+        <button class="ad-btn" data-act="statsfresh">Volver a leer todos los días</button>`)}
       ${card("Versión y enlaces", `<div class="ad-kv"><span>Versión de la PWA</span><b>${esc(ctx.version || "—")}</b></div>
         <div class="ad-links"><a href="https://console.firebase.google.com/project/cagometro-app/firestore" target="_blank" rel="noopener">Firestore ↗</a>
         <a href="https://console.firebase.google.com/project/cagometro-app/authentication/users" target="_blank" rel="noopener">Usuarios (Auth) ↗</a>
@@ -270,22 +308,24 @@ export function openAdminDashboard(ctx) {
   const TITLES = Object.fromEntries(NAV.map(([k, , l]) => [k, l]));
   function paint() {
     const keepScroll = root.querySelector(".ad-view")?.scrollTop || 0;
-    const body = loading && !S ? '<div class="ad-loading"><span>💩</span><p>Cargando datos…</p></div>'
+    const body = view === "overview" ? vOverview()
       : failed ? `<div class="ad-loading"><p>No se pudieron cargar los datos.</p><small>${esc(failed.code || failed.message || failed)}</small><button class="ad-btn" data-act="refresh">Reintentar</button></div>`
-      : view === "overview" ? vOverview() : view === "users" ? vUsers() : view === "groups" ? vGroups() : view === "reports" ? vReports() : vSystem();
+      : !S ? '<div class="ad-loading"><span>💩</span><p>Cargando usuarios, grupos y denuncias…</p></div>'
+      : view === "users" ? vUsers() : view === "groups" ? vGroups() : view === "reports" ? vReports() : vSystem();
     const badge = S?.reports.open ? `<b class="ad-badge">${S.reports.open}</b>` : "";
     root.innerHTML = `
       <aside class="ad-nav"><div class="ad-brand">🛠️ <span>Administración</span></div>
         <nav>${NAV.map(([k, ic, l]) => `<button data-view="${k}" class="${view === k ? "on" : ""}"><span>${ic}</span>${l}${k === "reports" ? badge : ""}</button>`).join("")}</nav>
         <div class="ad-nav__foot"><button data-act="refresh">↻ Actualizar</button><button data-act="close">✕ Cerrar</button></div></aside>
       <main class="ad-main"><header class="ad-top"><h1>${TITLES[view]}</h1>
-        <span class="ad-sub">${loading ? "actualizando…" : data ? `actualizado ${ago(data.loadedAt)}` : ""}</span>
-        <button class="ad-iconbtn" data-act="refresh" aria-label="Actualizar" ${loading ? "disabled" : ""}>↻</button>
+        <span class="ad-sub">${view === "overview" ? (statsLoading ? "actualizando…" : stats ? `actualizado ${ago(stats.loadedAt)}` : "") : loading ? "actualizando…" : data ? `actualizado ${ago(data.loadedAt)}` : ""}</span>
+        <button class="ad-iconbtn" data-act="refresh" aria-label="Actualizar" ${(view === "overview" ? statsLoading : loading) ? "disabled" : ""}>↻</button>
         <button class="ad-iconbtn ad-iconbtn--close" data-act="close" aria-label="Cerrar el panel">✕</button></header>
         <div class="ad-view">${body}</div></main>
       <nav class="ad-tabbar">${NAV.map(([k, ic, l]) => `<button data-view="${k}" class="${view === k ? "on" : ""}"><span>${ic}${k === "reports" ? badge : ""}</span>${l}</button>`).join("")}</nav>
       ${sel && S ? `<div class="ad-scrim" data-act="closeuser"></div>${drawer(sel)}` : ""}`;
     const v = root.querySelector(".ad-view"); if (v) v.scrollTop = keepScroll;
+    if (view === "overview") hydrate(root);
   }
 
   // Refleja la suspensión en los datos que ya tenemos (sin volver a leerlo todo) y recalcula.
@@ -298,12 +338,18 @@ export function openAdminDashboard(ctx) {
   /* ---------- eventos (delegación) ---------- */
   root.addEventListener("click", async e => {
     const t = e.target;
-    const go = t.closest("[data-view]"); if (go) { view = go.dataset.view; sel = null; paint(); return; }
+    const go = t.closest("[data-view]"); if (go) { view = go.dataset.view; sel = null; paint(); ensureFull(); return; }
+    const rg = t.closest("[data-range]"); if (rg) { range = +rg.dataset.range; paint(); return; }
     const user = t.closest("[data-user]"); if (user && !t.closest("[data-act]")) { sel = user.dataset.user; paint(); return; }
     const act = t.closest("[data-act]")?.dataset.act;
     if (act === "close") return close();
     if (act === "closeuser") { sel = null; paint(); return; }
-    if (act === "refresh") { load(); return; }
+    if (act === "refresh") { if (view === "overview") loadStats(); else load(); return; }
+    if (act === "statsfresh") { loadStats(true); return; }
+    if (act === "statscsv") {
+      const blob = new Blob(["\ufeff" + statsCsv(stats?.days)], { type: "text/csv;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `cagometro-crecimiento-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href); return;
+    }
     if (act === "udir") { U.dir = -U.dir; paint(); return; }
     if (act === "gdir") { G.dir = -G.dir; paint(); return; }
     if (act === "legacy") { close(); ctx.legacy?.(); return; }
@@ -363,6 +409,7 @@ export function openAdminDashboard(ctx) {
     }
   });
 
-  paint(); load();
+  bindTooltips(root);
+  paint(); loadStats();
   return { close };
 }

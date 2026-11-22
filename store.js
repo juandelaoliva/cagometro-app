@@ -539,6 +539,20 @@ export const adminListPushQueue = () => getDocs(query(collection(db,"pushQueue")
   .then(s => s.docs.map(d => ({ id:d.id, ...d.data() }))).catch(() => null);
 // status: 'open' | 'dismissed' | 'resolved'
 export const adminSetReportStatus = (id, status) => updateDoc(doc(db,"reports",id), { status });
+// Panel · foto diaria (`statsDaily`, solo cifras; la escribe el servidor cada noche y cada hora). Los días ya vistos se guardan en el
+// navegador: solo se piden los posteriores al antepenúltimo guardado (hoy cambia cada hora y ayer se cierra a las 00:10). La primera
+// vez se leen todos los días (unos cientos de documentos pequeños); después, dos o tres por apertura.
+const STATS_CACHE = "cago_admin_stats_v1";
+export async function adminLoadStats({ fresh = false } = {}){
+  let cache = {};
+  if (!fresh) try{ cache = JSON.parse(localStorage.getItem(STATS_CACHE) || "{}"); }catch(e){ cache = {}; }
+  const keys = Object.keys(cache).sort();
+  const from = keys.length > 2 ? keys[keys.length - 3] : "";
+  const s = await getDocs(from ? query(collection(db,"statsDaily"), where("day", ">", from)) : collection(db,"statsDaily"));
+  for (const d of s.docs){ const x = d.data(); delete x.computedAt; cache[d.id] = x; }
+  try{ localStorage.setItem(STATS_CACHE, JSON.stringify(cache)); }catch(e){}
+  return { days: Object.keys(cache).sort().map(k => cache[k]), leidos: s.size, guardados: keys.length, loadedAt: Date.now() };
+}
 export async function adminListGroups(){
   const s = await getDocs(collection(db,"groups"));
   return s.docs.map(d => ({ id:d.id, ...d.data() }));

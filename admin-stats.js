@@ -244,3 +244,95 @@ export function usersCsv(rows) {
     r.device.kind, r.device.platform || "", r.notifOn ? 1 : 0, r.geo ? 1 : 0, r.shareMap ? 1 : 0, r.bristol ? 1 : 0, r.termsOk ? 1 : 0, r.suspended ? 1 : 0].map(esc).join(","));
   return [head.join(","), ...lines].join("\n");
 }
+
+/* ============================================================
+   Crecimiento (resumen del panel): sale SOLO de la foto diaria `statsDaily` (cifras, sin nombres). Puro: se prueba en
+   rules-tests/admin-stats.test.js.
+   ============================================================ */
+const WD_SHORT = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const keyDate = k => { const [y, m, d] = k.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d, 12)); };
+/** 0 = lunes … 6 = domingo, del día AAAA-MM-DD. */
+export const weekdayOfKey = k => (keyDate(k).getUTCDay() + 6) % 7;
+const short = k => { const d = keyDate(k); return `${d.getUTCDate()}/${d.getUTCMonth() + 1}`; };
+const long = k => { const d = keyDate(k); return `${WD_SHORT[weekdayOfKey(k)]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+const mondayOf = k => { const d = keyDate(k); d.setUTCDate(d.getUTCDate() - weekdayOfKey(k)); return d.toISOString().slice(0, 10); };
+const pctOf = (a, b) => (b ? Math.round((1000 * a) / b) / 10 : null);
+const sumOf = a => a.reduce((x, y) => x + (y || 0), 0);
+
+/** Agrupa días en cubos (día o semana). Para flujos se suma; para existencias, el último valor; para medias, la media. */
+function bucketize(days, by) {
+  if (by === "day") return days.map(d => ({ key: d.day, x: short(d.day), xFull: long(d.day) + (d.parcial ? " (hoy, en curso)" : ""), days: [d] }));
+  const m = new Map();
+  for (const d of days) { const k = mondayOf(d.day); (m.get(k) || m.set(k, []).get(k)).push(d); }
+  return [...m].map(([k, ds]) => ({ key: k, x: short(k), xFull: `semana del ${long(k)}`, days: ds }));
+}
+
+/** Todo lo que pinta el resumen para un rango (`range` en días, o 0 = todo). */
+export function growth(all, { range = 90 } = {}) {
+  const days = (all || []).filter(d => d && d.day).sort((a, b) => (a.day < b.day ? -1 : 1));
+  if (!days.length) return null;
+  const cur = range ? days.slice(-range) : days;
+  const prev = range ? days.slice(-2 * range, -range) : [];
+  const by = cur.length > 120 ? "week" : "day";
+  // el día de hoy va por la mitad: fuera de las gráficas (hundiría el final de las líneas); sí cuenta en las cifras de arriba
+  const B = bucketize(cur.filter(d => !d.parcial), by);
+  const last = arr => arr[arr.length - 1];
+  const flow = f => B.map(b => sumOf(b.days.map(f)));
+  const stock = f => B.map(b => { const v = last(b.days.filter(d => f(d) != null)); return v ? f(v) : null; });
+  const avg = f => B.map(b => { const vs = b.days.map(f).filter(v => v != null); return vs.length ? sumOf(vs) / vs.length : null; });
+  const x = B.map(b => b.x), xFull = B.map(b => b.xFull);
+
+  const cacas = flow(d => d.cacas?.total);
+  const ma = cacas.map((_, i) => (i >= 6 ? sumOf(cacas.slice(i - 6, i + 1)) / 7 : null));
+  const dau = avg(d => d.activos?.dia);
+  const heat = Array.from({ length: 7 }, () => Array(24).fill(0)), hours = Array(24).fill(0), wdN = Array(7).fill(0), wdSum = Array(7).fill(0);
+  for (const d of cur) {
+    const w = weekdayOfKey(d.day); wdN[w]++; wdSum[w] += d.cacas?.total || 0;
+    (d.cacas?.porHora || []).forEach((v, h) => { heat[w][h] += v || 0; hours[h] += v || 0; });
+  }
+  // avisos por tipo: los 6 con más envíos y el resto en «otros» (nunca un color generado)
+  const tipos = {}; cur.forEach(d => Object.entries(d.avisos || {}).forEach(([t, n]) => { tipos[t] = (tipos[t] || 0) + n; }));
+  const top = Object.entries(tipos).sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  const shown = top.slice(0, 6), rest = top.slice(6);
+  const avisos = [...shown.map(t => ({ name: t, values: flow(d => d.avisos?.[t]) })), ...(rest.length ? [{ name: "otros", values: flow(d => sumOf(rest.map(t => d.avisos?.[t]))) }] : [])];
+  const recs = {}; cur.forEach(d => Object.entries(d.recordatorios || {}).forEach(([t, r]) => { const a = (recs[t] ??= { enviados: 0, apuntaronDespues: 0 }); a.enviados += r.enviados || 0; a.apuntaronDespues += r.apuntaronDespues || 0; }));
+
+  const lastDay = last(days), firstReal = days.find(d => !d.estimado);
+  const nuevos = sumOf(cur.map(d => d.usuarios?.nuevos)), nuevosPrev = sumOf(prev.map(d => d.usuarios?.nuevos));
+  const cacasCur = sumOf(cur.map(d => d.cacas?.total)), cacasPrev = sumOf(prev.map(d => d.cacas?.total));
+  const dauAvg = cur.length ? sumOf(cur.map(d => d.activos?.dia)) / cur.length : 0, dauPrev = prev.length ? sumOf(prev.map(d => d.activos?.dia)) / prev.length : null;
+  const change = (a, b) => (b ? Math.round(((a - b) / b) * 100) : null);
+  return {
+    by, x, xFull, range, desde: cur[0].day, hasta: lastDay.day, parcialHoy: !!lastDay.parcial, datosReales: firstReal?.day || null,
+    tiles: {
+      usuarios: lastDay.usuarios?.total ?? null, nuevos, nuevosCambio: prev.length ? change(nuevos, nuevosPrev) : null,
+      bajas: sumOf(cur.map(d => d.usuarios?.bajas)), hayBajas: cur.some(d => d.usuarios?.bajas != null),
+      activosHoy: lastDay.activos?.dia ?? null, activosSemana: last(days.filter(d => d.activos?.semana != null))?.activos.semana ?? null,
+      activosMes: last(days.filter(d => d.activos?.mes != null))?.activos.mes ?? null,
+      dauMedia: Math.round(dauAvg * 10) / 10, dauCambio: dauPrev != null ? change(dauAvg, dauPrev) : null,
+      cacas: cacasCur, cacasCambio: prev.length ? change(cacasCur, cacasPrev) : null, cacasHoy: lastDay.cacas?.total ?? 0,
+      porActivo: lastDay.cacas?.porActivo ?? null, sinCacas: last(days.filter(d => d.usuarios?.sinCacas != null))?.usuarios.sinCacas ?? null,
+    },
+    usuarios: stock(d => d.usuarios?.total), nuevosSerie: flow(d => d.usuarios?.nuevos), bajasSerie: flow(d => d.usuarios?.bajas),
+    activos: { dia: dau, semana: stock(d => d.activos?.semana), mes: stock(d => d.activos?.mes) },
+    fidelidad: B.map(b => { const v = last(b.days.filter(d => d.activos?.mes)); return v ? pctOf(v.activos.dia, v.activos.mes) : null; }),
+    cacas, ma, porActivo: avg(d => d.cacas?.porActivo),
+    olvidadas: B.map(b => pctOf(sumOf(b.days.map(d => d.cacas?.olvidadas)), sumOf(b.days.map(d => d.cacas?.total)))),
+    ubicacion: B.map(b => pctOf(sumOf(b.days.map(d => d.cacas?.conUbicacion)), sumOf(b.days.map(d => d.cacas?.total)))),
+    origen: { app: flow(d => d.cacas?.app), web: flow(d => d.cacas?.web) },
+    plataformas: ["iphone", "android", "nativaSinVersion", "webConAvisos", "webAbierta30d"].map(k => ({ key: k, values: stock(d => d.plataformas?.[k]) })),
+    amistades: stock(d => d.social?.amistades), grupos: stock(d => d.social?.grupos), mensajes: flow(d => d.social?.mensajes),
+    avisos, recordatorios: recs,
+    heat, hours, weekdays: wdSum.map((s, i) => (wdN[i] ? Math.round((s / wdN[i]) * 10) / 10 : 0)),
+  };
+}
+
+/** CSV de la foto diaria (una fila por día; para hojas de cálculo). */
+export function statsCsv(all) {
+  const cols = [["día", d => d.day], ["estimado", d => (d.estimado ? "sí" : "")], ["usuarios", d => d.usuarios?.total], ["altas", d => d.usuarios?.nuevos], ["bajas", d => d.usuarios?.bajas],
+    ["activos día", d => d.activos?.dia], ["activos semana", d => d.activos?.semana], ["activos mes", d => d.activos?.mes], ["cacas", d => d.cacas?.total],
+    ["olvidadas", d => d.cacas?.olvidadas], ["con ubicación", d => d.cacas?.conUbicacion], ["desde la web", d => d.cacas?.web], ["amistades", d => d.social?.amistades],
+    ["grupos", d => d.social?.grupos], ["mensajes", d => d.social?.mensajes]];
+  return [cols.map(c => c[0]).join(";"), ...(all || []).map(d => cols.map(c => c[1](d) ?? "").join(";"))].join("\n");
+}
